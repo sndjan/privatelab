@@ -25,9 +25,21 @@ async function ModuleContent({ params }: Pick<PageProps<"/m/[module]">, "params"
     .eq("id", moduleId)
     .maybeSingle();
 
+  const user = await getCurrentUser();
   if (!row) {
-    if (!(await getCurrentUser())) redirect(`/login?next=/m/${moduleId}`);
+    if (!user) redirect(`/login?next=/m/${moduleId}`);
     notFound();
+  }
+
+  let hasAccess = user?.isAdmin ?? false;
+  if (user && !hasAccess) {
+    const { data: access } = await supabase
+      .from("module_access")
+      .select("module_id")
+      .eq("user_id", user.id)
+      .eq("module_id", moduleId)
+      .maybeSingle();
+    hasAccess = Boolean(access);
   }
 
   const { Page } = definition;
@@ -43,7 +55,7 @@ async function ModuleContent({ params }: Pick<PageProps<"/m/[module]">, "params"
           </span>
         )}
       </header>
-      <Page />
+      <Page user={user} hasAccess={hasAccess} />
     </div>
   );
 }

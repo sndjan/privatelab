@@ -3,6 +3,9 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --text-muted: #6b6b66;
+  --grid: #e7e6e2;
+  --series-1: #2a78d6;
 }
 
 @theme inline {
@@ -16,6 +19,9 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --text-muted: #a3a29b;
+    --grid: #2a2a28;
+    --series-1: #3987e5;
   }
 }
 

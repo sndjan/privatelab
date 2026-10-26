@@ -2,15 +2,23 @@
 // src/modules/<id>/ with a default-exported page component, and a row in
 // public.modules (see supabase/migrations).
 import type { ComponentType } from "react";
+import type { CurrentUser } from "@/lib/auth";
 import BooksModule from "./books";
 import FireModule from "./fire";
+
+export type ModulePageProps = {
+  user: CurrentUser | null;
+  // True for admins and users with a module_access row. False for visitors
+  // of a public module.
+  hasAccess: boolean;
+};
 
 export type ModuleDefinition = {
   id: string;
   name: string;
   description: string;
   icon: string;
-  Page: ComponentType;
+  Page: ComponentType<ModulePageProps>;
 };
 
 export const modules: ModuleDefinition[] = [

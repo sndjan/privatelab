@@ -6,13 +6,15 @@ A personal sandbox that hosts small apps ("modules") in one Next.js app with one
 - **Per-user module access:** the admin decides which user may open which module (e.g. friend A gets FIRE, friend B does not). Enforced by row level security in the database, not just the UI.
 - **Public or private modules:** a module can be made public so anyone can view it without signing in.
 
-Modules so far (placeholders): 📚 Books, 🔥 FIRE.
+Modules:
+- 🔥 **FIRE**: accounts, monthly balances, net worth chart, FIRE number, progress and a "what if" projection. Visitors of a public FIRE module get the calculator only.
+- 📚 **Books**: placeholder.
 
 ## Setup
 
 1. **Install:** `npm install`
 2. **Supabase project:** create one (or reuse yours) and copy `.env.example` to `.env.local` with the project URL, publishable key and secret key (Project settings → API keys).
-3. **Database:** run `supabase/migrations/20261026000000_core.sql`, either with `supabase db push` (CLI, linked project) or by pasting it into the SQL editor.
+3. **Database:** run the files in `supabase/migrations/` in order, either with `supabase db push` (CLI, linked project) or by pasting them into the SQL editor.
 4. **Auth settings** (Dashboard → Authentication):
    - Turn off **Allow new users to sign up**.
    - Under URL configuration, set the Site URL and add `http://localhost:3000/auth/callback` (plus your production URL) to the redirect URLs.
