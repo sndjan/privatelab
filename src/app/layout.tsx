@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
 import { Suspense } from "react";
+import { Logo } from "@/components/logo";
 import { ServiceWorker } from "@/components/service-worker";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
@@ -39,7 +40,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col">
         <header className="border-b bg-card">
           <nav className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2">
-            <Link href="/" className="font-semibold">
+            <Link href="/" className="flex items-center gap-2 font-semibold">
+              <Logo />
               Private Lab
             </Link>
             <div className="ml-auto flex items-center gap-1">
