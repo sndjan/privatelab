@@ -8,6 +8,7 @@ A personal sandbox that hosts small apps ("modules") in one Next.js app with one
 
 Modules:
 - 🔥 **FIRE**: net worth overview with progress to your FIRE number, net worth chart, accounts with allocation, a "what if" savings slider, monthly balances and plan settings. Visitors of a public FIRE module get the calculator only.
+- 🧳 **Packliste**: packing lists between places (e.g. home ↔ uni). Reusable templates start dated runs; items can depend on conditions (winter, gym, rain…); items flagged as forgotten are pinned to the top next time; an inventory per place hides what is already at the destination. An empty module offers starter templates for Bellenberg ↔ Stuttgart.
 - 📚 **Books**: placeholder.
 
 ## Setup

@@ -5,15 +5,15 @@ import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getModule } from "@/modules/registry";
 
-export default function ModulePage({ params }: PageProps<"/m/[module]">) {
+export default function ModulePage({ params, searchParams }: PageProps<"/m/[module]">) {
   return (
     <Suspense fallback={<p className="text-muted-foreground">Lädt …</p>}>
-      <ModuleContent params={params} />
+      <ModuleContent params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function ModuleContent({ params }: Pick<PageProps<"/m/[module]">, "params">) {
+async function ModuleContent({ params, searchParams }: PageProps<"/m/[module]">) {
   const { module: moduleId } = await params;
   const definition = getModule(moduleId);
   if (!definition) notFound();
@@ -54,7 +54,7 @@ async function ModuleContent({ params }: Pick<PageProps<"/m/[module]">, "params"
         <h1 className="text-2xl font-semibold tracking-tight">{definition.name}</h1>
         {row.visibility === "public" && <Badge variant="outline">öffentlich</Badge>}
       </header>
-      <Page user={user} hasAccess={hasAccess} />
+      <Page user={user} hasAccess={hasAccess} searchParams={searchParams} />
     </div>
   );
 }

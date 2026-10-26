@@ -5,12 +5,15 @@ import type { ComponentType } from "react";
 import type { CurrentUser } from "@/lib/auth";
 import BooksModule from "./books";
 import FireModule from "./fire";
+import PackingModule from "./packing";
 
 export type ModulePageProps = {
   user: CurrentUser | null;
   // True for admins and users with a module_access row. False for visitors
   // of a public module.
   hasAccess: boolean;
+  // The page's query string, for modules with several views.
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export type ModuleDefinition = {
@@ -35,6 +38,13 @@ export const modules: ModuleDefinition[] = [
     description: "Vermögen, Sparquote und der Weg zur finanziellen Unabhängigkeit.",
     icon: "🔥",
     Page: FireModule,
+  },
+  {
+    id: "packing",
+    name: "Packliste",
+    description: "Packlisten für die Fahrt zwischen Zuhause und Uni, mit Vorlagen und Inventar.",
+    icon: "🧳",
+    Page: PackingModule,
   },
 ];
 
