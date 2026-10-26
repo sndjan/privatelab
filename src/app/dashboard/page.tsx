@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ModuleGrid } from "@/components/module-grid";
+import { PlannedModules } from "@/components/planned-modules";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { modules } from "@/modules/registry";
+import { modules, plannedModules } from "@/modules/registry";
 
 export default function DashboardPage() {
   return (
@@ -25,5 +26,10 @@ async function VisibleModules() {
   const { data } = await supabase.from("modules").select("id");
   const visibleIds = new Set((data ?? []).map((row) => row.id));
 
-  return <ModuleGrid modules={modules.filter((module) => visibleIds.has(module.id))} />;
+  return (
+    <div className="space-y-12">
+      <ModuleGrid modules={modules.filter((module) => visibleIds.has(module.id))} />
+      {user.isAdmin && <PlannedModules modules={plannedModules} />}
+    </div>
+  );
 }

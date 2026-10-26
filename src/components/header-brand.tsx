@@ -9,7 +9,7 @@ import { moduleMeta } from "@/modules/meta";
 export function HeaderBrand() {
   const pathname = usePathname();
   const moduleId = pathname.match(/^\/m\/([^/]+)/)?.[1];
-  const current = moduleMeta.find((meta) => meta.id === moduleId);
+  const current = moduleMeta.find((meta) => meta.id === moduleId && meta.status === "live");
 
   return (
     <div className="flex min-w-0 items-center gap-2">

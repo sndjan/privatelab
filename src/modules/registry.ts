@@ -1,11 +1,11 @@
-// Every module of the app. To add one: add its name and icon in meta.ts, a
-// folder under src/modules/<id>/ with a default-exported page component
-// (attached below), and a row in public.modules (see supabase/migrations).
+// Every live module of the app. To add one: add (or switch to "live") its
+// entry in meta.ts, a folder under src/modules/<id>/ with a default-exported
+// page component (attached below), and a row in public.modules (see
+// supabase/migrations).
 import type { ComponentType } from "react";
 import type { CurrentUser } from "@/lib/auth";
-import BooksModule from "./books";
 import FireModule from "./fire";
-import { moduleMeta, type ModuleId, type ModuleMeta } from "./meta";
+import { moduleMeta, type ModuleMeta } from "./meta";
 import PackingModule from "./packing";
 
 export type ModulePageProps = {
@@ -21,13 +21,21 @@ export type ModuleDefinition = ModuleMeta & {
   Page: ComponentType<ModulePageProps>;
 };
 
-const pages: Record<ModuleId, ComponentType<ModulePageProps>> = {
-  books: BooksModule,
+const pages: Record<string, ComponentType<ModulePageProps>> = {
   fire: FireModule,
   packing: PackingModule,
 };
 
-export const modules: ModuleDefinition[] = moduleMeta.map((meta) => ({ ...meta, Page: pages[meta.id] }));
+export const modules: ModuleDefinition[] = moduleMeta
+  .filter((meta) => meta.status === "live")
+  .map((meta) => {
+    const Page = pages[meta.id];
+    if (!Page) throw new Error(`Live module "${meta.id}" has no page in registry.ts`);
+    return { ...meta, Page };
+  });
+
+// Ideas that aren't built yet, shown to admins on the dashboard.
+export const plannedModules = moduleMeta.filter((meta) => meta.status === "planned");
 
 export function getModule(id: string) {
   return modules.find((module) => module.id === id);

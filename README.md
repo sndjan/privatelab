@@ -9,7 +9,7 @@ A personal sandbox that hosts small apps ("modules") in one Next.js app with one
 Modules:
 - 🔥 **FIRE**: net worth overview with progress to your FIRE number, net worth chart, accounts with allocation, a "what if" savings slider, monthly balances and plan settings. Visitors of a public FIRE module get the calculator only.
 - 🧳 **Packliste**: packing lists between places (e.g. home ↔ uni). Reusable templates start dated runs; items can depend on conditions (winter, gym, rain…); items flagged as forgotten are pinned to the top next time; an inventory per place hides what is already at the destination. An empty module offers starter templates for Bellenberg ↔ Stuttgart.
-- 📚 **Books**: placeholder.
+- **Planned modules** (not implemented, listed in `src/modules/meta.ts` with `status: "planned"` and shown to admins on the dashboard): Bücherregal, Geschenke-Liste, Wunsch-Liste, Spielesammlung, Coding-Projekte, Arbeitszeit-Tracker, Gesundheit-Dashboard, Visionboard, Digital Journal, Daily Images to Collage, Spiele-Olympiade, Escape Room Website, Enigma, Easy to Hard Game, Hitster mit Ländern, Guess the Fame, Coding Clicker, AI Anki Generator, History of City / Reisefakten.
 
 ## Setup
 
@@ -38,8 +38,8 @@ Policies use `private.has_module_access(module_id)`, which is true for admins an
 
 ## Adding a module
 
-1. Create `src/modules/<id>/index.tsx` with a default-exported component.
-2. Register it in `src/modules/registry.ts`.
+1. Add it to `src/modules/meta.ts` (or switch a planned entry to `status: "live"`).
+2. Create `src/modules/<id>/index.tsx` with a default-exported component and attach it in `src/modules/registry.ts`.
 3. Add a migration that inserts the row into `public.modules` and creates the module's tables with RLS enabled.
 
 The module is then served at `/m/<id>` and appears on the dashboard and admin page.
