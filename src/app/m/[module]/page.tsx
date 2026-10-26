@@ -1,6 +1,5 @@
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
-import { Badge } from "@/components/ui/badge";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getModule } from "@/modules/registry";
@@ -47,13 +46,8 @@ async function ModuleContent({ params, searchParams }: PageProps<"/m/[module]">)
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center gap-3">
-        <span aria-hidden="true" className="text-3xl">
-          {definition.icon}
-        </span>
-        <h1 className="text-2xl font-semibold tracking-tight">{definition.name}</h1>
-        {row.visibility === "public" && <Badge variant="outline">öffentlich</Badge>}
-      </header>
+      {/* The module's name is shown in the site header. */}
+      <h1 className="sr-only">{definition.name}</h1>
       <Page user={user} hasAccess={hasAccess} searchParams={searchParams} />
     </div>
   );

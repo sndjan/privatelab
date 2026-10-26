@@ -56,7 +56,7 @@ export function WhatIf({ netWorth, startMonth, settings }: Props) {
   }[tone];
 
   return (
-    <Card className="min-w-0 flex-[1_1_420px]">
+    <Card className="min-w-0 flex-[1_1_320px]">
       <CardHeader>
         <CardTitle className="text-lg">
           <h2>Was wäre, wenn …</h2>
@@ -88,7 +88,7 @@ export function WhatIf({ netWorth, startMonth, settings }: Props) {
         <dl className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1 rounded-lg bg-muted p-4">
             <dt className="text-[13px] text-muted-foreground">Unabhängig ab</dt>
-            <dd className="font-mono text-[22px] font-medium">
+            <dd className="font-mono text-lg font-medium sm:text-[22px]">
               {months === null
                 ? "Nicht in 100 J."
                 : months === 0
@@ -101,7 +101,7 @@ export function WhatIf({ netWorth, startMonth, settings }: Props) {
           </div>
           <div className="flex flex-col gap-1 rounded-lg bg-muted p-4">
             <dt className="text-[13px] text-muted-foreground">Sparquote</dt>
-            <dd className="font-mono text-[22px] font-medium">{savingsRate(savings, settings.monthlyIncome)} %</dd>
+            <dd className="font-mono text-lg font-medium sm:text-[22px]">{savingsRate(savings, settings.monthlyIncome)} %</dd>
             <dd className="text-xs text-muted-foreground">{formatMoney(savings)} / Monat</dd>
           </div>
         </dl>

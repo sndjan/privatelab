@@ -1,0 +1,123 @@
+"use client";
+
+import { MessageSquareIcon } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { sendFeedback } from "@/app/feedback/actions";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
+const kinds = [
+  { value: "bug", label: "Fehler" },
+  { value: "idea", label: "Idee" },
+  { value: "other", label: "Sonstiges" },
+];
+
+// Header button that opens a form for bugs, ideas and other feedback.
+// The current page is sent along so it's clear what the feedback is about.
+export function Feedback() {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState("idea");
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState(false);
+
+  async function send(formData: FormData) {
+    setError(false);
+    formData.set("userAgent", navigator.userAgent);
+    try {
+      await sendFeedback(formData);
+      setSent(true);
+    } catch {
+      setError(true);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setSent(false);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="ghost" className="text-muted-foreground" aria-label="Feedback geben">
+          <MessageSquareIcon />
+          <span className="hidden sm:inline">Feedback</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        {sent ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Danke!</DialogTitle>
+              <DialogDescription>Dein Feedback ist angekommen.</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button>Schließen</Button>
+              </DialogClose>
+            </DialogFooter>
+          </>
+        ) : (
+          <form action={send} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Feedback</DialogTitle>
+              <DialogDescription>Was funktioniert nicht, was fehlt dir, was wünschst du dir?</DialogDescription>
+            </DialogHeader>
+            <input type="hidden" name="kind" value={kind} />
+            <input type="hidden" name="page" value={pathname} />
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              value={kind}
+              onValueChange={(value) => value && setKind(value)}
+              aria-label="Art"
+              className="w-full"
+            >
+              {kinds.map((option) => (
+                <ToggleGroupItem key={option.value} value={option.value} className="h-10">
+                  {option.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            <div className="space-y-2">
+              <Label htmlFor="feedback-message">Nachricht</Label>
+              <Textarea
+                id="feedback-message"
+                name="message"
+                required
+                maxLength={4000}
+                rows={5}
+                className="min-h-32"
+                placeholder={kind === "bug" ? "Was ist passiert, und was hättest du erwartet?" : "Erzähl …"}
+              />
+            </div>
+            {error && <p className="text-sm text-destructive">Das hat nicht geklappt. Versuch es bitte noch einmal.</p>}
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="ghost">
+                  Abbrechen
+                </Button>
+              </DialogClose>
+              <Button>Senden</Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

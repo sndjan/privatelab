@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { formatCompactMoney, formatMoney, formatMonth } from "./calc";
 
@@ -59,31 +59,30 @@ export function NetWorthChart({ points: allPoints, target }: { points: Point[]; 
 
   return (
     <Card aria-labelledby="chart-heading" role="region">
-      <CardHeader>
+      {/* Title and range buttons wrap onto two lines on narrow screens. */}
+      <CardHeader className="flex flex-wrap items-center justify-between gap-3">
         <CardTitle id="chart-heading" className="text-lg">
           <h2>Vermögen im Zeitverlauf</h2>
         </CardTitle>
-        <CardAction>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            aria-label="Zeitraum"
-            value={range.value}
-            onValueChange={(value) => {
-              const next = ranges.find((option) => option.value === value);
-              if (!next) return;
-              setRange(next);
-              setActive(null);
-            }}
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          size="sm"
+          aria-label="Zeitraum"
+          value={range.value}
+          onValueChange={(value) => {
+            const next = ranges.find((option) => option.value === value);
+            if (!next) return;
+            setRange(next);
+            setActive(null);
+          }}
           >
-            {ranges.map((option) => (
-              <ToggleGroupItem key={option.value} value={option.value} className="px-3">
-                {option.label}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-        </CardAction>
+          {ranges.map((option) => (
+            <ToggleGroupItem key={option.value} value={option.value} className="px-3">
+              {option.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       </CardHeader>
       <CardContent ref={containerRef}>
         {points.length === 0 ? (

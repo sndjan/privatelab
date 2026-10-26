@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
 import { Suspense } from "react";
-import { Logo } from "@/components/logo";
+import { Feedback } from "@/components/feedback";
+import { HeaderBrand, HeaderBrandFallback } from "@/components/header-brand";
 import { ServiceWorker } from "@/components/service-worker";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
@@ -40,10 +41,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col">
         <header className="border-b bg-card">
           <nav className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2">
-            <Link href="/" className="flex items-center gap-2 font-semibold">
-              <Logo />
-              Private Lab
-            </Link>
+            {/* The module name needs the URL, which is only known per request. */}
+            <Suspense fallback={<HeaderBrandFallback />}>
+              <HeaderBrand />
+            </Suspense>
             <div className="ml-auto flex items-center gap-1">
               <Suspense>
                 <NavActions />
@@ -71,6 +72,7 @@ async function NavActions() {
 
   return (
     <>
+      <Feedback />
       {user.isAdmin && (
         <Button asChild variant="ghost">
           <Link href="/admin">Admin</Link>

@@ -10,7 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { modules } from "@/modules/registry";
+import { deleteFeedback, setFeedbackStatus } from "../feedback/actions";
 import { inviteUser, removeUser, setModuleAccess, setModuleVisibility } from "./actions";
+
+const feedbackKinds: Record<string, string> = { bug: "Fehler", idea: "Idee", other: "Sonstiges" };
 
 export default function AdminPage() {
   return (
@@ -24,14 +27,22 @@ async function AdminContent() {
   const currentUser = await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: profiles }, { data: access }, { data: moduleRows }] = await Promise.all([
+  const [{ data: profiles }, { data: access }, { data: moduleRows }, { data: feedbackRows }] = await Promise.all([
     supabase.from("profiles").select("id, email, is_admin").order("created_at"),
     supabase.from("module_access").select("user_id, module_id"),
     supabase.from("modules").select("id, visibility"),
+    supabase
+      .from("feedback")
+      .select("id, user_id, kind, message, page, status, created_at")
+      .order("created_at", { ascending: false })
+      .limit(100),
   ]);
 
   const hasAccess = new Set((access ?? []).map((row) => `${row.user_id}:${row.module_id}`));
   const visibility = new Map((moduleRows ?? []).map((row) => [row.id, row.visibility]));
+  const emails = new Map((profiles ?? []).map((profile) => [profile.id, profile.email]));
+  const feedback = [...(feedbackRows ?? [])].sort((a, b) => Number(a.status === "done") - Number(b.status === "done"));
+  const openFeedback = feedback.filter((entry) => entry.status === "new").length;
 
   return (
     <div className="space-y-8">
@@ -168,6 +179,61 @@ async function AdminContent() {
               );
             })}
           </ul>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h2>Feedback</h2>
+          </CardTitle>
+          <CardDescription>
+            {openFeedback === 1 ? "1 offener Eintrag" : `${openFeedback} offene Einträge`}. Alles liegt auch in der
+            Tabelle <code className="font-mono">public.feedback</code> in Supabase.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {feedback.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Noch kein Feedback.</p>
+          ) : (
+            <ul className="divide-y">
+              {feedback.map((entry) => {
+                const done = entry.status === "done";
+                return (
+                  <li key={entry.id} className={`flex flex-col gap-2 py-3 sm:flex-row sm:items-start ${done ? "text-muted-foreground" : ""}`}>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant={entry.kind === "bug" ? "destructive" : "secondary"}>
+                          {feedbackKinds[entry.kind] ?? entry.kind}
+                        </Badge>
+                        <span>{emails.get(entry.user_id) ?? "gelöschte Person"}</span>
+                        {entry.page && <span className="font-mono">{entry.page}</span>}
+                        <span>
+                          {new Date(entry.created_at).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })}
+                        </span>
+                      </div>
+                      <p className={`whitespace-pre-wrap ${done ? "line-through" : ""}`}>{entry.message}</p>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <form action={setFeedbackStatus}>
+                        <input type="hidden" name="feedbackId" value={entry.id} />
+                        <input type="hidden" name="status" value={done ? "new" : "done"} />
+                        <Button size="sm" variant="outline">
+                          {done ? "Wieder öffnen" : "Erledigt"}
+                        </Button>
+                      </form>
+                      <form action={deleteFeedback}>
+                        <input type="hidden" name="feedbackId" value={entry.id} />
+                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive">
+                          Löschen
+                        </Button>
+                      </form>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </CardContent>
       </Card>
     </div>

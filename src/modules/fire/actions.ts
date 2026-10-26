@@ -51,6 +51,37 @@ export async function addAccount(formData: FormData) {
   revalidatePath(PATH);
 }
 
+// Sets or clears (empty field) the hand-set FIRE number.
+export async function saveTarget(formData: FormData) {
+  const user = await requireUser();
+  const raw = String(formData.get("target") ?? "").trim();
+  const target = raw === "" ? null : toNumber(raw);
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("fire_settings")
+    .upsert({ user_id: user.id, target: target && target > 0 ? target : null, updated_at: new Date().toISOString() });
+  if (error) throw new Error(error.message);
+
+  revalidatePath(PATH);
+}
+
+export async function updateAccount(formData: FormData) {
+  await requireUser();
+  const name = String(formData.get("name") ?? "").trim();
+  const kind = String(formData.get("kind"));
+  if (!name || !accountKinds.some((option) => option.value === kind)) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("fire_accounts")
+    .update({ name, kind })
+    .eq("id", String(formData.get("accountId")));
+  if (error) throw new Error(error.message);
+
+  revalidatePath(PATH);
+}
+
 export async function setAccountArchived(formData: FormData) {
   await requireUser();
   const supabase = await createClient();
@@ -78,23 +109,40 @@ export async function deleteAccount(formData: FormData) {
 }
 
 // Saves the balances of all listed accounts for one month (input type="month").
+// Empty fields are skipped, or, when editing a month (replace=true), remove
+// that account's entry for the month.
 export async function saveBalances(formData: FormData) {
-  await requireUser();
+  const user = await requireUser();
   const month = String(formData.get("month") ?? "");
   if (!/^\d{4}-\d{2}$/.test(month)) return;
+  const replace = formData.get("replace") === "true";
 
-  const rows = [...formData.entries()]
-    .filter(([key, value]) => key.startsWith("balance:") && String(value).trim() !== "")
+  const fields = [...formData.entries()].filter(([key]) => key.startsWith("balance:"));
+  const rows = fields
+    .filter(([, value]) => String(value).trim() !== "")
     .map(([key, value]) => ({
       account_id: key.slice("balance:".length),
       month: `${month}-01`,
       balance: toNumber(value),
     }));
-  if (rows.length === 0) return;
+  const cleared = replace
+    ? fields.filter(([, value]) => String(value).trim() === "").map(([key]) => key.slice("balance:".length))
+    : [];
 
   const supabase = await createClient();
-  const { error } = await supabase.from("fire_balances").upsert(rows);
-  if (error) throw new Error(error.message);
+  if (rows.length > 0) {
+    const { error } = await supabase.from("fire_balances").upsert(rows);
+    if (error) throw new Error(error.message);
+  }
+  if (cleared.length > 0) {
+    const { error } = await supabase
+      .from("fire_balances")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("month", `${month}-01`)
+      .in("account_id", cleared);
+    if (error) throw new Error(error.message);
+  }
 
   revalidatePath(PATH);
 }

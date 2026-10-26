@@ -44,6 +44,17 @@ Policies use `private.has_module_access(module_id)`, which is true for admins an
 
 The module is then served at `/m/<id>` and appears on the dashboard and admin page.
 
+## Feedback
+
+Signed-in users can send feedback (Fehler / Idee / Sonstiges) from the header; the page they were on is saved with it. Admins see it at the bottom of `/admin`. To pull it from Supabase, e.g. in the SQL editor:
+
+```sql
+select f.created_at, p.email, f.kind, f.page, f.message
+from public.feedback f left join public.profiles p on p.id = f.user_id
+where f.status = 'new'
+order by f.created_at;
+```
+
 ## UI
 
 Components come from [shadcn/ui](https://ui.shadcn.com) (new-york style) and live in `src/components/ui/`. Add more with `npx shadcn@latest add <component>`. The theme is in `src/app/globals.css`: the standard shadcn tokens plus `brand` (deep green) and a few FIRE-specific colors; dark mode follows the system setting.

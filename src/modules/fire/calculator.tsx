@@ -41,8 +41,8 @@ export function Calculator({ netWorth: initialNetWorth, startMonth, settings: in
   }
 
   return (
-    <div className="flex flex-wrap items-stretch gap-6">
-      <Card className="min-w-0 flex-[1_1_380px]">
+    <div className="flex flex-wrap items-stretch gap-4 sm:gap-6">
+      <Card className="min-w-0 flex-[1_1_320px]">
         <CardContent>
           <form className="grid gap-4 sm:grid-cols-2">
             <NumberField
@@ -86,11 +86,11 @@ export function Calculator({ netWorth: initialNetWorth, startMonth, settings: in
       <section
         aria-label="Ergebnis"
         aria-live="polite"
-        className="flex min-w-0 flex-[1_1_420px] flex-col gap-7 rounded-xl bg-hero p-8 text-hero-foreground"
+        className="flex min-w-0 flex-[1_1_420px] flex-col gap-6 rounded-xl bg-hero p-5 text-hero-foreground sm:gap-7 sm:p-8"
       >
         <div className="flex flex-col gap-2">
           <span className="text-sm text-hero-muted">Finanziell unabhängig</span>
-          <span className="font-mono text-5xl leading-none font-medium tracking-tight sm:text-[56px]">
+          <span className="font-mono text-4xl leading-none font-medium tracking-tight sm:text-5xl md:text-[56px]">
             {months === null
               ? "Nicht in 100 J."
               : months === 0
@@ -117,7 +117,7 @@ export function Calculator({ netWorth: initialNetWorth, startMonth, settings: in
             indicatorClassName="bg-hero-bar"
           />
         </div>
-        <dl className="grid grid-cols-3 gap-4 border-t border-hero-track pt-5">
+        <dl className="grid grid-cols-3 gap-3 border-t border-hero-track pt-5 sm:gap-4">
           <Stat label="FIRE-Zahl" value={formatMoney(target)} />
           <Stat label="Sparen / Monat" value={formatMoney(savings)} />
           <Stat label="Sparquote" value={`${savingsRate(savings, settings.monthlyIncome)} %`} />
@@ -156,7 +156,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1">
       <dt className="text-[13px] text-hero-muted">{label}</dt>
-      <dd className="font-mono text-lg">{value}</dd>
+      <dd className="font-mono text-base break-words sm:text-lg">{value}</dd>
     </div>
   );
 }

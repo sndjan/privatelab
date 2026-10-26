@@ -7,6 +7,8 @@ export type FireSettings = {
   monthlyExpenses: number;
   withdrawalRate: number; // percent
   expectedReturn: number; // percent per year, after inflation
+  // A FIRE number set by hand; null = calculated from expenses and withdrawal rate.
+  target: number | null;
 };
 
 export const defaultSettings: FireSettings = {
@@ -14,6 +16,7 @@ export const defaultSettings: FireSettings = {
   monthlyExpenses: 0,
   withdrawalRate: 4,
   expectedReturn: 5,
+  target: null,
 };
 
 export const accountKinds: { value: AccountKind; label: string }[] = [
@@ -28,8 +31,12 @@ export function signedBalance(kind: AccountKind, balance: number) {
   return kind === "debt" ? -balance : balance;
 }
 
-export function fireNumber(settings: FireSettings) {
+export function calculatedFireNumber(settings: FireSettings) {
   return (settings.monthlyExpenses * 12) / (settings.withdrawalRate / 100);
+}
+
+export function fireNumber(settings: FireSettings) {
+  return settings.target ?? calculatedFireNumber(settings);
 }
 
 export function monthlySavings(settings: FireSettings) {

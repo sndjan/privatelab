@@ -1,5 +1,6 @@
 "use client";
 
+import { PencilIcon } from "lucide-react";
 import { useState } from "react";
 import { saveBalances } from "./actions";
 import { Button } from "@/components/ui/button";
@@ -15,16 +16,25 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatMoney, formatSignedMoney, signedBalance, type AccountKind } from "./calc";
+import { formatMoney, formatMonth, formatSignedMoney, signedBalance, type AccountKind } from "./calc";
 
 type Account = { id: string; name: string; kind: AccountKind; lastBalance: number | undefined };
 
 type Props = {
+  // lastBalance is what the month starts from: the last known balance, or
+  // when editing, the account's balance in that month.
   accounts: Account[];
   netWorth: number;
   // YYYY-MM the form starts on.
   defaultMonth: string;
+  // Editing an existing month: the month is fixed and fields start with the
+  // entered values; emptying a field removes that entry.
+  edit?: { values: Record<string, number> };
 };
+
+function formatAmount(value: number) {
+  return new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(value);
+}
 
 function monthName(month: string) {
   return new Date(`${month}-01T00:00:00`).toLocaleDateString("de-DE", { month: "long" });
@@ -42,10 +52,12 @@ function parseAmount(value: string) {
 
 // Button plus dialog to enter one month's balances. Empty fields keep the
 // account's last balance.
-export function RecordMonth({ accounts, netWorth, defaultMonth }: Props) {
+export function RecordMonth({ accounts, netWorth, defaultMonth, edit }: Props) {
+  const initialValues = () =>
+    Object.fromEntries(Object.entries(edit?.values ?? {}).map(([id, value]) => [id, formatAmount(value)]));
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(defaultMonth);
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, string>>(initialValues);
 
   const change = accounts.reduce((sum, account) => {
     const value = parseAmount(values[account.id] ?? "");
@@ -60,7 +72,6 @@ export function RecordMonth({ accounts, netWorth, defaultMonth }: Props) {
       formData.set(`balance:${account.id}`, value === null ? "" : String(value));
     }
     await saveBalances(formData);
-    setValues({});
     setOpen(false);
   }
 
@@ -69,50 +80,77 @@ export function RecordMonth({ accounts, netWorth, defaultMonth }: Props) {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next) setMonth(defaultMonth);
+        if (next) {
+          setMonth(defaultMonth);
+          setValues(initialValues());
+        }
       }}
     >
       <DialogTrigger asChild>
-        <Button>{monthName(defaultMonth)} eintragen</Button>
+        {edit ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`${formatMonth(`${defaultMonth}-01`)} bearbeiten`}
+            className="text-muted-foreground"
+          >
+            <PencilIcon />
+          </Button>
+        ) : (
+          <Button>{monthName(defaultMonth)} eintragen</Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <form action={save} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>Monat eintragen</DialogTitle>
-            <DialogDescription>Lass ein Feld leer, um den letzten Stand zu behalten.</DialogDescription>
+            <DialogTitle>{edit ? `${formatMonth(`${defaultMonth}-01`)} bearbeiten` : "Monat eintragen"}</DialogTitle>
+            <DialogDescription>
+              {edit
+                ? "Ein leeres Feld löscht den Eintrag; dann zählt der letzte bekannte Stand."
+                : "Lass ein Feld leer, um den letzten Stand zu behalten."}
+            </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-2">
-            <Label htmlFor="record-month">Monat</Label>
-            <Input
-              id="record-month"
-              type="month"
-              name="month"
-              required
-              value={month}
-              onChange={(event) => setMonth(event.target.value)}
-              className="h-11"
-            />
-          </div>
+          {edit ? (
+            <>
+              <input type="hidden" name="month" value={defaultMonth} />
+              <input type="hidden" name="replace" value="true" />
+            </>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="record-month">Monat</Label>
+              <Input
+                id="record-month"
+                type="month"
+                name="month"
+                required
+                value={month}
+                onChange={(event) => setMonth(event.target.value)}
+                className="h-11"
+              />
+            </div>
+          )}
 
           <div className="divide-y rounded-lg border px-4">
             {accounts.map((account) => (
               <div key={account.id} className="flex items-center gap-3 py-3">
-                <Label htmlFor={`record-${account.id}`} className="flex min-w-0 flex-1 flex-col items-start gap-1">
+                <Label htmlFor={`record-${defaultMonth}-${account.id}`} className="flex min-w-0 flex-1 flex-col items-start gap-1">
                   <span className="truncate">{account.name}</span>
                   <span className="text-xs font-normal text-muted-foreground">
                     {account.kind === "debt" && "Restschuld · "}
-                    {account.lastBalance === undefined ? "noch kein Stand" : `zuletzt ${formatMoney(account.lastBalance)}`}
+                    {account.lastBalance === undefined
+                      ? "noch kein Stand"
+                      : `${edit ? "bisher" : "zuletzt"} ${formatMoney(account.lastBalance)}`}
                   </span>
                 </Label>
                 <Input
-                  id={`record-${account.id}`}
+                  id={`record-${defaultMonth}-${account.id}`}
                   type="text"
                   inputMode="decimal"
                   name={`balance:${account.id}`}
                   value={values[account.id] ?? ""}
                   onChange={(event) => setValues({ ...values, [account.id]: event.target.value })}
-                  placeholder={account.lastBalance === undefined ? "" : String(account.lastBalance)}
+                  placeholder={account.lastBalance === undefined ? "" : formatAmount(account.lastBalance)}
                   className={`h-11 w-32 text-right font-mono ${account.kind === "debt" ? "text-debt" : ""}`}
                 />
               </div>
@@ -120,14 +158,14 @@ export function RecordMonth({ accounts, netWorth, defaultMonth }: Props) {
           </div>
 
           <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[13px] text-muted-foreground">Neues Vermögen</span>
+            <span className="text-[13px] text-muted-foreground">{edit ? "Vermögen in diesem Monat" : "Neues Vermögen"}</span>
             <span className="flex items-baseline gap-2.5" aria-live="polite">
               {change !== 0 && (
                 <span className={`font-mono text-[13px] ${change > 0 ? "text-brand" : "text-debt"}`}>
                   {formatSignedMoney(change)}
                 </span>
               )}
-              <span className="font-mono text-[22px] font-medium">{formatMoney(netWorth + change)}</span>
+              <span className="font-mono text-xl font-medium sm:text-[22px]">{formatMoney(netWorth + change)}</span>
             </span>
           </div>
 
