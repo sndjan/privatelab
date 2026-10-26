@@ -1,17 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { formatMoney, formatMonth } from "./calc";
+import { formatCompactMoney, formatMoney, formatMonth } from "./calc";
+import { cardClass, headingClass } from "./ui";
 
 type Point = { month: string; value: number };
 
-const HEIGHT = 240;
-const PAD = { top: 16, right: 16, bottom: 28, left: 72 };
+const HEIGHT = 260;
+const PAD = { top: 16, right: 16, bottom: 28, left: 64 };
 const MIN_LABEL_SPACING = 80;
 
 // Show the FIRE number as a reference line only while it doesn't flatten the
 // net worth line into the baseline.
 const TARGET_RANGE_FACTOR = 3;
+
+const ranges = [
+  { label: "12 mo", months: 12 },
+  { label: "3 yr", months: 36 },
+  { label: "All", months: null },
+] as const;
 
 function niceTicks(min: number, max: number, count = 4) {
   const span = max - min || 1;
@@ -24,8 +31,17 @@ function niceTicks(min: number, max: number, count = 4) {
   return ticks;
 }
 
-export function NetWorthChart({ points, target }: { points: Point[]; target: number }) {
+// Points from the last `months` months, counted back from the latest point.
+function inRange(points: Point[], months: number | null) {
+  if (months === null || points.length === 0) return points;
+  const latest = new Date(`${points[points.length - 1].month}T00:00:00`);
+  const first = new Date(latest.getFullYear(), latest.getMonth() - months + 1, 1);
+  return points.filter((point) => new Date(`${point.month}T00:00:00`) >= first);
+}
+
+export function NetWorthChart({ points: allPoints, target }: { points: Point[]; target: number }) {
   const [active, setActive] = useState<number | null>(null);
+  const [range, setRange] = useState<number | null>(12);
   const [width, setWidth] = useState(640);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -38,10 +54,57 @@ export function NetWorthChart({ points, target }: { points: Point[]; target: num
     return () => observer.disconnect();
   }, []);
 
-  if (points.length === 0) {
-    return <p className="text-sm opacity-70">Add your first monthly balances to see the chart.</p>;
-  }
+  const points = inRange(allPoints, range);
 
+  return (
+    <section aria-labelledby="chart-heading" className={`${cardClass} space-y-4`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="chart-heading" className={headingClass}>
+          Net worth over time
+        </h2>
+        <div role="group" aria-label="Range" className="flex gap-1 rounded-[10px] bg-fire-subtle p-1">
+          {ranges.map((option) => (
+            <button
+              key={option.label}
+              type="button"
+              aria-pressed={range === option.months}
+              onClick={() => {
+                setRange(option.months);
+                setActive(null);
+              }}
+              className={`min-h-9 rounded-[7px] px-3 ${
+                range === option.months ? "bg-fire-surface font-medium" : "text-fire-muted"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div ref={containerRef}>
+        {points.length === 0 ? (
+          <p className="text-sm text-fire-muted">Add your first monthly balances to see the chart.</p>
+        ) : (
+          <Plot points={points} target={target} width={width} active={active} setActive={setActive} />
+        )}
+      </div>
+    </section>
+  );
+}
+
+function Plot({
+  points,
+  target,
+  width,
+  active,
+  setActive,
+}: {
+  points: Point[];
+  target: number;
+  width: number;
+  active: number | null;
+  setActive: (index: number | null) => void;
+}) {
   const values = points.map((point) => point.value);
   const maxValue = Math.max(...values);
   const showTarget = target > 0 && target <= Math.max(maxValue, 1) * TARGET_RANGE_FACTOR;
@@ -70,18 +133,35 @@ export function NetWorthChart({ points, target }: { points: Point[]; target: num
     setActive(nearest);
   }
 
-  const activePoint = active === null ? null : points[active];
+  // Without a hovered point, the label shows the latest month.
+  const shown = active ?? last;
+  const shownPoint = points[shown];
+  const first = points[0];
+  const latest = points[last];
 
   return (
-    <figure className="space-y-2">
-      <figcaption className="text-sm font-medium">Net worth over time</figcaption>
-      <div ref={containerRef} className="relative">
-        <svg width={width} height={HEIGHT} className="block" role="img" aria-label="Net worth over time">
+    <div className="space-y-3">
+      <div className="relative">
+        <svg
+          width={width}
+          height={HEIGHT}
+          className="block"
+          role="img"
+          aria-label={`Net worth went from ${formatMoney(first.value)} in ${formatMonth(first.month)} to ${formatMoney(latest.value)} in ${formatMonth(latest.month)}`}
+        >
           {ticks.map((tick) => (
             <g key={tick}>
-              <line x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} stroke="var(--grid)" />
-              <text x={PAD.left - 8} y={y(tick)} dy="0.32em" textAnchor="end" fontSize="11" fill="var(--text-muted)">
-                {formatMoney(tick)}
+              <line x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} stroke="var(--fire-subtle)" />
+              <text
+                x={PAD.left - 8}
+                y={y(tick)}
+                dy="0.32em"
+                textAnchor="end"
+                fontSize="11"
+                fill="var(--fire-muted)"
+                className="font-figures"
+              >
+                {formatCompactMoney(tick)}
               </text>
             </g>
           ))}
@@ -93,7 +173,8 @@ export function NetWorthChart({ points, target }: { points: Point[]; target: num
                 y={HEIGHT - 8}
                 textAnchor={index === last && last > 0 ? "end" : index === 0 && last > 0 ? "start" : "middle"}
                 fontSize="11"
-                fill="var(--text-muted)"
+                fill="var(--fire-muted)"
+                className="font-figures"
               >
                 {formatMonth(point.month)}
               </text>
@@ -106,36 +187,33 @@ export function NetWorthChart({ points, target }: { points: Point[]; target: num
                 x2={width - PAD.right}
                 y1={y(target)}
                 y2={y(target)}
-                stroke="var(--text-muted)"
+                stroke="var(--fire-muted)"
                 strokeDasharray="4 4"
               />
-              <text x={width - PAD.right} y={y(target) - 6} textAnchor="end" fontSize="11" fill="var(--text-muted)">
+              <text x={width - PAD.right} y={y(target) - 6} textAnchor="end" fontSize="11" fill="var(--fire-muted)">
                 FIRE number {formatMoney(target)}
               </text>
             </g>
           )}
-          <path d={path} fill="none" stroke="var(--series-1)" strokeWidth="2" strokeLinejoin="round" />
-          {points.map((point, index) => (
-            <circle
-              key={point.month}
-              cx={x(index)}
-              cy={y(point.value)}
-              r={index === active ? 5 : 4}
-              fill="var(--series-1)"
-              stroke="var(--background)"
-              strokeWidth="2"
-            />
-          ))}
-          {activePoint && (
+          {active !== null && (
             <line
-              x1={x(active!)}
-              x2={x(active!)}
+              x1={x(active)}
+              x2={x(active)}
               y1={PAD.top}
               y2={PAD.top + plotHeight}
-              stroke="var(--text-muted)"
+              stroke="var(--fire-field)"
               strokeWidth="1"
             />
           )}
+          <path d={path} fill="none" stroke="var(--fire-accent)" strokeWidth="2.5" strokeLinejoin="round" />
+          <circle
+            cx={x(shown)}
+            cy={y(shownPoint.value)}
+            r={6}
+            fill="var(--fire-accent)"
+            stroke="var(--fire-surface)"
+            strokeWidth="2"
+          />
           <rect
             x={PAD.left}
             y={PAD.top}
@@ -146,22 +224,23 @@ export function NetWorthChart({ points, target }: { points: Point[]; target: num
             onPointerLeave={() => setActive(null)}
           />
         </svg>
-        {activePoint && (
-          <div
-            className="pointer-events-none absolute top-0 rounded border border-foreground/10 bg-background px-2 py-1 text-xs shadow"
-            style={{
-              left: x(active!),
-              transform: active! > points.length / 2 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
-            }}
-          >
-            <div className="font-semibold">{formatMoney(activePoint.value)}</div>
-            <div className="opacity-70">{formatMonth(activePoint.month)}</div>
-          </div>
-        )}
+        <div
+          className="pointer-events-none absolute top-3.5 flex gap-2 rounded-lg bg-fire-hero px-2.5 py-1.5 text-xs text-fire-hero-ink"
+          style={
+            shown > points.length / 2
+              ? { right: Math.max(12, width - x(shown) + 12) }
+              : { left: x(shown) + 12 }
+          }
+        >
+          <span>{formatMonth(shownPoint.month)}</span>
+          <span className="font-figures">{formatMoney(shownPoint.value)}</span>
+        </div>
       </div>
       {!showTarget && target > 0 && (
-        <p className="text-xs opacity-60">Your FIRE number ({formatMoney(target)}) is above the chart range.</p>
+        <p className="text-[13px] text-fire-muted">
+          The {formatMoney(target)} FIRE line is off this scale. It appears once net worth is within a third of it.
+        </p>
       )}
-    </figure>
+    </div>
   );
 }

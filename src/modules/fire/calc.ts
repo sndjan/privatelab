@@ -76,3 +76,21 @@ export function formatDuration(months: number) {
   if (years === 0) return `${rest} mo`;
   return rest === 0 ? `${years} yr` : `${years} yr ${rest} mo`;
 }
+
+// Axis labels: "160k €", "1.2M €".
+export function formatCompactMoney(value: number) {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `${+(value / 1_000_000).toFixed(1)}M €`;
+  if (abs >= 1_000) return `${+(value / 1_000).toFixed(0)}k €`;
+  return `${value} €`;
+}
+
+// "+5.100 €" / "−300 €"
+export function formatSignedMoney(value: number) {
+  const sign = value > 0 ? "+" : value < 0 ? "−" : "";
+  return sign + formatMoney(Math.abs(value));
+}
+
+export function savingsRate(savings: number, income: number) {
+  return income > 0 ? Math.round((savings / income) * 100) : 0;
+}

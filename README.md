@@ -7,7 +7,7 @@ A personal sandbox that hosts small apps ("modules") in one Next.js app with one
 - **Public or private modules:** a module can be made public so anyone can view it without signing in.
 
 Modules:
-- 🔥 **FIRE**: accounts, monthly balances, net worth chart, FIRE number, progress and a "what if" projection. Visitors of a public FIRE module get the calculator only.
+- 🔥 **FIRE**: net worth overview with progress to your FIRE number, net worth chart, accounts with allocation, a "what if" savings slider, monthly balances and plan settings. Visitors of a public FIRE module get the calculator only.
 - 📚 **Books**: placeholder.
 
 ## Setup

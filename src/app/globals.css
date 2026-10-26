@@ -30,3 +30,77 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* FIRE module palette (src/modules/fire). */
+:root {
+  --fire-ground: #f3f4f1;
+  --fire-surface: #ffffff;
+  --fire-ink: #16201c;
+  --fire-muted: #5b6660;
+  --fire-line: #dde1dc;
+  --fire-subtle: #eef0ec;
+  --fire-field: #c9cfca;
+  --fire-accent: #1e6a4e;
+  --fire-accent-ink: #ffffff;
+  --fire-kind-pension: #6fa98e;
+  --fire-kind-cash: #b9d6c7;
+  --fire-kind-property: #9aa39e;
+  --fire-debt: #a9471a;
+  --fire-hero: #16201c;
+  --fire-hero-ink: #f3f4f1;
+  --fire-hero-muted: #b9c2bd;
+  --fire-hero-track: #2c3832;
+  --fire-hero-bar: #7fd1ac;
+  --fire-good-bg: #e3f2ea;
+  --fire-good-ink: #134634;
+  --fire-bad-bg: #fbede4;
+  --fire-bad-ink: #7e3412;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fire-ground: #121714;
+    --fire-surface: #181e1b;
+    --fire-ink: #e8ece9;
+    --fire-muted: #a3ada7;
+    --fire-line: #2c3531;
+    --fire-subtle: #232a26;
+    --fire-field: #3f4a45;
+    --fire-accent: #5cc398;
+    --fire-accent-ink: #0b1410;
+    --fire-kind-pension: #3e8a68;
+    --fire-kind-cash: #2a5a45;
+    --fire-kind-property: #5f6964;
+    --fire-debt: #f0976a;
+    --fire-hero: #1f2b26;
+    --fire-hero-track: #34433c;
+    --fire-good-bg: #173628;
+    --fire-good-ink: #a8e6c8;
+    --fire-bad-bg: #3a2216;
+    --fire-bad-ink: #f5b892;
+  }
+}
+
+@theme inline {
+  --font-fire: var(--font-instrument-sans);
+  --font-figures: var(--font-jetbrains-mono);
+  --color-fire-ground: var(--fire-ground);
+  --color-fire-surface: var(--fire-surface);
+  --color-fire-ink: var(--fire-ink);
+  --color-fire-muted: var(--fire-muted);
+  --color-fire-line: var(--fire-line);
+  --color-fire-subtle: var(--fire-subtle);
+  --color-fire-field: var(--fire-field);
+  --color-fire-accent: var(--fire-accent);
+  --color-fire-accent-ink: var(--fire-accent-ink);
+  --color-fire-debt: var(--fire-debt);
+  --color-fire-hero: var(--fire-hero);
+  --color-fire-hero-ink: var(--fire-hero-ink);
+  --color-fire-hero-muted: var(--fire-hero-muted);
+  --color-fire-hero-track: var(--fire-hero-track);
+  --color-fire-hero-bar: var(--fire-hero-bar);
+  --color-fire-good-bg: var(--fire-good-bg);
+  --color-fire-good-ink: var(--fire-good-ink);
+  --color-fire-bad-bg: var(--fire-bad-bg);
+  --color-fire-bad-ink: var(--fire-bad-ink);
+}
