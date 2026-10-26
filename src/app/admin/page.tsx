@@ -14,7 +14,7 @@ import { inviteUser, removeUser, setModuleAccess, setModuleVisibility } from "./
 
 export default function AdminPage() {
   return (
-    <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
+    <Suspense fallback={<p className="text-muted-foreground">Lädt …</p>}>
       <AdminContent />
     </Suspense>
   );
@@ -40,18 +40,18 @@ async function AdminContent() {
       <Card>
         <CardHeader>
           <CardTitle>
-            <h2>Invite someone</h2>
+            <h2>Jemanden einladen</h2>
           </CardTitle>
-          <CardDescription>They can then sign in on /login with a magic link.</CardDescription>
+          <CardDescription>Die Person kann sich danach auf /login mit einem Anmeldelink anmelden.</CardDescription>
         </CardHeader>
         <CardContent>
           <form action={inviteUser} className="space-y-4">
             <div className="max-w-sm space-y-2">
-              <Label htmlFor="invite-email">Email</Label>
-              <Input id="invite-email" name="email" type="email" required placeholder="friend@example.com" />
+              <Label htmlFor="invite-email">E-Mail</Label>
+              <Input id="invite-email" name="email" type="email" required placeholder="freundin@beispiel.de" />
             </div>
             <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">Modules</legend>
+              <legend className="text-sm font-medium">Module</legend>
               <div className="flex flex-wrap gap-4">
                 {modules.map((module) => (
                   <div key={module.id} className="flex items-center gap-2">
@@ -63,7 +63,7 @@ async function AdminContent() {
                 ))}
               </div>
             </fieldset>
-            <Button>Add user</Button>
+            <Button>Person hinzufügen</Button>
           </form>
         </CardContent>
       </Card>
@@ -71,21 +71,21 @@ async function AdminContent() {
       <Card>
         <CardHeader>
           <CardTitle>
-            <h2>Users and access</h2>
+            <h2>Personen und Zugriff</h2>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Email</TableHead>
+                <TableHead>E-Mail</TableHead>
                 {modules.map((module) => (
                   <TableHead key={module.id}>
                     {module.icon} {module.name}
                   </TableHead>
                 ))}
                 <TableHead>
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">Aktionen</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -95,7 +95,7 @@ async function AdminContent() {
                   <TableCell>
                     <span className="flex items-center gap-2">
                       {profile.email}
-                      {profile.is_admin && <Badge variant="secondary">admin</Badge>}
+                      {profile.is_admin && <Badge variant="secondary">Admin</Badge>}
                     </span>
                   </TableCell>
                   {modules.map((module) => {
@@ -103,7 +103,7 @@ async function AdminContent() {
                     return (
                       <TableCell key={module.id}>
                         {profile.is_admin ? (
-                          <CheckIcon aria-label="Has access" className="size-4 text-brand" />
+                          <CheckIcon aria-label="Hat Zugriff" className="size-4 text-brand" />
                         ) : (
                           <form action={setModuleAccess}>
                             <input type="hidden" name="userId" value={profile.id} />
@@ -112,10 +112,10 @@ async function AdminContent() {
                             <Button size="sm" variant={enabled ? "secondary" : "outline"}>
                               {enabled ? (
                                 <>
-                                  <CheckIcon className="text-brand" /> Revoke
+                                  <CheckIcon className="text-brand" /> Entziehen
                                 </>
                               ) : (
-                                "Grant"
+                                "Freigeben"
                               )}
                             </Button>
                           </form>
@@ -128,7 +128,7 @@ async function AdminContent() {
                       <form action={removeUser}>
                         <input type="hidden" name="userId" value={profile.id} />
                         <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive">
-                          Remove
+                          Entfernen
                         </Button>
                       </form>
                     )}
@@ -143,9 +143,9 @@ async function AdminContent() {
       <Card>
         <CardHeader>
           <CardTitle>
-            <h2>Module visibility</h2>
+            <h2>Sichtbarkeit der Module</h2>
           </CardTitle>
-          <CardDescription>Public modules can be opened without signing in.</CardDescription>
+          <CardDescription>Öffentliche Module lassen sich ohne Anmeldung öffnen.</CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="divide-y">
@@ -156,12 +156,12 @@ async function AdminContent() {
                   <span className="w-32">
                     {module.icon} {module.name}
                   </span>
-                  <Badge variant={isPublic ? "default" : "outline"}>{isPublic ? "public" : "private"}</Badge>
+                  <Badge variant={isPublic ? "default" : "outline"}>{isPublic ? "öffentlich" : "privat"}</Badge>
                   <form action={setModuleVisibility} className="ml-auto">
                     <input type="hidden" name="moduleId" value={module.id} />
                     <input type="hidden" name="visibility" value={isPublic ? "private" : "public"} />
                     <Button size="sm" variant="outline">
-                      Make {isPublic ? "private" : "public"}
+                      {isPublic ? "Privat machen" : "Öffentlich machen"}
                     </Button>
                   </form>
                 </li>

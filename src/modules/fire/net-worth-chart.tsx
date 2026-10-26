@@ -16,9 +16,9 @@ const MIN_LABEL_SPACING = 96;
 const TARGET_RANGE_FACTOR = 3;
 
 const ranges = [
-  { value: "12", label: "12 mo", months: 12 },
-  { value: "36", label: "3 yr", months: 36 },
-  { value: "all", label: "All", months: null },
+  { value: "12", label: "12 Mon.", months: 12 },
+  { value: "36", label: "3 J.", months: 36 },
+  { value: "all", label: "Alles", months: null },
 ] as const;
 
 function niceTicks(min: number, max: number, count = 4) {
@@ -61,14 +61,14 @@ export function NetWorthChart({ points: allPoints, target }: { points: Point[]; 
     <Card aria-labelledby="chart-heading" role="region">
       <CardHeader>
         <CardTitle id="chart-heading" className="text-lg">
-          <h2>Net worth over time</h2>
+          <h2>Vermögen im Zeitverlauf</h2>
         </CardTitle>
         <CardAction>
           <ToggleGroup
             type="single"
             variant="outline"
             size="sm"
-            aria-label="Range"
+            aria-label="Zeitraum"
             value={range.value}
             onValueChange={(value) => {
               const next = ranges.find((option) => option.value === value);
@@ -87,7 +87,7 @@ export function NetWorthChart({ points: allPoints, target }: { points: Point[]; 
       </CardHeader>
       <CardContent ref={containerRef}>
         {points.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Add your first monthly balances to see the chart.</p>
+          <p className="text-sm text-muted-foreground">Trag deine ersten Monatsstände ein, um das Diagramm zu sehen.</p>
         ) : (
           <Plot points={points} target={target} width={width} active={active} setActive={setActive} />
         )}
@@ -151,7 +151,7 @@ function Plot({
           height={HEIGHT}
           className="block"
           role="img"
-          aria-label={`Net worth went from ${formatMoney(first.value)} in ${formatMonth(first.month)} to ${formatMoney(latest.value)} in ${formatMonth(latest.month)}`}
+          aria-label={`Vermögen von ${formatMoney(first.value)} im ${formatMonth(first.month)} auf ${formatMoney(latest.value)} im ${formatMonth(latest.month)}`}
         >
           {ticks.map((tick) => (
             <g key={tick}>
@@ -195,7 +195,7 @@ function Plot({
                 strokeDasharray="4 4"
               />
               <text x={width - PAD.right} y={y(target) - 6} textAnchor="end" fontSize="11" fill="var(--muted-foreground)">
-                FIRE number {formatMoney(target)}
+                FIRE-Zahl {formatMoney(target)}
               </text>
             </g>
           )}
@@ -242,7 +242,7 @@ function Plot({
       </div>
       {!showTarget && target > 0 && (
         <p className="text-[13px] text-muted-foreground">
-          The {formatMoney(target)} FIRE line is off this scale. It appears once net worth is within a third of it.
+          Die FIRE-Linie bei {formatMoney(target)} liegt außerhalb dieser Skala. Sie erscheint, sobald dein Vermögen ein Drittel davon erreicht.
         </p>
       )}
     </div>

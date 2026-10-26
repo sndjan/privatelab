@@ -37,16 +37,16 @@ export function WhatIf({ netWorth, startMonth, settings }: Props) {
   let message: string;
   let tone: "good" | "bad" | "neutral";
   if (months === null) {
-    message = "At this rate you would not reach your FIRE number within 100 years.";
+    message = "So würdest du deine FIRE-Zahl nicht innerhalb von 100 Jahren erreichen.";
     tone = "bad";
   } else if (baseMonths === null) {
-    message = "Your current plan doesn't get there within 100 years. This one does.";
+    message = "Dein aktueller Plan schafft es nicht innerhalb von 100 Jahren. Dieser schon.";
     tone = "good";
   } else if (difference === 0) {
-    message = "Same as your current plan.";
+    message = "Genau wie dein aktueller Plan.";
     tone = "neutral";
   } else {
-    message = `${formatDuration(Math.abs(difference!))} ${difference! > 0 ? "earlier" : "later"} than your current plan.`;
+    message = `${formatDuration(Math.abs(difference!))} ${difference! > 0 ? "früher" : "später"} als dein aktueller Plan.`;
     tone = difference! > 0 ? "good" : "bad";
   }
   const toneClass = {
@@ -59,14 +59,14 @@ export function WhatIf({ netWorth, startMonth, settings }: Props) {
     <Card className="min-w-0 flex-[1_1_420px]">
       <CardHeader>
         <CardTitle className="text-lg">
-          <h2>What if…</h2>
+          <h2>Was wäre, wenn …</h2>
         </CardTitle>
-        <CardDescription>Try changes to your plan. Nothing here is saved.</CardDescription>
+        <CardDescription>Probier Änderungen an deinem Plan aus. Hier wird nichts gespeichert.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         <div className="flex flex-col gap-3">
           <div className="flex justify-between gap-3">
-            <span id="extra-savings-label">Extra savings per month</span>
+            <span id="extra-savings-label">Zusätzlich sparen pro Monat</span>
             <strong className="font-mono font-medium">{formatSignedMoney(extraSavings)}</strong>
           </div>
           <Slider
@@ -87,12 +87,12 @@ export function WhatIf({ netWorth, startMonth, settings }: Props) {
 
         <dl className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1 rounded-lg bg-muted p-4">
-            <dt className="text-[13px] text-muted-foreground">Independent in</dt>
+            <dt className="text-[13px] text-muted-foreground">Unabhängig ab</dt>
             <dd className="font-mono text-[22px] font-medium">
               {months === null
-                ? "Not in 100 yr"
+                ? "Nicht in 100 J."
                 : months === 0
-                  ? "Already"
+                  ? "Schon jetzt"
                   : formatMonth(addMonths(new Date(`${startMonth}T00:00:00`), months))}
             </dd>
             {months !== null && months > 0 && (
@@ -100,9 +100,9 @@ export function WhatIf({ netWorth, startMonth, settings }: Props) {
             )}
           </div>
           <div className="flex flex-col gap-1 rounded-lg bg-muted p-4">
-            <dt className="text-[13px] text-muted-foreground">Savings rate</dt>
+            <dt className="text-[13px] text-muted-foreground">Sparquote</dt>
             <dd className="font-mono text-[22px] font-medium">{savingsRate(savings, settings.monthlyIncome)} %</dd>
-            <dd className="text-xs text-muted-foreground">{formatMoney(savings)} / month</dd>
+            <dd className="text-xs text-muted-foreground">{formatMoney(savings)} / Monat</dd>
           </div>
         </dl>
 

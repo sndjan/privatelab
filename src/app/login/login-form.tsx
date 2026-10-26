@@ -28,7 +28,7 @@ export function LoginForm({ next }: { next?: string }) {
 
     if (error) {
       setStatus("idle");
-      setError("Could not send a link. Is this address invited?");
+      setError("Der Link konnte nicht gesendet werden. Ist diese Adresse eingeladen?");
       return;
     }
     setStatus("sent");
@@ -37,7 +37,7 @@ export function LoginForm({ next }: { next?: string }) {
   if (status === "sent") {
     return (
       <Alert>
-        <AlertDescription className="text-foreground">Check your inbox for the sign-in link.</AlertDescription>
+        <AlertDescription className="text-foreground">Schau in dein Postfach, dort wartet der Anmeldelink.</AlertDescription>
       </Alert>
     );
   }
@@ -45,19 +45,19 @@ export function LoginForm({ next }: { next?: string }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email">E-Mail</Label>
         <Input
           id="email"
           type="email"
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          placeholder="you@example.com"
+          placeholder="du@beispiel.de"
           aria-invalid={error ? true : undefined}
         />
       </div>
       <Button disabled={status === "sending"} className="w-full">
-        {status === "sending" ? "Sending…" : "Send magic link"}
+        {status === "sending" ? "Wird gesendet …" : "Anmeldelink senden"}
       </Button>
       {error && <p className="text-sm text-destructive">{error}</p>}
     </form>

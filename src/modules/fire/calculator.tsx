@@ -47,7 +47,7 @@ export function Calculator({ netWorth: initialNetWorth, startMonth, settings: in
           <form className="grid gap-4 sm:grid-cols-2">
             <NumberField
               id="calc-net-worth"
-              label="Current net worth (€)"
+              label="Aktuelles Vermögen (€)"
               value={netWorth}
               step={1000}
               onChange={(event) => setNetWorth(Number(event.target.value))}
@@ -55,26 +55,26 @@ export function Calculator({ netWorth: initialNetWorth, startMonth, settings: in
             />
             <NumberField
               id="calc-income"
-              label="Monthly income (€)"
+              label="Monatliches Einkommen (€)"
               value={settings.monthlyIncome}
               onChange={update("monthlyIncome")}
             />
             <NumberField
               id="calc-expenses"
-              label="Monthly expenses (€)"
+              label="Monatliche Ausgaben (€)"
               value={settings.monthlyExpenses}
               onChange={update("monthlyExpenses")}
             />
             <NumberField
               id="calc-return"
-              label="Expected real return (%)"
+              label="Erwartete reale Rendite (%)"
               value={settings.expectedReturn}
               step={0.5}
               onChange={update("expectedReturn")}
             />
             <NumberField
               id="calc-withdrawal"
-              label="Withdrawal rate (%)"
+              label="Entnahmerate (%)"
               value={settings.withdrawalRate}
               step={0.25}
               onChange={update("withdrawalRate")}
@@ -84,43 +84,43 @@ export function Calculator({ netWorth: initialNetWorth, startMonth, settings: in
       </Card>
 
       <section
-        aria-label="Result"
+        aria-label="Ergebnis"
         aria-live="polite"
         className="flex min-w-0 flex-[1_1_420px] flex-col gap-7 rounded-xl bg-hero p-8 text-hero-foreground"
       >
         <div className="flex flex-col gap-2">
-          <span className="text-sm text-hero-muted">Financially independent</span>
+          <span className="text-sm text-hero-muted">Finanziell unabhängig</span>
           <span className="font-mono text-5xl leading-none font-medium tracking-tight sm:text-[56px]">
             {months === null
-              ? "Not in 100 yr"
+              ? "Nicht in 100 J."
               : months === 0
-                ? "Already"
+                ? "Schon jetzt"
                 : formatMonth(addMonths(new Date(`${startMonth}T00:00:00`), months))}
           </span>
           <span className="text-hero-muted">
             {months === null
-              ? "Save more or spend less to get there."
+              ? "Spar mehr oder gib weniger aus, um dorthin zu kommen."
               : months === 0
-                ? "Your net worth covers your FIRE number."
+                ? "Dein Vermögen deckt deine FIRE-Zahl."
                 : `in ${formatDuration(months)}`}
           </span>
         </div>
         <div className="flex flex-col gap-2.5">
           <div className="flex justify-between text-sm text-hero-muted">
-            <span>{progress} % of the way</span>
+            <span>{progress} % geschafft</span>
             <span className="font-mono">{formatMoney(target)}</span>
           </div>
           <Progress
             value={progress}
-            aria-label="Progress toward FIRE number"
+            aria-label="Fortschritt zur FIRE-Zahl"
             className="h-3 bg-hero-track"
             indicatorClassName="bg-hero-bar"
           />
         </div>
         <dl className="grid grid-cols-3 gap-4 border-t border-hero-track pt-5">
-          <Stat label="FIRE number" value={formatMoney(target)} />
-          <Stat label="Saving / month" value={formatMoney(savings)} />
-          <Stat label="Savings rate" value={`${savingsRate(savings, settings.monthlyIncome)} %`} />
+          <Stat label="FIRE-Zahl" value={formatMoney(target)} />
+          <Stat label="Sparen / Monat" value={formatMoney(savings)} />
+          <Stat label="Sparquote" value={`${savingsRate(savings, settings.monthlyIncome)} %`} />
         </dl>
       </section>
     </div>

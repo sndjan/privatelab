@@ -18,10 +18,10 @@ export const defaultSettings: FireSettings = {
 
 export const accountKinds: { value: AccountKind; label: string }[] = [
   { value: "investment", label: "Investments" },
-  { value: "cash", label: "Cash" },
-  { value: "pension", label: "Pension" },
-  { value: "property", label: "Property" },
-  { value: "debt", label: "Debt" },
+  { value: "cash", label: "Bargeld & Konten" },
+  { value: "pension", label: "Altersvorsorge" },
+  { value: "property", label: "Immobilien" },
+  { value: "debt", label: "Schulden" },
 ];
 
 export function signedBalance(kind: AccountKind, balance: number) {
@@ -67,20 +67,20 @@ export function formatMoney(value: number) {
 
 export function formatMonth(month: string | Date) {
   const date = typeof month === "string" ? new Date(`${month}T00:00:00`) : month;
-  return date.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  return date.toLocaleDateString("de-DE", { month: "short", year: "numeric" });
 }
 
 export function formatDuration(months: number) {
   const years = Math.floor(months / 12);
   const rest = months % 12;
-  if (years === 0) return `${rest} mo`;
-  return rest === 0 ? `${years} yr` : `${years} yr ${rest} mo`;
+  if (years === 0) return `${rest} Mon.`;
+  return rest === 0 ? `${years} J.` : `${years} J. ${rest} Mon.`;
 }
 
-// Axis labels: "160k €", "1.2M €".
+// Axis labels: "160k €", "1,2 Mio. €".
 export function formatCompactMoney(value: number) {
   const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `${+(value / 1_000_000).toFixed(1)}M €`;
+  if (abs >= 1_000_000) return `${String(+(value / 1_000_000).toFixed(1)).replace(".", ",")} Mio. €`;
   if (abs >= 1_000) return `${+(value / 1_000).toFixed(0)}k €`;
   return `${value} €`;
 }

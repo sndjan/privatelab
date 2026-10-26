@@ -47,6 +47,10 @@ The module is then served at `/m/<id>` and appears on the dashboard and admin pa
 
 Components come from [shadcn/ui](https://ui.shadcn.com) (new-york style) and live in `src/components/ui/`. Add more with `npx shadcn@latest add <component>`. The theme is in `src/app/globals.css`: the standard shadcn tokens plus `brand` (deep green) and a few FIRE-specific colors; dark mode follows the system setting.
 
+## PWA and language
+
+The app is installable as a PWA: `src/app/manifest.ts`, icons in `public/` and `src/app/*-icon.png`, and `public/sw.js`, which only caches an offline page (`/offline`) so signed-in pages are always loaded fresh. The service worker registers in production builds only. All UI text is German (`lang="de"`, dates and money formatted with `de-DE`).
+
 ## Project layout
 
 ```

@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
 import { Suspense } from "react";
+import { ServiceWorker } from "@/components/service-worker";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
 import "./globals.css";
@@ -18,13 +19,21 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Private Lab",
-  description: "A personal sandbox for small apps and prototypes.",
+  description: "Eine private Spielwiese für kleine Apps und Prototypen.",
+  appleWebApp: { capable: true, title: "Private Lab", statusBarStyle: "default" },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#181e1b" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="en"
+      lang="de"
       className={`${instrumentSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
@@ -41,6 +50,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </nav>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
+        <ServiceWorker />
       </body>
     </html>
   );
@@ -52,7 +62,7 @@ async function NavActions() {
   if (!user) {
     return (
       <Button asChild variant="outline">
-        <Link href="/login">Sign in</Link>
+        <Link href="/login">Anmelden</Link>
       </Button>
     );
   }
@@ -66,7 +76,7 @@ async function NavActions() {
       )}
       <form action="/auth/signout" method="post">
         <Button variant="ghost" className="text-muted-foreground">
-          Sign out
+          Abmelden
         </Button>
       </form>
     </>

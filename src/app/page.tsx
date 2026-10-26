@@ -11,12 +11,12 @@ export default function Home() {
       <section className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Private Lab</h1>
         <p className="text-muted-foreground">
-          A personal sandbox for small apps and prototypes. Access is invite-only.
+          Eine private Spielwiese für kleine Apps und Prototypen. Zugang nur auf Einladung.
         </p>
       </section>
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Public modules</h2>
-        <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
+        <h2 className="text-lg font-semibold">Öffentliche Module</h2>
+        <Suspense fallback={<p className="text-muted-foreground">Lädt …</p>}>
           <PublicModules />
         </Suspense>
       </section>

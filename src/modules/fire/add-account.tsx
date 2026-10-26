@@ -30,20 +30,20 @@ export function AddAccount() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" className="w-fit">
-          <PlusIcon /> Add account
+          <PlusIcon /> Konto hinzufügen
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-sm">
         <form action={save} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>Add account</DialogTitle>
+            <DialogTitle>Konto hinzufügen</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
             <Label htmlFor="account-name">Name</Label>
-            <Input id="account-name" name="name" required maxLength={80} placeholder="e.g. ETF portfolio" />
+            <Input id="account-name" name="name" required maxLength={80} placeholder="z. B. ETF-Depot" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="account-kind">Kind</Label>
+            <Label htmlFor="account-kind">Art</Label>
             <Select name="kind" defaultValue="investment">
               <SelectTrigger id="account-kind" className="w-full">
                 <SelectValue />
@@ -60,10 +60,10 @@ export function AddAccount() {
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="ghost">
-                Cancel
+                Abbrechen
               </Button>
             </DialogClose>
-            <Button>Add account</Button>
+            <Button>Hinzufügen</Button>
           </DialogFooter>
         </form>
       </DialogContent>

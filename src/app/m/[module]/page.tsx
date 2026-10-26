@@ -7,7 +7,7 @@ import { getModule } from "@/modules/registry";
 
 export default function ModulePage({ params }: PageProps<"/m/[module]">) {
   return (
-    <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
+    <Suspense fallback={<p className="text-muted-foreground">Lädt …</p>}>
       <ModuleContent params={params} />
     </Suspense>
   );
@@ -52,7 +52,7 @@ async function ModuleContent({ params }: Pick<PageProps<"/m/[module]">, "params"
           {definition.icon}
         </span>
         <h1 className="text-2xl font-semibold tracking-tight">{definition.name}</h1>
-        {row.visibility === "public" && <Badge variant="outline">public</Badge>}
+        {row.visibility === "public" && <Badge variant="outline">öffentlich</Badge>}
       </header>
       <Page user={user} hasAccess={hasAccess} />
     </div>

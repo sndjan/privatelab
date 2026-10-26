@@ -27,7 +27,7 @@ type Props = {
 };
 
 function monthName(month: string) {
-  return new Date(`${month}-01T00:00:00`).toLocaleDateString("en-GB", { month: "long" });
+  return new Date(`${month}-01T00:00:00`).toLocaleDateString("de-DE", { month: "long" });
 }
 
 // Accepts "98150", "98.150", "98.150,50" and "98150.50".
@@ -73,17 +73,17 @@ export function RecordMonth({ accounts, netWorth, defaultMonth }: Props) {
       }}
     >
       <DialogTrigger asChild>
-        <Button>Record {monthName(defaultMonth)}</Button>
+        <Button>{monthName(defaultMonth)} eintragen</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <form action={save} className="space-y-4">
           <DialogHeader>
-            <DialogTitle>Record a month</DialogTitle>
-            <DialogDescription>Leave a field empty to keep its last balance.</DialogDescription>
+            <DialogTitle>Monat eintragen</DialogTitle>
+            <DialogDescription>Lass ein Feld leer, um den letzten Stand zu behalten.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-2">
-            <Label htmlFor="record-month">Month</Label>
+            <Label htmlFor="record-month">Monat</Label>
             <Input
               id="record-month"
               type="month"
@@ -101,8 +101,8 @@ export function RecordMonth({ accounts, netWorth, defaultMonth }: Props) {
                 <Label htmlFor={`record-${account.id}`} className="flex min-w-0 flex-1 flex-col items-start gap-1">
                   <span className="truncate">{account.name}</span>
                   <span className="text-xs font-normal text-muted-foreground">
-                    {account.kind === "debt" && "amount owed · "}
-                    {account.lastBalance === undefined ? "no balance yet" : `last ${formatMoney(account.lastBalance)}`}
+                    {account.kind === "debt" && "Restschuld · "}
+                    {account.lastBalance === undefined ? "noch kein Stand" : `zuletzt ${formatMoney(account.lastBalance)}`}
                   </span>
                 </Label>
                 <Input
@@ -120,7 +120,7 @@ export function RecordMonth({ accounts, netWorth, defaultMonth }: Props) {
           </div>
 
           <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[13px] text-muted-foreground">New net worth</span>
+            <span className="text-[13px] text-muted-foreground">Neues Vermögen</span>
             <span className="flex items-baseline gap-2.5" aria-live="polite">
               {change !== 0 && (
                 <span className={`font-mono text-[13px] ${change > 0 ? "text-brand" : "text-debt"}`}>
@@ -134,10 +134,10 @@ export function RecordMonth({ accounts, netWorth, defaultMonth }: Props) {
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="ghost">
-                Cancel
+                Abbrechen
               </Button>
             </DialogClose>
-            <Button size="lg">Save {month ? monthName(month) : "month"}</Button>
+            <Button size="lg">{month ? `${monthName(month)} speichern` : "Speichern"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

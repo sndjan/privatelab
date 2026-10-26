@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Paths that work without being signed in. Module pages check visibility themselves.
-const PUBLIC_PATHS = ["/", "/login", "/auth", "/m"];
+const PUBLIC_PATHS = ["/", "/login", "/auth", "/m", "/offline"];
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some(
@@ -51,5 +51,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|sw\\.js|manifest\\.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

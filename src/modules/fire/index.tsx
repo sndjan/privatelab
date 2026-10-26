@@ -41,16 +41,16 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
     return (
       <div className="space-y-10">
         <div className="max-w-xl space-y-3">
-          <h2 className="text-4xl leading-tight font-semibold tracking-tight">When could you stop working?</h2>
+          <h2 className="text-4xl leading-tight font-semibold tracking-tight">Wann könntest du aufhören zu arbeiten?</h2>
           <p className="text-[17px] text-muted-foreground">
-            Try the FIRE calculator with your own numbers. Nothing is saved.
+            Probier den FIRE-Rechner mit deinen eigenen Zahlen aus. Es wird nichts gespeichert.
             {!user && (
               <>
                 {" "}
                 <Link href="/login?next=/m/fire" className="text-brand underline underline-offset-4">
-                  Sign in
-                </Link>{" "}
-                to track your net worth over time.
+                  Melde dich an
+                </Link>
+                , um dein Vermögen über die Zeit zu verfolgen.
               </>
             )}
           </p>
@@ -61,8 +61,8 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
           settings={{ ...defaultSettings, monthlyIncome: 3000, monthlyExpenses: 2000 }}
         />
         <p className="max-w-2xl text-[13px] text-muted-foreground">
-          FIRE number = yearly expenses ÷ withdrawal rate. The projection compounds monthly at the expected real return
-          and adds your monthly savings.
+          FIRE-Zahl = jährliche Ausgaben ÷ Entnahmerate. Die Prognose verzinst monatlich mit der erwarteten realen Rendite
+          und rechnet deine monatliche Sparrate dazu.
         </p>
       </div>
     );
@@ -111,12 +111,12 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
 
   return (
     <div className="space-y-6">
-      <nav aria-label="Sections" className="-mt-2 flex flex-wrap gap-1">
+      <nav aria-label="Abschnitte" className="-mt-2 flex flex-wrap gap-1">
         {[
-          ["#overview", "Overview"],
-          ["#balances", "Balances"],
-          ["#accounts", "Accounts"],
-          ["#settings", "Settings"],
+          ["#overview", "Übersicht"],
+          ["#balances", "Monatsstände"],
+          ["#accounts", "Konten"],
+          ["#settings", "Einstellungen"],
         ].map(([href, label]) => (
           <Button key={href} asChild variant="ghost" className="text-muted-foreground">
             <a href={href}>{label}</a>
@@ -124,14 +124,14 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
         ))}
       </nav>
 
-      <section id="overview" aria-label="Overview" className="flex scroll-mt-4 flex-wrap items-stretch gap-6">
+      <section id="overview" aria-label="Übersicht" className="flex scroll-mt-4 flex-wrap items-stretch gap-6">
         <div className="flex min-w-0 flex-[999_1_480px] flex-col gap-6 rounded-xl bg-hero p-8 text-hero-foreground">
           <div className="flex flex-wrap items-baseline justify-between gap-3 text-sm">
-            <span className="text-hero-muted">Net worth{latest && ` · ${formatMonth(latest.month)}`}</span>
+            <span className="text-hero-muted">Vermögen{latest && ` · ${formatMonth(latest.month)}`}</span>
             {latest && previous && (
               <span className="font-mono text-hero-bar">
-                {formatSignedMoney(netWorth - previous.netWorth)} since{" "}
-                {new Date(`${previous.month}T00:00:00`).toLocaleDateString("en-GB", { month: "short" })}
+                {formatSignedMoney(netWorth - previous.netWorth)} seit{" "}
+                {new Date(`${previous.month}T00:00:00`).toLocaleDateString("de-DE", { month: "short" })}
               </span>
             )}
           </div>
@@ -142,23 +142,23 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
             {target > 0 ? (
               <>
                 <div className="flex justify-between gap-3">
-                  <span>{progress} % of your FIRE number</span>
+                  <span>{progress} % deiner FIRE-Zahl</span>
                   <span className="font-mono">{formatMoney(target)}</span>
                 </div>
                 <Progress
                   value={Math.max(0, Math.min(100, (netWorth / target) * 100))}
-                  aria-label="Progress toward FIRE number"
+                  aria-label="Fortschritt zur FIRE-Zahl"
                   className="h-3 bg-hero-track"
                   indicatorClassName="bg-hero-bar"
                 />
                 <div>
                   {months === null ? (
-                    "Not financially independent within 100 years at your current savings."
+                    "Mit deiner aktuellen Sparrate nicht innerhalb von 100 Jahren finanziell unabhängig."
                   ) : months === 0 ? (
-                    "You have reached your FIRE number."
+                    "Du hast deine FIRE-Zahl erreicht."
                   ) : (
                     <>
-                      Financially independent around{" "}
+                      Finanziell unabhängig etwa ab{" "}
                       <strong className="font-semibold text-hero-foreground">
                         {formatMonth(addMonths(new Date(`${startMonth}T00:00:00`), months))}
                       </strong>{" "}
@@ -169,29 +169,29 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
               </>
             ) : (
               <p>
-                Set your monthly expenses in{" "}
+                Trag deine monatlichen Ausgaben in den{" "}
                 <a href="#settings" className="text-hero-foreground underline underline-offset-4">
-                  Plan settings
+                  Planeinstellungen
                 </a>{" "}
-                to get your FIRE number.
+                ein, um deine FIRE-Zahl zu erhalten.
               </p>
             )}
           </div>
         </div>
 
         <dl className="grid min-w-0 flex-[1_1_300px] grid-cols-2 gap-3">
-          <Tile label="FIRE number" value={formatMoney(target)} note={`${settings.withdrawalRate} % withdrawal`} />
+          <Tile label="FIRE-Zahl" value={formatMoney(target)} note={`${settings.withdrawalRate} % Entnahme`} />
           <Tile
-            label="Saving / month"
+            label="Sparen / Monat"
             value={formatMoney(savings)}
-            note={`of ${formatMoney(settings.monthlyIncome)} income`}
+            note={`von ${formatMoney(settings.monthlyIncome)} Einkommen`}
           />
           <Tile
-            label="Savings rate"
+            label="Sparquote"
             value={`${savingsRate(savings, settings.monthlyIncome)} %`}
-            note={`expenses ${formatMoney(settings.monthlyExpenses)}`}
+            note={`Ausgaben ${formatMoney(settings.monthlyExpenses)}`}
           />
-          <Tile label="Real return" value={`${settings.expectedReturn} %`} note="after inflation" />
+          <Tile label="Reale Rendite" value={`${settings.expectedReturn} %`} note="nach Inflation" />
         </dl>
       </section>
 
@@ -201,15 +201,15 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
         <Card id="accounts" className="min-w-0 flex-[1_1_360px] scroll-mt-4">
           <CardHeader>
             <CardTitle className="text-lg">
-              <h2>Accounts</h2>
+              <h2>Konten</h2>
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {allocationTotal > 0 && (
               <div
                 role="img"
-                aria-label={`Allocation: ${allocation
-                  .map((kind) => `${kind.label} ${Math.round((kind.total / allocationTotal) * 100)} percent`)
+                aria-label={`Aufteilung: ${allocation
+                  .map((kind) => `${kind.label} ${Math.round((kind.total / allocationTotal) * 100)} Prozent`)
                   .join(", ")}`}
                 className="flex h-2.5 gap-0.5 overflow-hidden rounded-full"
               >
@@ -220,7 +220,7 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
             )}
 
             {accounts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No accounts yet.</p>
+              <p className="text-sm text-muted-foreground">Noch keine Konten.</p>
             ) : (
               <ul className="flex flex-col divide-y">
                 {accounts.map((account) => {
@@ -246,7 +246,7 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
                         <span className={`truncate ${account.archived ? "" : "font-medium"}`}>{account.name}</span>
                         <span className="text-xs text-muted-foreground">
                           {kindLabel}
-                          {account.archived && " · archived"}
+                          {account.archived && " · archiviert"}
                         </span>
                       </span>
                       <span className={`ml-auto font-mono ${account.kind === "debt" ? "text-debt" : ""}`}>
@@ -258,7 +258,7 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          aria-label={`${account.archived ? "Restore" : "Archive"} ${account.name}`}
+                          aria-label={`${account.name} ${account.archived ? "wiederherstellen" : "archivieren"}`}
                           className={account.archived ? "text-brand" : "text-muted-foreground"}
                         >
                           {account.archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
@@ -270,7 +270,7 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            aria-label={`Delete ${account.name}`}
+                            aria-label={`${account.name} löschen`}
                             className="text-muted-foreground hover:text-destructive"
                           >
                             <Trash2Icon />
@@ -293,9 +293,9 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
       <Card id="balances" className="scroll-mt-4">
         <CardHeader>
           <CardTitle className="text-lg">
-            <h2>Monthly balances</h2>
+            <h2>Monatsstände</h2>
           </CardTitle>
-          {activeAccounts.length === 0 && <CardDescription>Add an account first.</CardDescription>}
+          {activeAccounts.length === 0 && <CardDescription>Leg zuerst ein Konto an.</CardDescription>}
           {activeAccounts.length > 0 && (
             <CardAction>
               <RecordMonth
@@ -315,15 +315,15 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
             <Table className="min-w-[560px]">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-muted-foreground">Month</TableHead>
+                  <TableHead className="text-muted-foreground">Monat</TableHead>
                   {accounts.map((account) => (
                     <TableHead key={account.id} className="text-right text-muted-foreground">
                       {account.name}
                     </TableHead>
                   ))}
-                  <TableHead className="text-right">Net worth</TableHead>
+                  <TableHead className="text-right">Vermögen</TableHead>
                   <TableHead>
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">Aktionen</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -339,7 +339,7 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
                         {row.entered.has(account.id) ? (
                           formatPlain(signedBalance(account.kind, row.byAccount.get(account.id) ?? 0))
                         ) : (
-                          <span className="text-muted-foreground" aria-label="no entry">
+                          <span className="text-muted-foreground" aria-label="kein Eintrag">
                             ·
                           </span>
                         )}
@@ -352,7 +352,7 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          aria-label={`Delete ${formatMonth(row.month)}`}
+                          aria-label={`${formatMonth(row.month)} löschen`}
                           className="text-muted-foreground hover:text-destructive"
                         >
                           <Trash2Icon />
@@ -363,7 +363,7 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
                 ))}
               </TableBody>
             </Table>
-            <p className="text-[13px] text-muted-foreground">· = no entry that month; the last known balance counts.</p>
+            <p className="text-[13px] text-muted-foreground">· = kein Eintrag in diesem Monat; es zählt der letzte bekannte Stand.</p>
           </CardContent>
         )}
       </Card>
@@ -371,18 +371,18 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
       <Card id="settings" className="scroll-mt-4">
         <CardHeader>
           <CardTitle className="text-lg">
-            <h2>Plan settings</h2>
+            <h2>Planeinstellungen</h2>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <form action={saveSettings} className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] items-end gap-4">
-            <SettingField label="Monthly net income (€)" name="monthlyIncome" value={settings.monthlyIncome} step="50" />
-            <SettingField label="Monthly expenses (€)" name="monthlyExpenses" value={settings.monthlyExpenses} step="50" />
-            <SettingField label="Withdrawal rate (%)" name="withdrawalRate" value={settings.withdrawalRate} step="0.25" />
-            <SettingField label="Expected real return (%)" name="expectedReturn" value={settings.expectedReturn} step="0.5" />
+            <SettingField label="Monatliches Nettoeinkommen (€)" name="monthlyIncome" value={settings.monthlyIncome} step="50" />
+            <SettingField label="Monatliche Ausgaben (€)" name="monthlyExpenses" value={settings.monthlyExpenses} step="50" />
+            <SettingField label="Entnahmerate (%)" name="withdrawalRate" value={settings.withdrawalRate} step="0.25" />
+            <SettingField label="Erwartete reale Rendite (%)" name="expectedReturn" value={settings.expectedReturn} step="0.5" />
             <div className="col-span-full">
               <Button variant="brand" size="lg">
-                Save settings
+                Einstellungen speichern
               </Button>
             </div>
           </form>

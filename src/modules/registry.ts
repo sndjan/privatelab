@@ -24,15 +24,15 @@ export type ModuleDefinition = {
 export const modules: ModuleDefinition[] = [
   {
     id: "books",
-    name: "Books",
-    description: "Reading list, progress and notes.",
+    name: "Bücher",
+    description: "Leseliste, Fortschritt und Notizen.",
     icon: "📚",
     Page: BooksModule,
   },
   {
     id: "fire",
     name: "FIRE",
-    description: "Net worth, savings rate and the road to financial independence.",
+    description: "Vermögen, Sparquote und der Weg zur finanziellen Unabhängigkeit.",
     icon: "🔥",
     Page: FireModule,
   },

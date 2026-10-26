@@ -4,7 +4,7 @@ import type { ModuleDefinition } from "@/modules/registry";
 
 export function ModuleGrid({ modules }: { modules: ModuleDefinition[] }) {
   if (modules.length === 0) {
-    return <p className="text-muted-foreground">No modules here yet.</p>;
+    return <p className="text-muted-foreground">Hier gibt es noch keine Module.</p>;
   }
 
   return (

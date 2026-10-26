@@ -9,10 +9,10 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
     <Card className="mx-auto max-w-sm">
       <CardHeader>
         <CardTitle className="text-2xl">
-          <h1>Sign in</h1>
+          <h1>Anmelden</h1>
         </CardTitle>
         <CardDescription>
-          Enter your email and we&apos;ll send you a magic link. Only invited addresses can sign in.
+          Gib deine E-Mail-Adresse ein, dann schicken wir dir einen Anmeldelink. Nur eingeladene Adressen können sich anmelden.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -32,7 +32,7 @@ async function LoginContent({ searchParams }: Pick<PageProps<"/login">, "searchP
       {error && (
         <Alert variant="destructive">
           <CircleAlertIcon />
-          <AlertDescription>The sign-in link was invalid or has expired. Please request a new one.</AlertDescription>
+          <AlertDescription>Der Anmeldelink ist ungültig oder abgelaufen. Bitte fordere einen neuen an.</AlertDescription>
         </Alert>
       )}
       <LoginForm next={typeof next === "string" ? next : undefined} />
