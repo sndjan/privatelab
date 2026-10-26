@@ -1,13 +1,15 @@
+import { ArchiveIcon, ArchiveRestoreIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { createClient } from "@/lib/supabase/server";
 import type { ModulePageProps } from "@/modules/registry";
-import {
-  addAccount,
-  deleteAccount,
-  deleteMonth,
-  saveSettings,
-  setAccountArchived,
-} from "./actions";
+import { deleteAccount, deleteMonth, saveSettings, setAccountArchived } from "./actions";
+import { AddAccount } from "./add-account";
 import {
   accountKinds,
   addMonths,
@@ -27,16 +29,7 @@ import {
 import { Calculator } from "./calculator";
 import { NetWorthChart } from "./net-worth-chart";
 import { RecordMonth } from "./record-month";
-import {
-  accentButtonClass,
-  cardClass,
-  headingClass,
-  inputClass,
-  kindColor,
-  labelClass,
-  rootClass,
-  secondaryButtonClass,
-} from "./ui";
+import { kindColor } from "./ui";
 import { WhatIf } from "./what-if";
 
 type Account = { id: string; name: string; kind: AccountKind; archived: boolean };
@@ -46,15 +39,15 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
   // Visitors of a public FIRE module get the calculator without saved data.
   if (!user || !hasAccess) {
     return (
-      <div className={`${rootClass} space-y-10`}>
+      <div className="space-y-10">
         <div className="max-w-xl space-y-3">
           <h2 className="text-4xl leading-tight font-semibold tracking-tight">When could you stop working?</h2>
-          <p className="text-[17px] text-fire-muted">
+          <p className="text-[17px] text-muted-foreground">
             Try the FIRE calculator with your own numbers. Nothing is saved.
             {!user && (
               <>
                 {" "}
-                <Link href="/login?next=/m/fire" className="text-fire-accent underline">
+                <Link href="/login?next=/m/fire" className="text-brand underline underline-offset-4">
                   Sign in
                 </Link>{" "}
                 to track your net worth over time.
@@ -67,7 +60,7 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
           startMonth={`${currentMonth()}-01`}
           settings={{ ...defaultSettings, monthlyIncome: 3000, monthlyExpenses: 2000 }}
         />
-        <p className="max-w-2xl text-[13px] text-fire-muted">
+        <p className="max-w-2xl text-[13px] text-muted-foreground">
           FIRE number = yearly expenses ÷ withdrawal rate. The projection compounds monthly at the expected real return
           and adds your monthly savings.
         </p>
@@ -117,7 +110,7 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
   const allocationTotal = allocation.reduce((sum, kind) => sum + kind.total, 0);
 
   return (
-    <div className={`${rootClass} space-y-8`}>
+    <div className="space-y-6">
       <nav aria-label="Sections" className="-mt-2 flex flex-wrap gap-1">
         {[
           ["#overview", "Overview"],
@@ -125,50 +118,39 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
           ["#accounts", "Accounts"],
           ["#settings", "Settings"],
         ].map(([href, label]) => (
-          <a
-            key={href}
-            href={href}
-            className="rounded-lg px-3 py-2.5 text-fire-muted hover:bg-fire-subtle hover:text-fire-ink"
-          >
-            {label}
-          </a>
+          <Button key={href} asChild variant="ghost" className="text-muted-foreground">
+            <a href={href}>{label}</a>
+          </Button>
         ))}
       </nav>
 
       <section id="overview" aria-label="Overview" className="flex scroll-mt-4 flex-wrap items-stretch gap-6">
-        <div className="flex min-w-0 flex-[999_1_480px] flex-col gap-6 rounded-2xl bg-fire-hero p-8 text-fire-hero-ink">
+        <div className="flex min-w-0 flex-[999_1_480px] flex-col gap-6 rounded-xl bg-hero p-8 text-hero-foreground">
           <div className="flex flex-wrap items-baseline justify-between gap-3 text-sm">
-            <span className="text-fire-hero-muted">Net worth{latest && ` · ${formatMonth(latest.month)}`}</span>
+            <span className="text-hero-muted">Net worth{latest && ` · ${formatMonth(latest.month)}`}</span>
             {latest && previous && (
-              <span className="font-figures text-fire-hero-bar">
+              <span className="font-mono text-hero-bar">
                 {formatSignedMoney(netWorth - previous.netWorth)} since{" "}
                 {new Date(`${previous.month}T00:00:00`).toLocaleDateString("en-GB", { month: "short" })}
               </span>
             )}
           </div>
-          <div className="font-figures text-5xl leading-none font-medium tracking-tighter sm:text-[64px]">
+          <div className="font-mono text-5xl leading-none font-medium tracking-tighter sm:text-[64px]">
             {formatMoney(netWorth)}
           </div>
-          <div className="flex flex-col gap-2.5 text-sm text-fire-hero-muted">
+          <div className="flex flex-col gap-2.5 text-sm text-hero-muted">
             {target > 0 ? (
               <>
                 <div className="flex justify-between gap-3">
                   <span>{progress} % of your FIRE number</span>
-                  <span className="font-figures">{formatMoney(target)}</span>
+                  <span className="font-mono">{formatMoney(target)}</span>
                 </div>
-                <div
-                  role="progressbar"
+                <Progress
+                  value={Math.max(0, Math.min(100, (netWorth / target) * 100))}
                   aria-label="Progress toward FIRE number"
-                  aria-valuenow={Math.max(0, Math.min(100, progress))}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  className="h-3 overflow-hidden rounded-md bg-fire-hero-track"
-                >
-                  <div
-                    className="h-full rounded-md bg-fire-hero-bar"
-                    style={{ width: `${Math.max(0, Math.min(100, (netWorth / target) * 100))}%` }}
-                  />
-                </div>
+                  className="h-3 bg-hero-track"
+                  indicatorClassName="bg-hero-bar"
+                />
                 <div>
                   {months === null ? (
                     "Not financially independent within 100 years at your current savings."
@@ -177,7 +159,7 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
                   ) : (
                     <>
                       Financially independent around{" "}
-                      <strong className="font-semibold text-fire-hero-ink">
+                      <strong className="font-semibold text-hero-foreground">
                         {formatMonth(addMonths(new Date(`${startMonth}T00:00:00`), months))}
                       </strong>{" "}
                       · in {formatDuration(months)}
@@ -188,7 +170,7 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
             ) : (
               <p>
                 Set your monthly expenses in{" "}
-                <a href="#settings" className="text-fire-hero-ink underline">
+                <a href="#settings" className="text-hero-foreground underline underline-offset-4">
                   Plan settings
                 </a>{" "}
                 to get your FIRE number.
@@ -216,251 +198,226 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
       <NetWorthChart points={history.map(({ month, netWorth }) => ({ month, value: netWorth }))} target={target} />
 
       <div className="flex flex-wrap items-start gap-6">
-        <section
-          id="accounts"
-          aria-labelledby="accounts-heading"
-          className={`${cardClass} flex min-w-0 flex-[1_1_360px] scroll-mt-4 flex-col gap-4`}
-        >
-          <h2 id="accounts-heading" className={headingClass}>
-            Accounts
-          </h2>
-
-          {allocationTotal > 0 && (
-            <div
-              role="img"
-              aria-label={`Allocation: ${allocation
-                .map((kind) => `${kind.label} ${Math.round((kind.total / allocationTotal) * 100)} percent`)
-                .join(", ")}`}
-              className="flex h-2.5 gap-0.5 overflow-hidden rounded-[5px]"
-            >
-              {allocation.map((kind) => (
-                <div key={kind.value} style={{ flex: kind.total, background: kindColor[kind.value] }} />
-              ))}
-            </div>
-          )}
-
-          {accounts.length > 0 && (
-            <ul className="flex flex-col">
-              {accounts.map((account) => {
-                const balance = latest?.byAccount.get(account.id);
-                const kindLabel = accountKinds.find((kind) => kind.value === account.kind)?.label;
-                return (
-                  <li
-                    key={account.id}
-                    className={`flex items-center gap-3 border-b border-fire-subtle py-2 last:border-b-0 ${
-                      account.archived ? "text-fire-muted" : ""
-                    }`}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="size-2.5 shrink-0 rounded-[3px]"
-                      style={
-                        account.archived
-                          ? undefined
-                          : account.kind === "debt"
-                            ? { border: `2px solid ${kindColor.debt}` }
-                            : { background: kindColor[account.kind] }
-                      }
-                    />
-                    <span className="flex min-w-0 flex-col">
-                      <span className={`truncate ${account.archived ? "" : "font-medium"}`}>{account.name}</span>
-                      <span className="text-xs text-fire-muted">
-                        {kindLabel}
-                        {account.archived && " · archived"}
-                      </span>
-                    </span>
-                    {!account.archived && balance !== undefined && (
-                      <span
-                        className={`ml-auto font-figures ${account.kind === "debt" ? "text-fire-debt" : ""}`}
-                      >
-                        {formatMoney(signedBalance(account.kind, balance))}
-                      </span>
-                    )}
-                    <form action={setAccountArchived} className={account.archived || balance === undefined ? "ml-auto" : ""}>
-                      <input type="hidden" name="accountId" value={account.id} />
-                      <input type="hidden" name="archived" value={String(!account.archived)} />
-                      <button
-                        className={`min-h-11 px-2 font-medium ${
-                          account.archived ? "text-fire-accent" : "text-fire-muted hover:text-fire-ink"
-                        }`}
-                        aria-label={`${account.archived ? "Restore" : "Archive"} ${account.name}`}
-                      >
-                        {account.archived ? "Restore" : <ArchiveIcon />}
-                      </button>
-                    </form>
-                    {account.archived && (
-                      <form action={deleteAccount}>
-                        <input type="hidden" name="accountId" value={account.id} />
-                        <button
-                          aria-label={`Delete ${account.name}`}
-                          className="min-h-11 px-2 text-fire-muted hover:text-fire-debt"
-                        >
-                          <TrashIcon />
-                        </button>
-                      </form>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-
-          <details className="group">
-            <summary className={`${secondaryButtonClass} list-none [&::-webkit-details-marker]:hidden`}>
-              Add account
-            </summary>
-            <form action={addAccount} className="mt-3 flex flex-wrap gap-2">
-              <label className="sr-only" htmlFor="account-name">
-                Account name
-              </label>
-              <input
-                id="account-name"
-                name="name"
-                required
-                maxLength={80}
-                placeholder="e.g. ETF portfolio"
-                className={`${inputClass} min-w-0 flex-1 font-fire`}
-              />
-              <label className="sr-only" htmlFor="account-kind">
-                Kind
-              </label>
-              <select id="account-kind" name="kind" defaultValue="investment" className={`${inputClass} font-fire`}>
-                {accountKinds.map((kind) => (
-                  <option key={kind.value} value={kind.value}>
-                    {kind.label}
-                  </option>
+        <Card id="accounts" className="min-w-0 flex-[1_1_360px] scroll-mt-4">
+          <CardHeader>
+            <CardTitle className="text-lg">
+              <h2>Accounts</h2>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            {allocationTotal > 0 && (
+              <div
+                role="img"
+                aria-label={`Allocation: ${allocation
+                  .map((kind) => `${kind.label} ${Math.round((kind.total / allocationTotal) * 100)} percent`)
+                  .join(", ")}`}
+                className="flex h-2.5 gap-0.5 overflow-hidden rounded-full"
+              >
+                {allocation.map((kind) => (
+                  <div key={kind.value} style={{ flex: kind.total, background: kindColor[kind.value] }} />
                 ))}
-              </select>
-              <button className={accentButtonClass}>Add</button>
-            </form>
-          </details>
-        </section>
+              </div>
+            )}
+
+            {accounts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No accounts yet.</p>
+            ) : (
+              <ul className="flex flex-col divide-y">
+                {accounts.map((account) => {
+                  const balance = latest?.byAccount.get(account.id);
+                  const kindLabel = accountKinds.find((kind) => kind.value === account.kind)?.label;
+                  return (
+                    <li
+                      key={account.id}
+                      className={`flex items-center gap-3 py-2 ${account.archived ? "text-muted-foreground" : ""}`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="size-2.5 shrink-0 rounded-[3px]"
+                        style={
+                          account.archived
+                            ? undefined
+                            : account.kind === "debt"
+                              ? { border: `2px solid ${kindColor.debt}` }
+                              : { background: kindColor[account.kind] }
+                        }
+                      />
+                      <span className="flex min-w-0 flex-col">
+                        <span className={`truncate ${account.archived ? "" : "font-medium"}`}>{account.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {kindLabel}
+                          {account.archived && " · archived"}
+                        </span>
+                      </span>
+                      <span className={`ml-auto font-mono ${account.kind === "debt" ? "text-debt" : ""}`}>
+                        {!account.archived && balance !== undefined && formatMoney(signedBalance(account.kind, balance))}
+                      </span>
+                      <form action={setAccountArchived}>
+                        <input type="hidden" name="accountId" value={account.id} />
+                        <input type="hidden" name="archived" value={String(!account.archived)} />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`${account.archived ? "Restore" : "Archive"} ${account.name}`}
+                          className={account.archived ? "text-brand" : "text-muted-foreground"}
+                        >
+                          {account.archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
+                        </Button>
+                      </form>
+                      {account.archived && (
+                        <form action={deleteAccount}>
+                          <input type="hidden" name="accountId" value={account.id} />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Delete ${account.name}`}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2Icon />
+                          </Button>
+                        </form>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            <AddAccount />
+          </CardContent>
+        </Card>
 
         <WhatIf key={JSON.stringify({ netWorth, settings })} netWorth={netWorth} startMonth={startMonth} settings={settings} />
       </div>
 
-      <section
-        id="balances"
-        aria-labelledby="balances-heading"
-        className={`${cardClass} flex scroll-mt-4 flex-col gap-4`}
-      >
-        <RecordMonth
-          netWorth={netWorth}
-          defaultMonth={recordMonth(latest?.month)}
-          accounts={activeAccounts.map((account) => ({
-            ...account,
-            lastBalance: latestBalance(balances, account.id),
-          }))}
-        />
+      <Card id="balances" className="scroll-mt-4">
+        <CardHeader>
+          <CardTitle className="text-lg">
+            <h2>Monthly balances</h2>
+          </CardTitle>
+          {activeAccounts.length === 0 && <CardDescription>Add an account first.</CardDescription>}
+          {activeAccounts.length > 0 && (
+            <CardAction>
+              <RecordMonth
+                netWorth={netWorth}
+                defaultMonth={recordMonth(latest?.month)}
+                accounts={activeAccounts.map((account) => ({
+                  ...account,
+                  lastBalance: latestBalance(balances, account.id),
+                }))}
+              />
+            </CardAction>
+          )}
+        </CardHeader>
 
         {history.length > 0 && (
-          <>
-            <div className="relative overflow-x-auto">
-              <table className="w-full min-w-[560px] border-collapse text-sm">
-                <thead>
-                  <tr className="text-right text-[13px] text-fire-muted">
-                    <th className="py-2 pr-3 text-left font-medium">Month</th>
-                    {accounts.map((account) => (
-                      <th key={account.id} className="px-3 py-2 font-medium">
-                        {account.name}
-                      </th>
-                    ))}
-                    <th className="px-3 py-2 font-semibold text-fire-ink">Net worth</th>
-                    <th className="py-2">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="text-right font-figures">
-                  {[...history].reverse().map((row) => (
-                    <tr key={row.month} className="border-t border-fire-subtle">
-                      <td className="py-1.5 pr-3 text-left font-fire whitespace-nowrap">{formatMonth(row.month)}</td>
-                      {accounts.map((account) => (
-                        <td
-                          key={account.id}
-                          className={`px-3 py-1.5 ${account.kind === "debt" && row.entered.has(account.id) ? "text-fire-debt" : ""}`}
-                        >
-                          {row.entered.has(account.id) ? (
-                            formatPlain(signedBalance(account.kind, row.byAccount.get(account.id) ?? 0))
-                          ) : (
-                            <span className="text-fire-muted" aria-label="no entry">
-                              ·
-                            </span>
-                          )}
-                        </td>
-                      ))}
-                      <td className="px-3 py-1.5 font-medium">{formatPlain(row.netWorth)}</td>
-                      <td className="py-1 text-right">
-                        <form action={deleteMonth}>
-                          <input type="hidden" name="month" value={row.month} />
-                          <button
-                            aria-label={`Delete ${formatMonth(row.month)}`}
-                            className="inline-flex min-h-10 min-w-11 items-center justify-center text-fire-muted hover:text-fire-debt"
-                          >
-                            <TrashIcon />
-                          </button>
-                        </form>
-                      </td>
-                    </tr>
+          <CardContent className="space-y-3">
+            <Table className="min-w-[560px]">
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-muted-foreground">Month</TableHead>
+                  {accounts.map((account) => (
+                    <TableHead key={account.id} className="text-right text-muted-foreground">
+                      {account.name}
+                    </TableHead>
                   ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="text-[13px] text-fire-muted">· = no entry that month; the last known balance counts.</p>
-          </>
+                  <TableHead className="text-right">Net worth</TableHead>
+                  <TableHead>
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="font-mono">
+                {[...history].reverse().map((row) => (
+                  <TableRow key={row.month}>
+                    <TableCell className="font-sans">{formatMonth(row.month)}</TableCell>
+                    {accounts.map((account) => (
+                      <TableCell
+                        key={account.id}
+                        className={`text-right ${account.kind === "debt" && row.entered.has(account.id) ? "text-debt" : ""}`}
+                      >
+                        {row.entered.has(account.id) ? (
+                          formatPlain(signedBalance(account.kind, row.byAccount.get(account.id) ?? 0))
+                        ) : (
+                          <span className="text-muted-foreground" aria-label="no entry">
+                            ·
+                          </span>
+                        )}
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-right font-medium">{formatPlain(row.netWorth)}</TableCell>
+                    <TableCell className="py-1 text-right">
+                      <form action={deleteMonth}>
+                        <input type="hidden" name="month" value={row.month} />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Delete ${formatMonth(row.month)}`}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2Icon />
+                        </Button>
+                      </form>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <p className="text-[13px] text-muted-foreground">· = no entry that month; the last known balance counts.</p>
+          </CardContent>
         )}
-      </section>
+      </Card>
 
-      <section id="settings" aria-labelledby="settings-heading" className={`${cardClass} scroll-mt-4 space-y-4`}>
-        <h2 id="settings-heading" className={headingClass}>
-          Plan settings
-        </h2>
-        <form action={saveSettings} className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] items-end gap-4">
-          <SettingField label="Monthly net income (€)" name="monthlyIncome" value={settings.monthlyIncome} step="50" />
-          <SettingField label="Monthly expenses (€)" name="monthlyExpenses" value={settings.monthlyExpenses} step="50" />
-          <SettingField label="Withdrawal rate (%)" name="withdrawalRate" value={settings.withdrawalRate} step="0.25" />
-          <SettingField label="Expected real return (%)" name="expectedReturn" value={settings.expectedReturn} step="0.5" />
-          <div className="col-span-full">
-            <button className={accentButtonClass}>Save settings</button>
-          </div>
-        </form>
-      </section>
+      <Card id="settings" className="scroll-mt-4">
+        <CardHeader>
+          <CardTitle className="text-lg">
+            <h2>Plan settings</h2>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form action={saveSettings} className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] items-end gap-4">
+            <SettingField label="Monthly net income (€)" name="monthlyIncome" value={settings.monthlyIncome} step="50" />
+            <SettingField label="Monthly expenses (€)" name="monthlyExpenses" value={settings.monthlyExpenses} step="50" />
+            <SettingField label="Withdrawal rate (%)" name="withdrawalRate" value={settings.withdrawalRate} step="0.25" />
+            <SettingField label="Expected real return (%)" name="expectedReturn" value={settings.expectedReturn} step="0.5" />
+            <div className="col-span-full">
+              <Button variant="brand" size="lg">
+                Save settings
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
 function Tile({ label, value, note }: { label: string; value: string; note: string }) {
   return (
-    <div className="flex flex-col gap-1.5 rounded-xl border border-fire-line bg-fire-surface p-[18px]">
-      <dt className="text-[13px] text-fire-muted">{label}</dt>
-      <dd className="font-figures text-[22px] font-medium">{value}</dd>
-      <dd className="text-xs text-fire-muted">{note}</dd>
-    </div>
+    <Card className="gap-1.5 p-[18px]">
+      <dt className="text-[13px] text-muted-foreground">{label}</dt>
+      <dd className="font-mono text-[22px] font-medium">{value}</dd>
+      <dd className="text-xs text-muted-foreground">{note}</dd>
+    </Card>
   );
 }
 
 function SettingField({ label, name, value, step }: { label: string; name: string; value: number; step: string }) {
   return (
-    <label className={labelClass}>
-      {label}
-      <input type="number" name={name} step={step} defaultValue={value} required className={inputClass} />
-    </label>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
-    </svg>
-  );
-}
-
-function ArchiveIcon() {
-  return (
-    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4" />
-    </svg>
+    <div className="space-y-2">
+      <Label htmlFor={`setting-${name}`} className="font-normal text-muted-foreground">
+        {label}
+      </Label>
+      <Input
+        id={`setting-${name}`}
+        type="number"
+        name={name}
+        step={step}
+        defaultValue={value}
+        required
+        className="h-11 font-mono"
+      />
+    </div>
   );
 }
 

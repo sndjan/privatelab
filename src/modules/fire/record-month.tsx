@@ -2,8 +2,20 @@
 
 import { useState } from "react";
 import { saveBalances } from "./actions";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { formatMoney, formatSignedMoney, signedBalance, type AccountKind } from "./calc";
-import { cardClass, headingClass, inputClass, labelClass, primaryButtonClass } from "./ui";
 
 type Account = { id: string; name: string; kind: AccountKind; lastBalance: number | undefined };
 
@@ -28,8 +40,8 @@ function parseAmount(value: string) {
   return Number.isFinite(number) ? number : null;
 }
 
-// Header of the balances card plus the form for one month's balances. Empty
-// fields keep the account's last balance.
+// Button plus dialog to enter one month's balances. Empty fields keep the
+// account's last balance.
 export function RecordMonth({ accounts, netWorth, defaultMonth }: Props) {
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(defaultMonth);
@@ -53,88 +65,82 @@ export function RecordMonth({ accounts, netWorth, defaultMonth }: Props) {
   }
 
   return (
-    <>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="balances-heading" className={headingClass}>
-          Monthly balances
-        </h2>
-        {accounts.length > 0 && !open && (
-          <button type="button" onClick={() => setOpen(true)} className={primaryButtonClass}>
-            Record {monthName(defaultMonth)}
-          </button>
-        )}
-      </div>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setMonth(defaultMonth);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button>Record {monthName(defaultMonth)}</Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <form action={save} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>Record a month</DialogTitle>
+            <DialogDescription>Leave a field empty to keep its last balance.</DialogDescription>
+          </DialogHeader>
 
-      {accounts.length === 0 && <p className="text-sm text-fire-muted">Add an account first.</p>}
-
-      {open && (
-        <form action={save} className="max-w-md space-y-4 rounded-2xl bg-fire-ground p-4">
-          <label className={labelClass}>
-            Month
-            <input
+          <div className="space-y-2">
+            <Label htmlFor="record-month">Month</Label>
+            <Input
+              id="record-month"
               type="month"
               name="month"
               required
               value={month}
               onChange={(event) => setMonth(event.target.value)}
-              className={`${inputClass} min-h-12 font-fire text-base`}
+              className="h-11"
             />
-          </label>
+          </div>
 
-          <div className={`${cardClass} px-4 py-1`}>
-            {accounts.map((account, index) => (
-              <label
-                key={account.id}
-                className={`flex items-center gap-3 py-3 ${index > 0 ? "border-t border-fire-subtle" : ""}`}
-              >
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate font-medium">{account.name}</span>
-                  <span className="text-xs text-fire-muted">
+          <div className="divide-y rounded-lg border px-4">
+            {accounts.map((account) => (
+              <div key={account.id} className="flex items-center gap-3 py-3">
+                <Label htmlFor={`record-${account.id}`} className="flex min-w-0 flex-1 flex-col items-start gap-1">
+                  <span className="truncate">{account.name}</span>
+                  <span className="text-xs font-normal text-muted-foreground">
                     {account.kind === "debt" && "amount owed · "}
                     {account.lastBalance === undefined ? "no balance yet" : `last ${formatMoney(account.lastBalance)}`}
                   </span>
-                </span>
-                <input
+                </Label>
+                <Input
+                  id={`record-${account.id}`}
                   type="text"
                   inputMode="decimal"
                   name={`balance:${account.id}`}
                   value={values[account.id] ?? ""}
                   onChange={(event) => setValues({ ...values, [account.id]: event.target.value })}
                   placeholder={account.lastBalance === undefined ? "" : String(account.lastBalance)}
-                  className={`${inputClass} w-32 text-right text-base ${account.kind === "debt" ? "text-fire-debt" : ""}`}
+                  className={`h-11 w-32 text-right font-mono ${account.kind === "debt" ? "text-debt" : ""}`}
                 />
-              </label>
+              </div>
             ))}
           </div>
 
-          <p className="text-[13px] text-fire-muted">Leave a field empty to keep its last balance.</p>
-
           <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[13px] text-fire-muted">New net worth</span>
-            <span className="flex items-baseline gap-2.5">
+            <span className="text-[13px] text-muted-foreground">New net worth</span>
+            <span className="flex items-baseline gap-2.5" aria-live="polite">
               {change !== 0 && (
-                <span className={`font-figures text-[13px] ${change > 0 ? "text-fire-accent" : "text-fire-debt"}`}>
+                <span className={`font-mono text-[13px] ${change > 0 ? "text-brand" : "text-debt"}`}>
                   {formatSignedMoney(change)}
                 </span>
               )}
-              <span className="font-figures text-[22px] font-medium">{formatMoney(netWorth + change)}</span>
+              <span className="font-mono text-[22px] font-medium">{formatMoney(netWorth + change)}</span>
             </span>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button className={`${primaryButtonClass} min-h-[52px] flex-1 text-base font-semibold`}>
-              Save {month ? monthName(month) : "month"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="min-h-[52px] rounded-xl px-4 font-medium text-fire-muted"
-            >
-              Cancel
-            </button>
-          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="ghost">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button size="lg">Save {month ? monthName(month) : "month"}</Button>
+          </DialogFooter>
         </form>
-      )}
-    </>
+      </DialogContent>
+    </Dialog>
   );
 }

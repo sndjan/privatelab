@@ -1,4 +1,12 @@
+import { CheckIcon } from "lucide-react";
 import { Suspense } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { modules } from "@/modules/registry";
@@ -6,7 +14,7 @@ import { inviteUser, removeUser, setModuleAccess, setModuleVisibility } from "./
 
 export default function AdminPage() {
   return (
-    <Suspense fallback={<p className="opacity-70">Loading…</p>}>
+    <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
       <AdminContent />
     </Suspense>
   );
@@ -26,115 +34,142 @@ async function AdminContent() {
   const visibility = new Map((moduleRows ?? []).map((row) => [row.id, row.visibility]));
 
   return (
-    <div className="space-y-10">
-      <h1 className="text-2xl font-semibold">Admin</h1>
+    <div className="space-y-8">
+      <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium">Invite someone</h2>
-        <form action={inviteUser} className="space-y-3 rounded-lg border border-foreground/10 p-4">
-          <input
-            name="email"
-            type="email"
-            required
-            placeholder="friend@example.com"
-            className="w-full rounded border border-foreground/20 bg-transparent px-3 py-2"
-          />
-          <div className="flex flex-wrap gap-4 text-sm">
-            {modules.map((module) => (
-              <label key={module.id} className="flex items-center gap-2">
-                <input type="checkbox" name="modules" value={module.id} />
-                {module.icon} {module.name}
-              </label>
-            ))}
-          </div>
-          <button className="rounded bg-foreground px-3 py-2 text-sm text-background">
-            Add user
-          </button>
-          <p className="text-xs opacity-60">
-            They can then sign in on /login with a magic link.
-          </p>
-        </form>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium">Users and access</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left opacity-70">
-                <th className="py-2 pr-4 font-normal">Email</th>
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h2>Invite someone</h2>
+          </CardTitle>
+          <CardDescription>They can then sign in on /login with a magic link.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={inviteUser} className="space-y-4">
+            <div className="max-w-sm space-y-2">
+              <Label htmlFor="invite-email">Email</Label>
+              <Input id="invite-email" name="email" type="email" required placeholder="friend@example.com" />
+            </div>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">Modules</legend>
+              <div className="flex flex-wrap gap-4">
                 {modules.map((module) => (
-                  <th key={module.id} className="py-2 pr-4 font-normal">
-                    {module.icon} {module.name}
-                  </th>
+                  <div key={module.id} className="flex items-center gap-2">
+                    <Checkbox id={`invite-${module.id}`} name="modules" value={module.id} />
+                    <Label htmlFor={`invite-${module.id}`} className="font-normal">
+                      {module.icon} {module.name}
+                    </Label>
+                  </div>
                 ))}
-                <th />
-              </tr>
-            </thead>
-            <tbody>
+              </div>
+            </fieldset>
+            <Button>Add user</Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h2>Users and access</h2>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Email</TableHead>
+                {modules.map((module) => (
+                  <TableHead key={module.id}>
+                    {module.icon} {module.name}
+                  </TableHead>
+                ))}
+                <TableHead>
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {(profiles ?? []).map((profile) => (
-                <tr key={profile.id} className="border-t border-foreground/10">
-                  <td className="py-2 pr-4">
-                    {profile.email}
-                    {profile.is_admin && <span className="ml-2 text-xs opacity-60">admin</span>}
-                  </td>
+                <TableRow key={profile.id}>
+                  <TableCell>
+                    <span className="flex items-center gap-2">
+                      {profile.email}
+                      {profile.is_admin && <Badge variant="secondary">admin</Badge>}
+                    </span>
+                  </TableCell>
                   {modules.map((module) => {
                     const enabled = profile.is_admin || hasAccess.has(`${profile.id}:${module.id}`);
                     return (
-                      <td key={module.id} className="py-2 pr-4">
+                      <TableCell key={module.id}>
                         {profile.is_admin ? (
-                          "✓"
+                          <CheckIcon aria-label="Has access" className="size-4 text-brand" />
                         ) : (
                           <form action={setModuleAccess}>
                             <input type="hidden" name="userId" value={profile.id} />
                             <input type="hidden" name="moduleId" value={module.id} />
                             <input type="hidden" name="enabled" value={String(!enabled)} />
-                            <button className="rounded border border-foreground/20 px-2 py-0.5">
-                              {enabled ? "✓ revoke" : "grant"}
-                            </button>
+                            <Button size="sm" variant={enabled ? "secondary" : "outline"}>
+                              {enabled ? (
+                                <>
+                                  <CheckIcon className="text-brand" /> Revoke
+                                </>
+                              ) : (
+                                "Grant"
+                              )}
+                            </Button>
                           </form>
                         )}
-                      </td>
+                      </TableCell>
                     );
                   })}
-                  <td className="py-2 text-right">
+                  <TableCell className="text-right">
                     {profile.id !== currentUser.id && (
                       <form action={removeUser}>
                         <input type="hidden" name="userId" value={profile.id} />
-                        <button className="text-red-600 opacity-70 hover:opacity-100">remove</button>
+                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive">
+                          Remove
+                        </Button>
                       </form>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium">Module visibility</h2>
-        <ul className="space-y-2 text-sm">
-          {modules.map((module) => {
-            const isPublic = visibility.get(module.id) === "public";
-            return (
-              <li key={module.id} className="flex items-center gap-3">
-                <span className="w-32">
-                  {module.icon} {module.name}
-                </span>
-                <span className="w-16 opacity-70">{isPublic ? "public" : "private"}</span>
-                <form action={setModuleVisibility}>
-                  <input type="hidden" name="moduleId" value={module.id} />
-                  <input type="hidden" name="visibility" value={isPublic ? "private" : "public"} />
-                  <button className="rounded border border-foreground/20 px-2 py-0.5">
-                    make {isPublic ? "private" : "public"}
-                  </button>
-                </form>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h2>Module visibility</h2>
+          </CardTitle>
+          <CardDescription>Public modules can be opened without signing in.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ul className="divide-y">
+            {modules.map((module) => {
+              const isPublic = visibility.get(module.id) === "public";
+              return (
+                <li key={module.id} className="flex items-center gap-3 py-2">
+                  <span className="w-32">
+                    {module.icon} {module.name}
+                  </span>
+                  <Badge variant={isPublic ? "default" : "outline"}>{isPublic ? "public" : "private"}</Badge>
+                  <form action={setModuleVisibility} className="ml-auto">
+                    <input type="hidden" name="moduleId" value={module.id} />
+                    <input type="hidden" name="visibility" value={isPublic ? "private" : "public"} />
+                    <Button size="sm" variant="outline">
+                      Make {isPublic ? "private" : "public"}
+                    </Button>
+                  </form>
+                </li>
+              );
+            })}
+          </ul>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -13,7 +13,8 @@ import {
   savingsRate,
   type FireSettings,
 } from "./calc";
-import { cardClass, headingClass } from "./ui";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Slider } from "@/components/ui/slider";
 
 type Props = {
   netWorth: number;
@@ -49,63 +50,66 @@ export function WhatIf({ netWorth, startMonth, settings }: Props) {
     tone = difference! > 0 ? "good" : "bad";
   }
   const toneClass = {
-    good: "bg-fire-good-bg text-fire-good-ink",
-    bad: "bg-fire-bad-bg text-fire-bad-ink",
-    neutral: "bg-fire-subtle",
+    good: "bg-good text-good-foreground",
+    bad: "bg-bad text-bad-foreground",
+    neutral: "bg-muted",
   }[tone];
 
   return (
-    <div className={`${cardClass} flex min-w-0 flex-[1_1_420px] flex-col gap-5`}>
-      <div className="space-y-1">
-        <h2 className={headingClass}>What if…</h2>
-        <p className="text-[13px] text-fire-muted">Try changes to your plan. Nothing here is saved.</p>
-      </div>
-
-      <label className="flex flex-col gap-2.5">
-        <span className="flex justify-between gap-3">
-          <span>Extra savings per month</span>
-          <strong className="font-figures font-medium">{formatSignedMoney(extraSavings)}</strong>
-        </span>
-        <input
-          type="range"
-          min={-1000}
-          max={2000}
-          step={50}
-          value={extraSavings}
-          onChange={(event) => setExtraSavings(Number(event.target.value))}
-          className="min-h-8 w-full accent-fire-accent"
-        />
-        <span aria-hidden="true" className="flex justify-between font-figures text-[11px] text-fire-muted">
-          <span>−1.000 €</span>
-          <span>0</span>
-          <span>+2.000 €</span>
-        </span>
-      </label>
-
-      <dl className="grid grid-cols-2 gap-3">
-        <div className="flex flex-col gap-1 rounded-xl bg-fire-subtle p-4">
-          <dt className="text-[13px] text-fire-muted">Independent in</dt>
-          <dd className="font-figures text-[22px] font-medium">
-            {months === null
-              ? "Not in 100 yr"
-              : months === 0
-                ? "Already"
-                : formatMonth(addMonths(new Date(`${startMonth}T00:00:00`), months))}
-          </dd>
-          {months !== null && months > 0 && (
-            <dd className="text-xs text-fire-muted">in {formatDuration(months)}</dd>
-          )}
+    <Card className="min-w-0 flex-[1_1_420px]">
+      <CardHeader>
+        <CardTitle className="text-lg">
+          <h2>What if…</h2>
+        </CardTitle>
+        <CardDescription>Try changes to your plan. Nothing here is saved.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-5">
+        <div className="flex flex-col gap-3">
+          <div className="flex justify-between gap-3">
+            <span id="extra-savings-label">Extra savings per month</span>
+            <strong className="font-mono font-medium">{formatSignedMoney(extraSavings)}</strong>
+          </div>
+          <Slider
+            aria-labelledby="extra-savings-label"
+            min={-1000}
+            max={2000}
+            step={50}
+            value={[extraSavings]}
+            onValueChange={([value]) => setExtraSavings(value)}
+            className="py-2"
+          />
+          <div aria-hidden="true" className="flex justify-between font-mono text-[11px] text-muted-foreground">
+            <span>−1.000 €</span>
+            <span>0</span>
+            <span>+2.000 €</span>
+          </div>
         </div>
-        <div className="flex flex-col gap-1 rounded-xl bg-fire-subtle p-4">
-          <dt className="text-[13px] text-fire-muted">Savings rate</dt>
-          <dd className="font-figures text-[22px] font-medium">{savingsRate(savings, settings.monthlyIncome)} %</dd>
-          <dd className="text-xs text-fire-muted">{formatMoney(savings)} / month</dd>
-        </div>
-      </dl>
 
-      <p aria-live="polite" className={`rounded-xl px-4 py-3.5 font-medium ${toneClass}`}>
-        {message}
-      </p>
-    </div>
+        <dl className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1 rounded-lg bg-muted p-4">
+            <dt className="text-[13px] text-muted-foreground">Independent in</dt>
+            <dd className="font-mono text-[22px] font-medium">
+              {months === null
+                ? "Not in 100 yr"
+                : months === 0
+                  ? "Already"
+                  : formatMonth(addMonths(new Date(`${startMonth}T00:00:00`), months))}
+            </dd>
+            {months !== null && months > 0 && (
+              <dd className="text-xs text-muted-foreground">in {formatDuration(months)}</dd>
+            )}
+          </div>
+          <div className="flex flex-col gap-1 rounded-lg bg-muted p-4">
+            <dt className="text-[13px] text-muted-foreground">Savings rate</dt>
+            <dd className="font-mono text-[22px] font-medium">{savingsRate(savings, settings.monthlyIncome)} %</dd>
+            <dd className="text-xs text-muted-foreground">{formatMoney(savings)} / month</dd>
+          </div>
+        </dl>
+
+        <p aria-live="polite" className={`rounded-lg px-4 py-3.5 font-medium ${toneClass}`}>
+          {message}
+        </p>
+      </CardContent>
+    </Card>
   );
 }

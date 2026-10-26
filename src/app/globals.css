@@ -1,106 +1,136 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
+/* shadcn/ui theme. Colors follow the FIRE design: cool off-white ground, ink
+   text, deep green as the brand accent. Dark mode follows the system setting. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --text-muted: #6b6b66;
-  --grid: #e7e6e2;
-  --series-1: #2a78d6;
+  --radius: 0.625rem;
+  --background: #f3f4f1;
+  --foreground: #16201c;
+  --card: #ffffff;
+  --card-foreground: #16201c;
+  --popover: #ffffff;
+  --popover-foreground: #16201c;
+  --primary: #16201c;
+  --primary-foreground: #f3f4f1;
+  --secondary: #eef0ec;
+  --secondary-foreground: #16201c;
+  --muted: #eef0ec;
+  --muted-foreground: #5b6660;
+  --accent: #eef0ec;
+  --accent-foreground: #16201c;
+  --destructive: #b42318;
+  --border: #dde1dc;
+  --input: #c9cfca;
+  --ring: #1e6a4e;
+  --brand: #1e6a4e;
+  --brand-foreground: #ffffff;
+  --chart-1: #1e6a4e;
+  --chart-2: #6fa98e;
+  --chart-3: #b9d6c7;
+  --chart-4: #9aa39e;
+  --chart-5: #a9471a;
+
+  /* FIRE module extras */
+  --debt: #a9471a;
+  --hero: #16201c;
+  --hero-foreground: #f3f4f1;
+  --hero-muted: #b9c2bd;
+  --hero-track: #2c3832;
+  --hero-bar: #7fd1ac;
+  --good: #e3f2ea;
+  --good-foreground: #134634;
+  --bad: #fbede4;
+  --bad-foreground: #7e3412;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #121714;
+    --foreground: #e8ece9;
+    --card: #181e1b;
+    --card-foreground: #e8ece9;
+    --popover: #181e1b;
+    --popover-foreground: #e8ece9;
+    --primary: #e8ece9;
+    --primary-foreground: #121714;
+    --secondary: #232a26;
+    --secondary-foreground: #e8ece9;
+    --muted: #232a26;
+    --muted-foreground: #a3ada7;
+    --accent: #232a26;
+    --accent-foreground: #e8ece9;
+    --destructive: #f04438;
+    --border: #2c3531;
+    --input: #3f4a45;
+    --ring: #5cc398;
+    --brand: #5cc398;
+    --brand-foreground: #0b1410;
+    --chart-1: #5cc398;
+    --chart-2: #3e8a68;
+    --chart-3: #2a5a45;
+    --chart-4: #5f6964;
+    --chart-5: #f0976a;
+
+    --debt: #f0976a;
+    --hero: #1f2b26;
+    --hero-track: #34433c;
+    --good: #173628;
+    --good-foreground: #a8e6c8;
+    --bad: #3a2216;
+    --bad-foreground: #f5b892;
+  }
 }
 
 @theme inline {
+  --font-sans: var(--font-instrument-sans);
+  --font-mono: var(--font-jetbrains-mono);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-debt: var(--debt);
+  --color-hero: var(--hero);
+  --color-hero-foreground: var(--hero-foreground);
+  --color-hero-muted: var(--hero-muted);
+  --color-hero-track: var(--hero-track);
+  --color-hero-bar: var(--hero-bar);
+  --color-good: var(--good);
+  --color-good-foreground: var(--good-foreground);
+  --color-bad: var(--bad);
+  --color-bad-foreground: var(--bad-foreground);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --text-muted: #a3a29b;
-    --grid: #2a2a28;
-    --series-1: #3987e5;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-/* FIRE module palette (src/modules/fire). */
-:root {
-  --fire-ground: #f3f4f1;
-  --fire-surface: #ffffff;
-  --fire-ink: #16201c;
-  --fire-muted: #5b6660;
-  --fire-line: #dde1dc;
-  --fire-subtle: #eef0ec;
-  --fire-field: #c9cfca;
-  --fire-accent: #1e6a4e;
-  --fire-accent-ink: #ffffff;
-  --fire-kind-pension: #6fa98e;
-  --fire-kind-cash: #b9d6c7;
-  --fire-kind-property: #9aa39e;
-  --fire-debt: #a9471a;
-  --fire-hero: #16201c;
-  --fire-hero-ink: #f3f4f1;
-  --fire-hero-muted: #b9c2bd;
-  --fire-hero-track: #2c3832;
-  --fire-hero-bar: #7fd1ac;
-  --fire-good-bg: #e3f2ea;
-  --fire-good-ink: #134634;
-  --fire-bad-bg: #fbede4;
-  --fire-bad-ink: #7e3412;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --fire-ground: #121714;
-    --fire-surface: #181e1b;
-    --fire-ink: #e8ece9;
-    --fire-muted: #a3ada7;
-    --fire-line: #2c3531;
-    --fire-subtle: #232a26;
-    --fire-field: #3f4a45;
-    --fire-accent: #5cc398;
-    --fire-accent-ink: #0b1410;
-    --fire-kind-pension: #3e8a68;
-    --fire-kind-cash: #2a5a45;
-    --fire-kind-property: #5f6964;
-    --fire-debt: #f0976a;
-    --fire-hero: #1f2b26;
-    --fire-hero-track: #34433c;
-    --fire-good-bg: #173628;
-    --fire-good-ink: #a8e6c8;
-    --fire-bad-bg: #3a2216;
-    --fire-bad-ink: #f5b892;
+  body {
+    @apply bg-background font-sans text-foreground;
   }
-}
-
-@theme inline {
-  --font-fire: var(--font-instrument-sans);
-  --font-figures: var(--font-jetbrains-mono);
-  --color-fire-ground: var(--fire-ground);
-  --color-fire-surface: var(--fire-surface);
-  --color-fire-ink: var(--fire-ink);
-  --color-fire-muted: var(--fire-muted);
-  --color-fire-line: var(--fire-line);
-  --color-fire-subtle: var(--fire-subtle);
-  --color-fire-field: var(--fire-field);
-  --color-fire-accent: var(--fire-accent);
-  --color-fire-accent-ink: var(--fire-accent-ink);
-  --color-fire-debt: var(--fire-debt);
-  --color-fire-hero: var(--fire-hero);
-  --color-fire-hero-ink: var(--fire-hero-ink);
-  --color-fire-hero-muted: var(--fire-hero-muted);
-  --color-fire-hero-track: var(--fire-hero-track);
-  --color-fire-hero-bar: var(--fire-hero-bar);
-  --color-fire-good-bg: var(--fire-good-bg);
-  --color-fire-good-ink: var(--fire-good-ink);
-  --color-fire-bad-bg: var(--fire-bad-bg);
-  --color-fire-bad-ink: var(--fire-bad-ink);
 }

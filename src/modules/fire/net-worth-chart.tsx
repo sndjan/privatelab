@@ -1,23 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { formatCompactMoney, formatMoney, formatMonth } from "./calc";
-import { cardClass, headingClass } from "./ui";
 
 type Point = { month: string; value: number };
 
 const HEIGHT = 260;
 const PAD = { top: 16, right: 16, bottom: 28, left: 64 };
-const MIN_LABEL_SPACING = 80;
+const MIN_LABEL_SPACING = 96;
 
 // Show the FIRE number as a reference line only while it doesn't flatten the
 // net worth line into the baseline.
 const TARGET_RANGE_FACTOR = 3;
 
 const ranges = [
-  { label: "12 mo", months: 12 },
-  { label: "3 yr", months: 36 },
-  { label: "All", months: null },
+  { value: "12", label: "12 mo", months: 12 },
+  { value: "36", label: "3 yr", months: 36 },
+  { value: "all", label: "All", months: null },
 ] as const;
 
 function niceTicks(min: number, max: number, count = 4) {
@@ -41,7 +42,7 @@ function inRange(points: Point[], months: number | null) {
 
 export function NetWorthChart({ points: allPoints, target }: { points: Point[]; target: number }) {
   const [active, setActive] = useState<number | null>(null);
-  const [range, setRange] = useState<number | null>(12);
+  const [range, setRange] = useState<(typeof ranges)[number]>(ranges[0]);
   const [width, setWidth] = useState(640);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -54,41 +55,44 @@ export function NetWorthChart({ points: allPoints, target }: { points: Point[]; 
     return () => observer.disconnect();
   }, []);
 
-  const points = inRange(allPoints, range);
+  const points = inRange(allPoints, range.months);
 
   return (
-    <section aria-labelledby="chart-heading" className={`${cardClass} space-y-4`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="chart-heading" className={headingClass}>
-          Net worth over time
-        </h2>
-        <div role="group" aria-label="Range" className="flex gap-1 rounded-[10px] bg-fire-subtle p-1">
-          {ranges.map((option) => (
-            <button
-              key={option.label}
-              type="button"
-              aria-pressed={range === option.months}
-              onClick={() => {
-                setRange(option.months);
-                setActive(null);
-              }}
-              className={`min-h-9 rounded-[7px] px-3 ${
-                range === option.months ? "bg-fire-surface font-medium" : "text-fire-muted"
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div ref={containerRef}>
+    <Card aria-labelledby="chart-heading" role="region">
+      <CardHeader>
+        <CardTitle id="chart-heading" className="text-lg">
+          <h2>Net worth over time</h2>
+        </CardTitle>
+        <CardAction>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="sm"
+            aria-label="Range"
+            value={range.value}
+            onValueChange={(value) => {
+              const next = ranges.find((option) => option.value === value);
+              if (!next) return;
+              setRange(next);
+              setActive(null);
+            }}
+          >
+            {ranges.map((option) => (
+              <ToggleGroupItem key={option.value} value={option.value} className="px-3">
+                {option.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </CardAction>
+      </CardHeader>
+      <CardContent ref={containerRef}>
         {points.length === 0 ? (
-          <p className="text-sm text-fire-muted">Add your first monthly balances to see the chart.</p>
+          <p className="text-sm text-muted-foreground">Add your first monthly balances to see the chart.</p>
         ) : (
           <Plot points={points} target={target} width={width} active={active} setActive={setActive} />
         )}
-      </div>
-    </section>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -151,15 +155,15 @@ function Plot({
         >
           {ticks.map((tick) => (
             <g key={tick}>
-              <line x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} stroke="var(--fire-subtle)" />
+              <line x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} stroke="var(--muted)" />
               <text
                 x={PAD.left - 8}
                 y={y(tick)}
                 dy="0.32em"
                 textAnchor="end"
                 fontSize="11"
-                fill="var(--fire-muted)"
-                className="font-figures"
+                fill="var(--muted-foreground)"
+                className="font-mono"
               >
                 {formatCompactMoney(tick)}
               </text>
@@ -173,8 +177,8 @@ function Plot({
                 y={HEIGHT - 8}
                 textAnchor={index === last && last > 0 ? "end" : index === 0 && last > 0 ? "start" : "middle"}
                 fontSize="11"
-                fill="var(--fire-muted)"
-                className="font-figures"
+                fill="var(--muted-foreground)"
+                className="font-mono"
               >
                 {formatMonth(point.month)}
               </text>
@@ -187,10 +191,10 @@ function Plot({
                 x2={width - PAD.right}
                 y1={y(target)}
                 y2={y(target)}
-                stroke="var(--fire-muted)"
+                stroke="var(--muted-foreground)"
                 strokeDasharray="4 4"
               />
-              <text x={width - PAD.right} y={y(target) - 6} textAnchor="end" fontSize="11" fill="var(--fire-muted)">
+              <text x={width - PAD.right} y={y(target) - 6} textAnchor="end" fontSize="11" fill="var(--muted-foreground)">
                 FIRE number {formatMoney(target)}
               </text>
             </g>
@@ -201,17 +205,17 @@ function Plot({
               x2={x(active)}
               y1={PAD.top}
               y2={PAD.top + plotHeight}
-              stroke="var(--fire-field)"
+              stroke="var(--input)"
               strokeWidth="1"
             />
           )}
-          <path d={path} fill="none" stroke="var(--fire-accent)" strokeWidth="2.5" strokeLinejoin="round" />
+          <path d={path} fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinejoin="round" />
           <circle
             cx={x(shown)}
             cy={y(shownPoint.value)}
             r={6}
-            fill="var(--fire-accent)"
-            stroke="var(--fire-surface)"
+            fill="var(--brand)"
+            stroke="var(--card)"
             strokeWidth="2"
           />
           <rect
@@ -225,7 +229,7 @@ function Plot({
           />
         </svg>
         <div
-          className="pointer-events-none absolute top-3.5 flex gap-2 rounded-lg bg-fire-hero px-2.5 py-1.5 text-xs text-fire-hero-ink"
+          className="pointer-events-none absolute top-3.5 flex gap-2 rounded-lg bg-hero px-2.5 py-1.5 text-xs text-hero-foreground"
           style={
             shown > points.length / 2
               ? { right: Math.max(12, width - x(shown) + 12) }
@@ -233,11 +237,11 @@ function Plot({
           }
         >
           <span>{formatMonth(shownPoint.month)}</span>
-          <span className="font-figures">{formatMoney(shownPoint.value)}</span>
+          <span className="font-mono">{formatMoney(shownPoint.value)}</span>
         </div>
       </div>
       {!showTarget && target > 0 && (
-        <p className="text-[13px] text-fire-muted">
+        <p className="text-[13px] text-muted-foreground">
           The {formatMoney(target)} FIRE line is off this scale. It appears once net worth is within a third of it.
         </p>
       )}

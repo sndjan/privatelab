@@ -43,12 +43,17 @@ Policies use `private.has_module_access(module_id)`, which is true for admins an
 
 The module is then served at `/m/<id>` and appears on the dashboard and admin page.
 
+## UI
+
+Components come from [shadcn/ui](https://ui.shadcn.com) (new-york style) and live in `src/components/ui/`. Add more with `npx shadcn@latest add <component>`. The theme is in `src/app/globals.css`: the standard shadcn tokens plus `brand` (deep green) and a few FIRE-specific colors; dark mode follows the system setting.
+
 ## Project layout
 
 ```
 src/
   app/            routes: /, /login, /auth/*, /dashboard, /admin, /m/[module]
-  lib/            Supabase clients and auth helpers
+  components/ui/  shadcn/ui components
+  lib/            Supabase clients, auth helpers, cn()
   modules/        one folder per module + registry.ts
   proxy.ts        refreshes the session, redirects signed-out users
 supabase/migrations/

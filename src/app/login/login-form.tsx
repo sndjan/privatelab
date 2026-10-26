@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 
 export function LoginForm({ next }: { next?: string }) {
@@ -31,26 +35,31 @@ export function LoginForm({ next }: { next?: string }) {
   }
 
   if (status === "sent") {
-    return <p className="rounded border border-foreground/10 p-3">Check your inbox for the sign-in link.</p>;
+    return (
+      <Alert>
+        <AlertDescription className="text-foreground">Check your inbox for the sign-in link.</AlertDescription>
+      </Alert>
+    );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <input
-        type="email"
-        required
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-        placeholder="you@example.com"
-        className="w-full rounded border border-foreground/20 bg-transparent px-3 py-2"
-      />
-      <button
-        disabled={status === "sending"}
-        className="w-full rounded bg-foreground px-3 py-2 text-background disabled:opacity-50"
-      >
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          type="email"
+          required
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="you@example.com"
+          aria-invalid={error ? true : undefined}
+        />
+      </div>
+      <Button disabled={status === "sending"} className="w-full">
         {status === "sending" ? "Sending…" : "Send magic link"}
-      </button>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      </Button>
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </form>
   );
 }

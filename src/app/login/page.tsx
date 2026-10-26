@@ -1,19 +1,26 @@
+import { CircleAlertIcon } from "lucide-react";
 import { Suspense } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoginForm } from "./login-form";
 
 export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
-    <div className="mx-auto max-w-sm space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Sign in</h1>
-        <p className="text-sm opacity-70">
+    <Card className="mx-auto max-w-sm">
+      <CardHeader>
+        <CardTitle className="text-2xl">
+          <h1>Sign in</h1>
+        </CardTitle>
+        <CardDescription>
           Enter your email and we&apos;ll send you a magic link. Only invited addresses can sign in.
-        </p>
-      </div>
-      <Suspense>
-        <LoginContent searchParams={searchParams} />
-      </Suspense>
-    </div>
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Suspense>
+          <LoginContent searchParams={searchParams} />
+        </Suspense>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -23,9 +30,10 @@ async function LoginContent({ searchParams }: Pick<PageProps<"/login">, "searchP
   return (
     <>
       {error && (
-        <p className="rounded border border-red-500/40 p-3 text-sm text-red-600">
-          The sign-in link was invalid or has expired. Please request a new one.
-        </p>
+        <Alert variant="destructive">
+          <CircleAlertIcon />
+          <AlertDescription>The sign-in link was invalid or has expired. Please request a new one.</AlertDescription>
+        </Alert>
       )}
       <LoginForm next={typeof next === "string" ? next : undefined} />
     </>

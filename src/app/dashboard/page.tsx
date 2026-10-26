@@ -8,8 +8,8 @@ import { modules } from "@/modules/registry";
 export default function DashboardPage() {
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Your modules</h1>
-      <Suspense fallback={<p className="opacity-70">Loading…</p>}>
+      <h1 className="text-2xl font-semibold tracking-tight">Your modules</h1>
+      <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
         <VisibleModules />
       </Suspense>
     </div>

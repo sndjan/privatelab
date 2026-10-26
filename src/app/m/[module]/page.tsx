@@ -1,12 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
+import { Badge } from "@/components/ui/badge";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getModule } from "@/modules/registry";
 
 export default function ModulePage({ params }: PageProps<"/m/[module]">) {
   return (
-    <Suspense fallback={<p className="opacity-70">Loading…</p>}>
+    <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
       <ModuleContent params={params} />
     </Suspense>
   );
@@ -47,13 +48,11 @@ async function ModuleContent({ params }: Pick<PageProps<"/m/[module]">, "params"
   return (
     <div className="space-y-6">
       <header className="flex items-center gap-3">
-        <span className="text-3xl">{definition.icon}</span>
-        <h1 className="text-2xl font-semibold">{definition.name}</h1>
-        {row.visibility === "public" && (
-          <span className="rounded-full border border-foreground/20 px-2 py-0.5 text-xs">
-            public
-          </span>
-        )}
+        <span aria-hidden="true" className="text-3xl">
+          {definition.icon}
+        </span>
+        <h1 className="text-2xl font-semibold tracking-tight">{definition.name}</h1>
+        {row.visibility === "public" && <Badge variant="outline">public</Badge>}
       </header>
       <Page user={user} hasAccess={hasAccess} />
     </div>
