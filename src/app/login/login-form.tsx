@@ -28,7 +28,7 @@ export function LoginForm({ next }: { next?: string }) {
 
     if (error) {
       setStatus("idle");
-      setError("Der Link konnte nicht gesendet werden. Ist diese Adresse eingeladen?");
+      setError(sendErrorMessage(error.code, error.status, error.message));
       return;
     }
     setStatus("sent");
@@ -62,4 +62,21 @@ export function LoginForm({ next }: { next?: string }) {
       {error && <p className="text-sm text-destructive">{error}</p>}
     </form>
   );
+}
+
+// Supabase auth error codes: https://supabase.com/docs/guides/auth/debugging/error-codes
+function sendErrorMessage(code: string | undefined, status: number | undefined, message: string) {
+  if (code === "over_email_send_rate_limit" || code === "over_request_rate_limit" || status === 429) {
+    return "Gerade wurden zu viele Anmeldelinks verschickt. Warte ein paar Minuten und versuch es dann noch einmal.";
+  }
+  if (code === "otp_disabled" || code === "signup_disabled" || code === "user_not_found") {
+    return "Diese Adresse ist nicht eingeladen.";
+  }
+  if (code === "email_address_invalid" || code === "validation_failed") {
+    return "Diese E-Mail-Adresse ist ungültig.";
+  }
+  if (code === "email_address_not_authorized") {
+    return "An diese Adresse dürfen ohne eigenen Mailserver (SMTP) keine Mails verschickt werden.";
+  }
+  return `Der Link konnte nicht gesendet werden (${message}).`;
 }
