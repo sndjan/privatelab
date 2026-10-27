@@ -1,7 +1,6 @@
 "use client";
 
 import { MessageSquareIcon } from "lucide-react";
-import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { sendFeedback } from "@/app/feedback/actions";
 import { SubmitButton } from "@/components/submit-button";
@@ -28,8 +27,9 @@ const kinds = [
 
 // Header button that opens a form for bugs, ideas and other feedback.
 // The current page is sent along so it's clear what the feedback is about.
+// It's read on sending, not with usePathname: the button is also part of the
+// prerendered header, where the URL isn't known yet.
 export function Feedback() {
-  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState("idea");
   const [sent, setSent] = useState(false);
@@ -37,6 +37,7 @@ export function Feedback() {
 
   async function send(formData: FormData) {
     setError(null);
+    formData.set("page", window.location.pathname);
     formData.set("userAgent", navigator.userAgent);
     try {
       const result = await sendFeedback(formData);
@@ -83,7 +84,6 @@ export function Feedback() {
               <DialogDescription>Was funktioniert nicht, was fehlt dir, was wünschst du dir?</DialogDescription>
             </DialogHeader>
             <input type="hidden" name="kind" value={kind} />
-            <input type="hidden" name="page" value={pathname} />
             <ToggleGroup
               type="single"
               variant="outline"
