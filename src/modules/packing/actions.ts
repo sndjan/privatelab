@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { appliesTo, isCondition, starter, type ItemKind } from "./data";
+import { starter } from "./data";
 
 // All writes go through the user's own Supabase client, so RLS enforces
 // ownership and access to the 'packing' module.
@@ -21,17 +21,8 @@ function text(formData: FormData, key: string, max: number) {
   return String(formData.get(key) ?? "").trim().slice(0, max);
 }
 
-function optionalId(formData: FormData, key: string) {
-  const value = String(formData.get(key) ?? "");
-  return value && value !== "none" ? value : null;
-}
-
-function kind(formData: FormData): ItemKind {
-  return formData.get("kind") === "task" ? "task" : "pack";
-}
-
-function conditionList(formData: FormData) {
-  return formData.getAll("conditions").map(String).filter(isCondition);
+function clean(value: string, max: number) {
+  return value.trim().slice(0, max);
 }
 
 // Throws on a Supabase error; otherwise returns the data (an empty result for writes without select).
@@ -45,43 +36,216 @@ function check<T>({ data, error }: { data: T; error: { message: string } | null 
 export async function loadStarter() {
   const supabase = await db();
 
-  const places = check(
-    await supabase
-      .from("packing_places")
-      .insert(starter.places.map((name) => ({ name })))
-      .select("id, name"),
-  );
-  const placeId = (name: string) => places.find((place) => place.name === name)?.id ?? null;
-
-  for (const template of starter.templates) {
+  for (const list of starter.lists) {
     const created = check(
+      await supabase.from("packing_lists").insert({ name: list.name, starred: true }).select("id").single(),
+    );
+    const chips = check(
       await supabase
-        .from("packing_templates")
-        .insert({ name: template.name, from_place_id: placeId(template.from), to_place_id: placeId(template.to) })
-        .select("id")
-        .single(),
+        .from("packing_chips")
+        .insert(list.chips.map((name, sort) => ({ list_id: created.id, name, sort })))
+        .select("id, name"),
+    );
+    const sections = check(
+      await supabase
+        .from("packing_sections")
+        .insert(list.sections.map((section, sort) => ({ list_id: created.id, name: section.name, sort })))
+        .select("id, name"),
     );
     check(
-      await supabase.from("packing_template_items").insert(
-        template.items.map((item) => ({
-          template_id: created.id,
-          name: item.name,
-          note: "note" in item ? item.note : null,
-          kind: "kind" in item ? item.kind : "pack",
-          conditions: "conditions" in item ? item.conditions : [],
-        })),
+      await supabase.from("packing_items").insert(
+        list.sections.flatMap((section) =>
+          section.items.map((item, sort) => ({
+            list_id: created.id,
+            section_id: sections.find((row) => row.name === section.name)!.id,
+            chip_id: ("chip" in item && chips.find((chip) => chip.name === item.chip)?.id) || null,
+            name: item.name,
+            note: ("note" in item && item.note) || null,
+            sort,
+          })),
+        ),
       ),
     );
   }
 
-  for (const [place, entries] of Object.entries(starter.inventory)) {
-    check(
+  // Places and inventory survive from the first version of the module, so
+  // only add them when there are none yet.
+  const existing = check(await supabase.from("packing_places").select("id").limit(1));
+  if (existing.length === 0) {
+    const places = check(
       await supabase
-        .from("packing_inventory")
-        .insert(entries.map(([name, quantity]) => ({ place_id: placeId(place), name, quantity }))),
+        .from("packing_places")
+        .insert(starter.places.map((name) => ({ name })))
+        .select("id, name"),
     );
+    for (const [place, entries] of Object.entries(starter.inventory)) {
+      const placeId = places.find((row) => row.name === place)?.id;
+      if (!placeId) continue;
+      check(
+        await supabase
+          .from("packing_inventory")
+          .insert(entries.map(([name, quantity]) => ({ place_id: placeId, name, quantity }))),
+      );
+    }
   }
 
+  revalidatePath(PATH);
+}
+
+// --- Lists ----------------------------------------------------------------
+
+// A new list starts with one section and opens in edit mode.
+export async function createList(formData: FormData) {
+  const name = text(formData, "name", 80);
+  if (!name) return;
+  const supabase = await db();
+  const created = check(await supabase.from("packing_lists").insert({ name }).select("id").single());
+  check(await supabase.from("packing_sections").insert({ list_id: created.id, name: "Allgemein" }));
+  revalidatePath(PATH);
+  redirect(`${PATH}?list=${created.id}&edit=1`);
+}
+
+export async function updateList(id: string, values: { name?: string; starred?: boolean }) {
+  const row = { ...values, ...(values.name !== undefined && { name: clean(values.name, 80) }) };
+  if (row.name === "") return;
+  const supabase = await db();
+  check(await supabase.from("packing_lists").update(row).eq("id", id));
+  revalidatePath(PATH);
+}
+
+export async function deleteList(formData: FormData) {
+  const supabase = await db();
+  check(await supabase.from("packing_lists").delete().eq("id", String(formData.get("listId"))));
+  revalidatePath(PATH);
+  redirect(PATH);
+}
+
+// Ticks, chip switches and resets are saved without re-rendering the page:
+// the list keeps their state on the client, so tapping stays instant.
+
+export async function resetList(listId: string) {
+  const supabase = await db();
+  check(await supabase.from("packing_items").update({ done: false }).eq("list_id", listId).eq("done", true));
+}
+
+export async function tickItems(ids: string[], done: boolean) {
+  if (ids.length === 0) return;
+  const supabase = await db();
+  check(await supabase.from("packing_items").update({ done }).in("id", ids));
+}
+
+export async function setChipActive(id: string, active: boolean) {
+  const supabase = await db();
+  check(await supabase.from("packing_chips").update({ active }).eq("id", id));
+}
+
+// --- Chips ----------------------------------------------------------------
+
+export async function addChip(listId: string, name: string, sort: number) {
+  const value = clean(name, 40);
+  if (!value) return;
+  const supabase = await db();
+  check(await supabase.from("packing_chips").insert({ list_id: listId, name: value, sort }));
+  revalidatePath(PATH);
+}
+
+export async function renameChip(id: string, name: string) {
+  const value = clean(name, 40);
+  if (!value) return;
+  const supabase = await db();
+  check(await supabase.from("packing_chips").update({ name: value }).eq("id", id));
+  revalidatePath(PATH);
+}
+
+export async function deleteChip(id: string) {
+  const supabase = await db();
+  check(await supabase.from("packing_chips").delete().eq("id", id));
+  revalidatePath(PATH);
+}
+
+// --- Sections -------------------------------------------------------------
+
+export async function addSection(listId: string, name: string, sort: number) {
+  const value = clean(name, 60);
+  if (!value) return;
+  const supabase = await db();
+  check(await supabase.from("packing_sections").insert({ list_id: listId, name: value, sort }));
+  revalidatePath(PATH);
+}
+
+export async function renameSection(id: string, name: string) {
+  const value = clean(name, 60);
+  if (!value) return;
+  const supabase = await db();
+  check(await supabase.from("packing_sections").update({ name: value }).eq("id", id));
+  revalidatePath(PATH);
+}
+
+// Deletes the section with its items.
+export async function deleteSection(id: string) {
+  const supabase = await db();
+  check(await supabase.from("packing_sections").delete().eq("id", id));
+  revalidatePath(PATH);
+}
+
+export async function reorderSections(ids: string[]) {
+  const supabase = await db();
+  const results = await Promise.all(
+    ids.map((id, sort) => supabase.from("packing_sections").update({ sort }).eq("id", id)),
+  );
+  results.forEach(check);
+  revalidatePath(PATH);
+}
+
+// --- Items ----------------------------------------------------------------
+
+export async function addItem(listId: string, sectionId: string, name: string, sort: number) {
+  const value = clean(name, 80);
+  if (!value) return;
+  const supabase = await db();
+  check(await supabase.from("packing_items").insert({ list_id: listId, section_id: sectionId, name: value, sort }));
+  revalidatePath(PATH);
+}
+
+// A changed section puts the item at the end of that section.
+export async function updateItem(
+  id: string,
+  values: { name: string; note: string; chipId: string | null; sectionId: string; moved: boolean },
+) {
+  const name = clean(values.name, 80);
+  if (!name) return;
+  const supabase = await db();
+  const row: { name: string; note: string | null; chip_id: string | null; section_id?: string; sort?: number } = {
+    name,
+    note: clean(values.note, 200) || null,
+    chip_id: values.chipId,
+  };
+  if (values.moved) {
+    const last = check(
+      await supabase
+        .from("packing_items")
+        .select("sort")
+        .eq("section_id", values.sectionId)
+        .order("sort", { ascending: false })
+        .limit(1),
+    );
+    row.section_id = values.sectionId;
+    row.sort = (last[0]?.sort ?? -1) + 1;
+  }
+  check(await supabase.from("packing_items").update(row).eq("id", id));
+  revalidatePath(PATH);
+}
+
+export async function deleteItem(id: string) {
+  const supabase = await db();
+  check(await supabase.from("packing_items").delete().eq("id", id));
+  revalidatePath(PATH);
+}
+
+export async function reorderItems(ids: string[]) {
+  const supabase = await db();
+  const results = await Promise.all(ids.map((id, sort) => supabase.from("packing_items").update({ sort }).eq("id", id)));
+  results.forEach(check);
   revalidatePath(PATH);
 }
 
@@ -138,190 +302,4 @@ export async function deleteInventoryItem(formData: FormData) {
   const supabase = await db();
   check(await supabase.from("packing_inventory").delete().eq("id", String(formData.get("itemId"))));
   revalidatePath(PATH);
-}
-
-// --- Templates ------------------------------------------------------------
-
-export async function createTemplate(formData: FormData) {
-  const name = text(formData, "name", 80);
-  if (!name) return;
-  const supabase = await db();
-  const created = check(
-    await supabase
-      .from("packing_templates")
-      .insert({ name, from_place_id: optionalId(formData, "from"), to_place_id: optionalId(formData, "to") })
-      .select("id")
-      .single(),
-  );
-  revalidatePath(PATH);
-  redirect(`${PATH}?template=${created.id}`);
-}
-
-export async function updateTemplate(formData: FormData) {
-  const name = text(formData, "name", 80);
-  if (!name) return;
-  const supabase = await db();
-  check(
-    await supabase
-      .from("packing_templates")
-      .update({ name, from_place_id: optionalId(formData, "from"), to_place_id: optionalId(formData, "to") })
-      .eq("id", String(formData.get("templateId"))),
-  );
-  revalidatePath(PATH);
-}
-
-export async function deleteTemplate(formData: FormData) {
-  const supabase = await db();
-  check(await supabase.from("packing_templates").delete().eq("id", String(formData.get("templateId"))));
-  revalidatePath(PATH);
-  redirect(PATH);
-}
-
-export async function saveTemplateItem(formData: FormData) {
-  const name = text(formData, "name", 80);
-  if (!name) return;
-  const row = {
-    name,
-    note: text(formData, "note", 200) || null,
-    kind: kind(formData),
-    conditions: conditionList(formData),
-  };
-  const supabase = await db();
-  const itemId = optionalId(formData, "itemId");
-  if (itemId) {
-    check(await supabase.from("packing_template_items").update(row).eq("id", itemId));
-  } else {
-    check(
-      await supabase.from("packing_template_items").insert({ ...row, template_id: String(formData.get("templateId")) }),
-    );
-  }
-  revalidatePath(PATH);
-}
-
-export async function deleteTemplateItem(formData: FormData) {
-  const supabase = await db();
-  check(await supabase.from("packing_template_items").delete().eq("id", String(formData.get("itemId"))));
-  revalidatePath(PATH);
-}
-
-// --- Runs -----------------------------------------------------------------
-
-// Copies the template's matching items into a new run. Items flagged as
-// forgotten are pinned; items the inventory says are already at the
-// destination are marked as such.
-export async function startRun(formData: FormData) {
-  const templateId = String(formData.get("templateId") ?? "");
-  const tripDate = String(formData.get("date") ?? "");
-  if (!templateId || !/^\d{4}-\d{2}-\d{2}$/.test(tripDate)) return;
-  const runConditions = conditionList(formData);
-
-  const supabase = await db();
-  const template = check(
-    await supabase
-      .from("packing_templates")
-      .select("id, name, from_place_id, to_place_id")
-      .eq("id", templateId)
-      .single(),
-  );
-  const items = check(
-    await supabase
-      .from("packing_template_items")
-      .select("id, name, note, kind, conditions, forgotten")
-      .eq("template_id", templateId)
-      .order("created_at"),
-  );
-  const atDestination = new Set<string>();
-  if (template.to_place_id) {
-    const inventory = check(
-      await supabase
-        .from("packing_inventory")
-        .select("name, quantity")
-        .eq("place_id", template.to_place_id)
-        .gt("quantity", 0),
-    );
-    for (const entry of inventory) atDestination.add(entry.name.toLowerCase());
-  }
-
-  const run = check(
-    await supabase
-      .from("packing_runs")
-      .insert({
-        template_id: template.id,
-        title: text(formData, "title", 80) || template.name,
-        trip_date: tripDate,
-        from_place_id: template.from_place_id,
-        to_place_id: template.to_place_id,
-        conditions: runConditions,
-      })
-      .select("id")
-      .single(),
-  );
-
-  const runItems = items
-    .filter((item) => appliesTo(item.conditions, runConditions))
-    .map((item, index) => ({
-      run_id: run.id,
-      template_item_id: item.id,
-      name: item.name,
-      note: item.note,
-      kind: item.kind,
-      pinned: item.forgotten,
-      at_destination: item.kind === "pack" && atDestination.has(item.name.toLowerCase()),
-      sort: index,
-    }));
-  if (runItems.length > 0) check(await supabase.from("packing_run_items").insert(runItems));
-
-  revalidatePath(PATH);
-  redirect(`${PATH}?run=${run.id}`);
-}
-
-export async function setRunItem(id: string, values: { done?: boolean; forgotten?: boolean }) {
-  const supabase = await db();
-  check(await supabase.from("packing_run_items").update(values).eq("id", id));
-  revalidatePath(PATH);
-}
-
-export async function addRunItem(formData: FormData) {
-  const name = text(formData, "name", 80);
-  if (!name) return;
-  const supabase = await db();
-  check(
-    await supabase
-      .from("packing_run_items")
-      .insert({ run_id: String(formData.get("runId")), name, kind: kind(formData), sort: 1000 }),
-  );
-  revalidatePath(PATH);
-}
-
-// Finishing a run carries the "forgotten" flags over to the template, so the
-// next run pins exactly the items forgotten this time.
-export async function finishRun(formData: FormData) {
-  const runId = String(formData.get("runId"));
-  const supabase = await db();
-  const items = check(
-    await supabase.from("packing_run_items").select("template_item_id, forgotten").eq("run_id", runId),
-  );
-  for (const forgotten of [true, false]) {
-    const ids = items
-      .filter((item) => item.template_item_id && item.forgotten === forgotten)
-      .map((item) => item.template_item_id as string);
-    if (ids.length > 0) {
-      check(await supabase.from("packing_template_items").update({ forgotten }).in("id", ids));
-    }
-  }
-  check(await supabase.from("packing_runs").update({ finished_at: new Date().toISOString() }).eq("id", runId));
-  revalidatePath(PATH);
-}
-
-export async function reopenRun(formData: FormData) {
-  const supabase = await db();
-  check(await supabase.from("packing_runs").update({ finished_at: null }).eq("id", String(formData.get("runId"))));
-  revalidatePath(PATH);
-}
-
-export async function deleteRun(formData: FormData) {
-  const supabase = await db();
-  check(await supabase.from("packing_runs").delete().eq("id", String(formData.get("runId"))));
-  revalidatePath(PATH);
-  redirect(PATH);
 }

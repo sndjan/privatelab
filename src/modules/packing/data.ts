@@ -1,134 +1,135 @@
 // Shared by server and client components of the packing module.
 
-export type Condition = "winter" | "gym" | "tennis" | "rain" | "long" | "exams";
-export type ItemKind = "pack" | "task";
+export type Chip = { id: string; name: string; active: boolean };
+export type Section = { id: string; name: string };
+export type Item = {
+  id: string;
+  sectionId: string;
+  chipId: string | null;
+  name: string;
+  note: string | null;
+  done: boolean;
+};
 
-// Must match the check constraints in supabase/migrations/*_packing.sql.
-export const conditions: { value: Condition; label: string }[] = [
-  { value: "winter", label: "Winter" },
-  { value: "gym", label: "Gym" },
-  { value: "tennis", label: "Tennis" },
-  { value: "rain", label: "Regen" },
-  { value: "long", label: "Länger als 5 Tage" },
-  { value: "exams", label: "Prüfungsphase" },
-];
-
-export function conditionLabel(value: string) {
-  return conditions.find((condition) => condition.value === value)?.label ?? value;
+// An item counts (and shows in its section) unless its chip is switched off.
+export function isShown(item: { chipId: string | null }, chips: Chip[]) {
+  return !item.chipId || chips.find((chip) => chip.id === item.chipId)?.active !== false;
 }
 
-export function isCondition(value: string): value is Condition {
-  return conditions.some((condition) => condition.value === value);
+export function progress(items: Item[], chips: Chip[]) {
+  const shown = items.filter((item) => isShown(item, chips));
+  return { done: shown.filter((item) => item.done).length, total: shown.length };
 }
 
-// Winter is preselected from November to March.
-export function defaultConditions(date: Date): Condition[] {
-  const month = date.getMonth() + 1;
-  return month >= 11 || month <= 3 ? ["winter"] : [];
-}
+// Starter data: two lists for the trips between Bellenberg (home) and
+// Stuttgart (uni), plus the inventory in Stuttgart. Offered on an empty module.
 
-// An item shows up in a run when the run has all of the item's conditions.
-export function appliesTo(itemConditions: string[], runConditions: string[]) {
-  return itemConditions.every((condition) => runConditions.includes(condition));
-}
-
-export function formatDate(date: string) {
-  return new Date(`${date}T00:00:00`).toLocaleDateString("de-DE", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-export function defaultTitle(date: string) {
-  const label = new Date(`${date}T00:00:00`).toLocaleDateString("de-DE", { day: "numeric", month: "short" });
-  return `Reise ${label}`;
-}
-
-// Starter data: Bellenberg (home) ↔ Stuttgart (uni), offered on an empty module.
-
-type StarterItem = { name: string; note?: string; kind?: ItemKind; conditions?: Condition[] };
+type StarterItem = { name: string; note?: string; chip?: string };
+type StarterList = { name: string; chips: string[]; sections: { name: string; items: StarterItem[] }[] };
 
 const toiletry: StarterItem = { name: "Kulturtasche", note: "Rasierer, Necessaire, Lippenpflege, Kamm, Deo" };
-const winterWear: StarterItem = { name: "Mütze, Schal, Handschuhe", conditions: ["winter"] };
+const winterWear: StarterItem = { name: "Mütze, Schal, Handschuhe", chip: "Winter" };
 const gym: StarterItem[] = [
-  { name: "Gym-Schuhe", conditions: ["gym"] },
-  { name: "Gym-Handtuch", conditions: ["gym"] },
-  { name: "Gym-Flasche", conditions: ["gym"] },
+  { name: "Gym-Schuhe", chip: "Gym" },
+  { name: "Gym-Handtuch", chip: "Gym" },
+  { name: "Gym-Flasche", chip: "Gym" },
 ];
 
 export const starter = {
-  places: ["Bellenberg", "Stuttgart"] as const,
-  templates: [
-    {
-      name: "Nach Bellenberg",
-      from: "Stuttgart",
-      to: "Bellenberg",
-      items: [
-        { name: "Wertsachen", note: "Schlüssel, Geldbeutel, Laptop" },
-        { name: "Arbeitslaptop" },
-        { name: "Tastatur + Maus" },
-        { name: "Headset" },
-        { name: "Ladekabel" },
-        { name: "Buch/Kindle" },
-        { name: "Spiele" },
-        { name: "Sprühflasche" },
-        toiletry,
-        winterWear,
-        { name: "Cap" },
-        { name: "Schuhe" },
-        ...gym,
-        { name: "Dreckwäsche" },
-        { name: "Boxen/Gläser" },
-        { name: "Essen aus Regal und Kühlschrank" },
-        { name: "Liste machen, was ich brauche", kind: "task" },
-        { name: "Podcasts herunterladen", kind: "task" },
-        { name: "Blumen gießen", kind: "task" },
-        { name: "Becher aus der Dusche", kind: "task" },
-        { name: "Wasser auffüllen", kind: "task" },
-        { name: "Müll ausleeren", kind: "task" },
-        { name: "Müll runterbringen", kind: "task" },
-      ] satisfies StarterItem[],
-    },
+  lists: [
     {
       name: "Nach Stuttgart",
-      from: "Bellenberg",
-      to: "Stuttgart",
-      items: [
-        { name: "Schlüssel" },
-        { name: "Arbeitslaptop" },
-        { name: "Privat-Laptop" },
-        { name: "Tastatur" },
-        { name: "Maus" },
-        { name: "Headset" },
-        { name: "Ladekabel" },
-        { name: "Buch/Kindle" },
-        { name: "Uhr" },
-        { name: "Jacke" },
-        { name: "Gürtel" },
-        winterWear,
-        { name: "Cap" },
-        { name: "Regenschirm", conditions: ["rain"] },
-        { name: "Regenjacke", conditions: ["rain"] },
-        toiletry,
-        { name: "Handtuch für die Hände" },
-        { name: "2 Handtücher" },
-        { name: "Badezeug" },
-        { name: "Bettwäsche" },
-        { name: "Fußmatte" },
-        { name: "Putzlappen" },
-        ...gym,
-        { name: "Joggingschuhe", conditions: ["gym"] },
-        { name: "Protein-Shaker" },
-        { name: "Mixbecher mit Verschluss" },
-        { name: "Essen (Frühstück)" },
-        { name: "Brot" },
-        { name: "Wasser auffüllen", kind: "task" },
-        { name: "Sprühflasche auffüllen", kind: "task" },
-      ] satisfies StarterItem[],
+      chips: ["Winter", "Regen", "Gym"],
+      sections: [
+        {
+          name: "Wertsachen & Technik",
+          items: [
+            { name: "Schlüssel" },
+            { name: "Arbeitslaptop" },
+            { name: "Privat-Laptop" },
+            { name: "Tastatur" },
+            { name: "Maus" },
+            { name: "Headset" },
+            { name: "Ladekabel" },
+            { name: "Buch/Kindle" },
+            { name: "Uhr" },
+          ],
+        },
+        {
+          name: "Kleidung",
+          items: [
+            { name: "Jacke" },
+            { name: "Gürtel" },
+            winterWear,
+            { name: "Cap" },
+            { name: "Regenschirm", chip: "Regen" },
+            { name: "Regenjacke", chip: "Regen" },
+          ],
+        },
+        {
+          name: "Bad & Wohnung",
+          items: [
+            toiletry,
+            { name: "Handtuch für die Hände" },
+            { name: "2 Handtücher" },
+            { name: "Badezeug" },
+            { name: "Bettwäsche" },
+            { name: "Fußmatte" },
+            { name: "Putzlappen" },
+          ],
+        },
+        {
+          name: "Sport",
+          items: [
+            ...gym,
+            { name: "Joggingschuhe", chip: "Gym" },
+            { name: "Protein-Shaker" },
+            { name: "Mixbecher mit Verschluss" },
+          ],
+        },
+        { name: "Essen", items: [{ name: "Essen (Frühstück)" }, { name: "Brot" }] },
+        { name: "Vor der Abfahrt", items: [{ name: "Wasser auffüllen" }, { name: "Sprühflasche auffüllen" }] },
+      ],
     },
-  ],
+    {
+      name: "Nach Bellenberg",
+      chips: ["Winter", "Gym"],
+      sections: [
+        {
+          name: "Wertsachen & Technik",
+          items: [
+            { name: "Wertsachen", note: "Schlüssel, Geldbeutel, Laptop" },
+            { name: "Arbeitslaptop" },
+            { name: "Tastatur + Maus" },
+            { name: "Headset" },
+            { name: "Ladekabel" },
+            { name: "Buch/Kindle" },
+            { name: "Spiele" },
+          ],
+        },
+        { name: "Kleidung", items: [winterWear, { name: "Cap" }, { name: "Schuhe" }] },
+        { name: "Bad", items: [toiletry, { name: "Sprühflasche" }] },
+        { name: "Sport", items: gym },
+        {
+          name: "Wäsche & Essen",
+          items: [{ name: "Dreckwäsche" }, { name: "Boxen/Gläser" }, { name: "Essen aus Regal und Kühlschrank" }],
+        },
+        {
+          name: "Vor der Abfahrt",
+          items: [
+            { name: "Liste machen, was ich brauche" },
+            { name: "Podcasts herunterladen" },
+            { name: "Blumen gießen" },
+            { name: "Becher aus der Dusche" },
+            { name: "Wasser auffüllen" },
+            { name: "Müll ausleeren" },
+            { name: "Müll runterbringen" },
+          ],
+        },
+      ],
+    },
+  ] satisfies StarterList[],
+  places: ["Bellenberg", "Stuttgart"],
   // What is already in Stuttgart. 0 = none there, so it has to come along.
   inventory: {
     Stuttgart: [
