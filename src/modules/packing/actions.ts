@@ -120,21 +120,23 @@ export async function deleteList(formData: FormData) {
   redirect(PATH);
 }
 
-// Unticks everything and returns what was ticked, so the reset can be undone.
+// Ticks, chip switches and resets are saved without re-rendering the page:
+// the list keeps their state on the client, so tapping stays instant.
+
 export async function resetList(listId: string) {
   const supabase = await db();
-  const ticked = check(
-    await supabase.from("packing_items").update({ done: false }).eq("list_id", listId).eq("done", true).select("id"),
-  );
-  revalidatePath(PATH);
-  return ticked.map((row) => row.id);
+  check(await supabase.from("packing_items").update({ done: false }).eq("list_id", listId).eq("done", true));
 }
 
 export async function tickItems(ids: string[], done: boolean) {
   if (ids.length === 0) return;
   const supabase = await db();
   check(await supabase.from("packing_items").update({ done }).in("id", ids));
-  revalidatePath(PATH);
+}
+
+export async function setChipActive(id: string, active: boolean) {
+  const supabase = await db();
+  check(await supabase.from("packing_chips").update({ active }).eq("id", id));
 }
 
 // --- Chips ----------------------------------------------------------------
@@ -147,11 +149,11 @@ export async function addChip(listId: string, name: string, sort: number) {
   revalidatePath(PATH);
 }
 
-export async function updateChip(id: string, values: { name?: string; active?: boolean }) {
-  const row = { ...values, ...(values.name !== undefined && { name: clean(values.name, 40) }) };
-  if (row.name === "") return;
+export async function renameChip(id: string, name: string) {
+  const value = clean(name, 40);
+  if (!value) return;
   const supabase = await db();
-  check(await supabase.from("packing_chips").update(row).eq("id", id));
+  check(await supabase.from("packing_chips").update({ name: value }).eq("id", id));
   revalidatePath(PATH);
 }
 
@@ -206,28 +208,28 @@ export async function addItem(listId: string, sectionId: string, name: string, s
 }
 
 // A changed section puts the item at the end of that section.
-export async function updateItem(formData: FormData) {
-  const name = text(formData, "name", 80);
+export async function updateItem(
+  id: string,
+  values: { name: string; note: string; chipId: string | null; sectionId: string; moved: boolean },
+) {
+  const name = clean(values.name, 80);
   if (!name) return;
-  const chip = String(formData.get("chipId") ?? "");
   const supabase = await db();
-  const id = String(formData.get("itemId"));
-  const sectionId = String(formData.get("sectionId"));
   const row: { name: string; note: string | null; chip_id: string | null; section_id?: string; sort?: number } = {
     name,
-    note: text(formData, "note", 200) || null,
-    chip_id: chip && chip !== "none" ? chip : null,
+    note: clean(values.note, 200) || null,
+    chip_id: values.chipId,
   };
-  if (sectionId !== String(formData.get("previousSectionId"))) {
+  if (values.moved) {
     const last = check(
       await supabase
         .from("packing_items")
         .select("sort")
-        .eq("section_id", sectionId)
+        .eq("section_id", values.sectionId)
         .order("sort", { ascending: false })
         .limit(1),
     );
-    row.section_id = sectionId;
+    row.section_id = values.sectionId;
     row.sort = (last[0]?.sort ?? -1) + 1;
   }
   check(await supabase.from("packing_items").update(row).eq("id", id));

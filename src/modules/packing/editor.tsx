@@ -9,6 +9,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import {
   arrayMove,
   SortableContext,
@@ -17,21 +18,12 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVerticalIcon, PencilIcon, PlusIcon, StarIcon, Trash2Icon, XIcon } from "lucide-react";
+import { CheckIcon, GripVerticalIcon, PlusIcon, StarIcon, Trash2Icon, XIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useId, useOptimistic, useState, useTransition } from "react";
 import { SubmitButton } from "@/components/submit-button";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -44,193 +36,271 @@ import {
   deleteItem,
   deleteList,
   deleteSection,
+  renameChip,
   renameSection,
   reorderItems,
   reorderSections,
-  updateChip,
   updateItem,
   updateList,
 } from "./actions";
 import type { Chip, Item, Section } from "./data";
 
-type Order = { sections: string[]; items: Record<string, string[]> };
-type Reorder = { type: "sections"; ids: string[] } | { type: "items"; sectionId: string; ids: string[] };
+type State = { sections: Section[]; items: Item[]; chips: Chip[]; starred: boolean };
+type Change =
+  | { type: "sections"; ids: string[] }
+  | { type: "items"; sectionId: string; ids: string[] }
+  | { type: "addSection"; section: Section }
+  | { type: "deleteSection"; id: string }
+  | { type: "addItem"; item: Item }
+  | { type: "updateItem"; item: Item }
+  | { type: "deleteItem"; id: string }
+  | { type: "addChip"; chip: Chip }
+  | { type: "deleteChip"; id: string }
+  | { type: "star"; starred: boolean };
 
-// Edit mode: name, star, chips, sections and items. Sections and items are
-// sorted by dragging their handle; the new order shows at once and saves in
-// the background.
+function reduce(state: State, change: Change): State {
+  switch (change.type) {
+    case "sections":
+      return { ...state, sections: change.ids.map((id) => state.sections.find((s) => s.id === id)!).filter(Boolean) };
+    case "items": {
+      const moved = change.ids.map((id) => state.items.find((item) => item.id === id)!).filter(Boolean);
+      return { ...state, items: [...state.items.filter((item) => item.sectionId !== change.sectionId), ...moved] };
+    }
+    case "addSection":
+      return { ...state, sections: [...state.sections, change.section] };
+    case "deleteSection":
+      return {
+        ...state,
+        sections: state.sections.filter((section) => section.id !== change.id),
+        items: state.items.filter((item) => item.sectionId !== change.id),
+      };
+    case "addItem":
+      return { ...state, items: [...state.items, change.item] };
+    case "updateItem": {
+      const before = state.items.find((item) => item.id === change.item.id);
+      // A changed section puts the item at the end, as the server does.
+      return before?.sectionId === change.item.sectionId
+        ? { ...state, items: state.items.map((item) => (item.id === change.item.id ? change.item : item)) }
+        : { ...state, items: [...state.items.filter((item) => item.id !== change.item.id), change.item] };
+    }
+    case "deleteItem":
+      return { ...state, items: state.items.filter((item) => item.id !== change.id) };
+    case "addChip":
+      return { ...state, chips: [...state.chips, change.chip] };
+    case "deleteChip":
+      return {
+        ...state,
+        chips: state.chips.filter((chip) => chip.id !== change.id),
+        items: state.items.map((item) => (item.chipId === change.id ? { ...item, chipId: null } : item)),
+      };
+    case "star":
+      return { ...state, starred: change.starred };
+  }
+}
+
+// Rows added here exist only on the client until the server answers.
+const tempId = () => `tmp-${Math.random().toString(36).slice(2)}`;
+const isTemp = (id: string) => id.startsWith("tmp-");
+
+function useDragSensors() {
+  return useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+}
+
+// Edit mode. Every change shows at once and saves in the background.
 export function Editor({
   list,
   sections,
   items,
   chips,
+  onDone,
 }: {
   list: { id: string; name: string; starred: boolean };
   sections: Section[];
   items: Item[];
   chips: Chip[];
+  onDone: () => void;
 }) {
-  const saved: Order = {
-    sections: sections.map((section) => section.id),
-    items: Object.fromEntries(
-      sections.map((section) => [
-        section.id,
-        items.filter((item) => item.sectionId === section.id).map((item) => item.id),
-      ]),
-    ),
-  };
-  const [order, apply] = useOptimistic<Order, Reorder>(saved, (current, change) =>
-    change.type === "sections"
-      ? { ...current, sections: change.ids }
-      : { ...current, items: { ...current.items, [change.sectionId]: change.ids } },
-  );
-  const [starred, setStarred] = useOptimistic(list.starred);
+  const [state, apply] = useOptimistic<State, Change>({ sections, items, chips, starred: list.starred }, reduce);
   const [, startTransition] = useTransition();
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  const router = useRouter();
+  const [editing, setEditing] = useState<Item | null>(null);
+  const sensors = useDragSensors();
   const dndId = useId();
+
+  // Applies the change at once and runs the server action in the background.
+  // If it fails, the optimistic change disappears and the server's state shows.
+  function run(change: Change, action: () => Promise<unknown>) {
+    startTransition(async () => {
+      apply(change);
+      await action().catch(() => router.refresh());
+    });
+  }
+
+  function save(action: () => Promise<unknown>) {
+    startTransition(async () => {
+      await action().catch(() => router.refresh());
+    });
+  }
 
   function onSectionDragEnd({ active, over }: DragEndEvent) {
     if (!over || active.id === over.id) return;
-    const ids = arrayMove(order.sections, order.sections.indexOf(String(active.id)), order.sections.indexOf(String(over.id)));
-    startTransition(async () => {
-      apply({ type: "sections", ids });
-      await reorderSections(ids);
-    });
+    const ids = state.sections.map((section) => section.id);
+    const next = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)));
+    run({ type: "sections", ids: next }, () => reorderSections(next.filter((id) => !isTemp(id))));
   }
-
-  function onItemsReorder(sectionId: string, ids: string[]) {
-    startTransition(async () => {
-      apply({ type: "items", sectionId, ids });
-      await reorderItems(ids);
-    });
-  }
-
-  const byId = <T extends { id: string }>(rows: T[], id: string) => rows.find((row) => row.id === id);
 
   return (
-    <div className="space-y-5">
-      <Card className="gap-4">
-        <CardContent className="space-y-4">
-          <div className="flex items-end gap-2">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="list-name">Name der Liste</Label>
-              <BlurInput
-                id="list-name"
-                value={list.name}
-                maxLength={80}
-                onSave={(name) => startTransition(() => updateList(list.id, { name }))}
-              />
-            </div>
-            <Button
-              variant="outline"
-              size="icon"
-              aria-pressed={starred}
-              aria-label={starred ? "Nicht mehr groß auf der Übersicht" : "Groß auf der Übersicht zeigen"}
-              title="Favorit: groß auf der Übersicht"
-              onClick={() =>
-                startTransition(async () => {
-                  setStarred(!starred);
-                  await updateList(list.id, { starred: !starred });
-                })
-              }
-            >
-              <StarIcon className={cn(starred && "fill-current text-brand")} />
-            </Button>
-          </div>
-          <ChipEditor listId={list.id} chips={chips} />
-        </CardContent>
-      </Card>
+    <div className="space-y-5 pb-20">
+      <div className="flex items-center gap-1">
+        <BlurInput
+          aria-label="Name der Liste"
+          value={list.name}
+          maxLength={80}
+          className="h-10 flex-1 border-transparent px-2 text-xl font-semibold shadow-none hover:border-input md:text-xl"
+          onSave={(name) => save(() => updateList(list.id, { name }))}
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-10"
+          aria-pressed={state.starred}
+          aria-label="Groß auf der Übersicht"
+          onClick={() =>
+            run({ type: "star", starred: !state.starred }, () => updateList(list.id, { starred: !state.starred }))
+          }
+        >
+          <StarIcon className={cn("size-5", state.starred ? "fill-current text-brand" : "text-muted-foreground")} />
+        </Button>
+        <Button variant="brand" size="icon" className="size-10" aria-label="Fertig" onClick={onDone}>
+          <CheckIcon className="size-5" />
+        </Button>
+      </div>
 
-      <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onSectionDragEnd}>
-        <SortableContext items={order.sections} strategy={verticalListSortingStrategy}>
-          {order.sections.map((sectionId) => {
-            const section = byId(sections, sectionId);
-            if (!section) return null;
-            const sectionItems = (order.items[sectionId] ?? [])
-              .map((id) => byId(items, id))
-              .filter((item): item is Item => Boolean(item));
-            return (
+      <div className="flex flex-wrap items-center gap-2">
+        {state.chips.map((chip) => (
+          <span key={chip.id} className="flex h-9 items-center rounded-full border pl-1">
+            <BlurInput
+              aria-label="Chip umbenennen"
+              value={chip.name}
+              maxLength={40}
+              style={{ width: `calc(${Math.max(chip.name.length, 3) + 1}ch + 1rem)` }}
+              className="h-8 rounded-full border-0 px-2 shadow-none focus-visible:ring-0"
+              onSave={(name) => save(() => renameChip(chip.id, name))}
+            />
+            <button
+              type="button"
+              aria-label={`Chip ${chip.name} löschen`}
+              disabled={isTemp(chip.id)}
+              className="flex size-9 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:text-destructive"
+              onClick={() => run({ type: "deleteChip", id: chip.id }, () => deleteChip(chip.id))}
+            >
+              <XIcon className="size-4" />
+            </button>
+          </span>
+        ))}
+        <QuickAdd
+          label="Neuer Chip"
+          placeholder="+ Chip"
+          maxLength={40}
+          className="h-9 w-28 rounded-full border-dashed"
+          onAdd={(name) =>
+            run({ type: "addChip", chip: { id: tempId(), name, active: true } }, () =>
+              addChip(list.id, name, state.chips.length),
+            )
+          }
+        />
+      </div>
+
+      <DndContext
+        id={dndId}
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        modifiers={[restrictToVerticalAxis]}
+        onDragEnd={onSectionDragEnd}
+      >
+        <SortableContext items={state.sections.map((section) => section.id)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-5">
+            {state.sections.map((section) => (
               <SortableSection
                 key={section.id}
-                listId={list.id}
                 section={section}
-                items={sectionItems}
-                sections={sections}
-                chips={chips}
-                onReorder={(ids) => onItemsReorder(section.id, ids)}
+                items={state.items.filter((item) => item.sectionId === section.id)}
+                chips={state.chips}
+                canDelete={state.sections.length > 1}
+                onEdit={setEditing}
+                onDelete={(count) => {
+                  if (count === 0 || confirm(`„${section.name}“ mit ${count} Einträgen löschen?`)) {
+                    run({ type: "deleteSection", id: section.id }, () => deleteSection(section.id));
+                  }
+                }}
+                onReorder={(ids) =>
+                  run({ type: "items", sectionId: section.id, ids }, () => reorderItems(ids.filter((id) => !isTemp(id))))
+                }
+                onAdd={(name, sort) =>
+                  run(
+                    {
+                      type: "addItem",
+                      item: { id: tempId(), sectionId: section.id, chipId: null, name, note: null, done: false },
+                    },
+                    () => addItem(list.id, section.id, name, sort),
+                  )
+                }
+                onDeleteItem={(id) => run({ type: "deleteItem", id }, () => deleteItem(id))}
+                onRename={(name) => save(() => renameSection(section.id, name))}
               />
-            );
-          })}
+            ))}
+          </div>
         </SortableContext>
       </DndContext>
 
-      <AddForm
+      <QuickAdd
         label="Neuer Abschnitt"
-        placeholder="z. B. Technik"
+        placeholder="+ Abschnitt"
         maxLength={60}
-        onAdd={(name) => addSection(list.id, name, sections.length)}
+        className="h-11 border-dashed"
+        onAdd={(name) =>
+          run({ type: "addSection", section: { id: tempId(), name } }, () =>
+            addSection(list.id, name, state.sections.length),
+          )
+        }
       />
 
-      <form action={deleteList} className="pt-4">
+      <form action={deleteList}>
         <input type="hidden" name="listId" value={list.id} />
         <SubmitButton
           variant="ghost"
-          className="text-destructive hover:text-destructive"
+          className="-ml-3 text-muted-foreground hover:text-destructive"
           onClick={(event) => {
-            if (!confirm(`„${list.name}“ mit allen Einträgen löschen?`)) event.preventDefault();
+            if (!confirm(`„${list.name}“ löschen?`)) event.preventDefault();
           }}
         >
-          Liste löschen
+          <Trash2Icon /> Liste löschen
         </SubmitButton>
       </form>
-    </div>
-  );
-}
 
-// --- Chips ------------------------------------------------------------------
-
-function ChipEditor({ listId, chips }: { listId: string; chips: Chip[] }) {
-  const [, startTransition] = useTransition();
-  return (
-    <div className="space-y-2">
-      <div>
-        <p className="text-sm font-medium">Chips</p>
-        <p className="text-xs text-muted-foreground">
-          Schalter über der Liste, z. B. Gym oder Regen. Einträge mit ausgeschaltetem Chip werden ausgeblendet.
-        </p>
-      </div>
-      {chips.length > 0 && (
-        <ul className="flex flex-wrap gap-2">
-          {chips.map((chip) => (
-            <li key={chip.id} className="flex items-center gap-1 rounded-full border py-0.5 pr-0.5 pl-1">
-              <BlurInput
-                aria-label="Chip umbenennen"
-                value={chip.name}
-                maxLength={40}
-                className="h-8 w-28 rounded-full border-0 shadow-none"
-                onSave={(name) => startTransition(() => updateChip(chip.id, { name }))}
-              />
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="rounded-full text-muted-foreground hover:text-destructive"
-                aria-label={`Chip ${chip.name} löschen`}
-                onClick={() => {
-                  if (confirm(`Chip „${chip.name}“ löschen? Die Einträge bleiben, aber immer sichtbar.`)) {
-                    startTransition(() => deleteChip(chip.id));
-                  }
-                }}
-              >
-                <XIcon />
-              </Button>
-            </li>
-          ))}
-        </ul>
+      {editing && (
+        <ItemDialog
+          item={editing}
+          sections={state.sections.filter((section) => !isTemp(section.id))}
+          chips={state.chips.filter((chip) => !isTemp(chip.id))}
+          onClose={() => setEditing(null)}
+          onSave={(item) => {
+            setEditing(null);
+            run({ type: "updateItem", item }, () =>
+              updateItem(item.id, {
+                name: item.name,
+                note: item.note ?? "",
+                chipId: item.chipId,
+                sectionId: item.sectionId,
+                moved: item.sectionId !== editing.sectionId,
+              }),
+            );
+          }}
+        />
       )}
-      <AddForm label="Neuer Chip" placeholder="z. B. Gym" maxLength={40} onAdd={(name) => addChip(listId, name, chips.length)} />
     </div>
   );
 }
@@ -238,28 +308,33 @@ function ChipEditor({ listId, chips }: { listId: string; chips: Chip[] }) {
 // --- Sections and items -----------------------------------------------------
 
 function SortableSection({
-  listId,
   section,
   items,
-  sections,
   chips,
+  canDelete,
+  onEdit,
+  onDelete,
   onReorder,
+  onAdd,
+  onDeleteItem,
+  onRename,
 }: {
-  listId: string;
   section: Section;
   items: Item[];
-  sections: Section[];
   chips: Chip[];
+  canDelete: boolean;
+  onEdit: (item: Item) => void;
+  onDelete: (count: number) => void;
   onReorder: (ids: string[]) => void;
+  onAdd: (name: string, sort: number) => void;
+  onDeleteItem: (id: string) => void;
+  onRename: (name: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: section.id,
+    disabled: isTemp(section.id),
   });
-  const [, startTransition] = useTransition();
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  const sensors = useDragSensors();
   const dndId = useId();
   const ids = items.map((item) => item.id);
 
@@ -269,139 +344,178 @@ function SortableSection({
   }
 
   return (
+    <section
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn("space-y-1.5", isDragging && "relative z-10 opacity-80")}
+    >
+      <div className="-ml-2 flex items-center">
+        <DragHandle
+          label={`Abschnitt ${section.name} verschieben`}
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+        />
+        <BlurInput
+          aria-label="Abschnitt umbenennen"
+          value={section.name}
+          maxLength={60}
+          disabled={isTemp(section.id)}
+          className="h-9 flex-1 border-transparent px-1 font-medium text-muted-foreground shadow-none hover:border-input"
+          onSave={onRename}
+        />
+        {canDelete && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-destructive"
+            aria-label={`Abschnitt ${section.name} löschen`}
+            disabled={isTemp(section.id)}
+            onClick={() => onDelete(items.length)}
+          >
+            <Trash2Icon />
+          </Button>
+        )}
+      </div>
+      <div className="divide-y overflow-hidden rounded-xl border bg-card">
+        <DndContext
+          id={dndId}
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis]}
+          onDragEnd={onDragEnd}
+        >
+          <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+            {items.map((item) => (
+              <SortableItem
+                key={item.id}
+                item={item}
+                chip={chips.find((chip) => chip.id === item.chipId)?.name}
+                onEdit={() => onEdit(item)}
+                onDelete={() => onDeleteItem(item.id)}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+        {!isTemp(section.id) && (
+          <QuickAdd
+            label={`Neuer Eintrag in ${section.name}`}
+            placeholder="+ Eintrag"
+            maxLength={80}
+            className="h-12 rounded-none border-0 px-4 shadow-none focus-visible:ring-0"
+            onAdd={(name) => onAdd(name, items.length)}
+          />
+        )}
+      </div>
+    </section>
+  );
+}
+
+function SortableItem({
+  item,
+  chip,
+  onEdit,
+  onDelete,
+}: {
+  item: Item;
+  chip?: string;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const temp = isTemp(item.id);
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    disabled: temp,
+  });
+
+  return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn("mb-5", isDragging && "relative z-10 opacity-80")}
+      className={cn("flex min-h-12 items-center bg-card pr-1", isDragging && "relative z-10 shadow-md")}
     >
-      <Card className="gap-3 py-4">
-        <CardHeader className="px-3">
-          <CardTitle className="flex items-center gap-1">
-            <DragHandle label={`Abschnitt ${section.name} verschieben`} ref={setActivatorNodeRef} {...attributes} {...listeners} />
-            <BlurInput
-              aria-label="Abschnitt umbenennen"
-              value={section.name}
-              maxLength={60}
-              className="h-9 flex-1 font-semibold"
-              onSave={(name) => startTransition(() => renameSection(section.id, name))}
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-destructive"
-              aria-label={`Abschnitt ${section.name} löschen`}
-              disabled={sections.length === 1}
-              onClick={() => {
-                if (items.length === 0 || confirm(`Abschnitt „${section.name}“ mit ${items.length} Einträgen löschen?`)) {
-                  startTransition(() => deleteSection(section.id));
-                }
-              }}
-            >
-              <Trash2Icon />
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 px-3">
-          {items.length > 0 && (
-            <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-              <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-                <ul className="divide-y">
-                  {items.map((item) => (
-                    <SortableItem key={item.id} item={item} sections={sections} chips={chips} />
-                  ))}
-                </ul>
-              </SortableContext>
-            </DndContext>
-          )}
-          <AddForm
-            label="Neuer Eintrag"
-            placeholder="Eintrag hinzufügen"
-            maxLength={80}
-            onAdd={(name) => addItem(listId, section.id, name, items.length)}
-            compact
-          />
-        </CardContent>
-      </Card>
+      <DragHandle
+        label={`${item.name} verschieben`}
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+      />
+      <button
+        type="button"
+        disabled={temp}
+        onClick={onEdit}
+        className="flex min-h-12 min-w-0 flex-1 cursor-pointer flex-col justify-center py-1.5 text-left"
+      >
+        <span className={cn(temp && "text-muted-foreground")}>
+          {item.name}
+          {chip && <span className="ml-2 text-xs text-muted-foreground">{chip}</span>}
+        </span>
+        {item.note && <span className="truncate text-xs text-muted-foreground">{item.note}</span>}
+      </button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-10 text-muted-foreground hover:text-destructive"
+        aria-label={`${item.name} löschen`}
+        disabled={temp}
+        onClick={onDelete}
+      >
+        <XIcon />
+      </Button>
     </div>
   );
 }
 
-function SortableItem({ item, sections, chips }: { item: Item; sections: Section[]; chips: Chip[] }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
-    id: item.id,
-  });
-  const [, startTransition] = useTransition();
-  const chip = chips.find((row) => row.id === item.chipId);
-
+function ItemDialog({
+  item,
+  sections,
+  chips,
+  onClose,
+  onSave,
+}: {
+  item: Item;
+  sections: Section[];
+  chips: Chip[];
+  onClose: () => void;
+  onSave: (item: Item) => void;
+}) {
+  const id = useId();
   return (
-    <li
-      ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn("flex items-center gap-1 bg-card py-1", isDragging && "relative z-10 shadow-md")}
-    >
-      <DragHandle label={`${item.name} verschieben`} ref={setActivatorNodeRef} {...attributes} {...listeners} />
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex flex-wrap items-center gap-1.5">
-          {item.name}
-          {chip && <Badge variant="outline">{chip.name}</Badge>}
-        </span>
-        {item.note && <span className="text-xs text-muted-foreground">{item.note}</span>}
-      </span>
-      <ItemDialog item={item} sections={sections} chips={chips} />
-      <Button
-        variant="ghost"
-        size="icon"
-        className="text-muted-foreground hover:text-destructive"
-        aria-label={`${item.name} löschen`}
-        onClick={() => startTransition(() => deleteItem(item.id))}
-      >
-        <Trash2Icon />
-      </Button>
-    </li>
-  );
-}
-
-function ItemDialog({ item, sections, chips }: { item: Item; sections: Section[]; chips: Chip[] }) {
-  const [open, setOpen] = useState(false);
-
-  async function save(formData: FormData) {
-    await updateItem(formData);
-    setOpen(false);
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={`${item.name} bearbeiten`} className="text-muted-foreground">
-          <PencilIcon />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <form action={save} className="space-y-4">
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md" onOpenAutoFocus={(event) => event.preventDefault()}>
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const data = new FormData(event.currentTarget);
+            const name = String(data.get("name") ?? "").trim();
+            if (!name) return;
+            const chipId = String(data.get("chipId") ?? "none");
+            onSave({
+              ...item,
+              name,
+              note: String(data.get("note") ?? "").trim() || null,
+              chipId: chipId === "none" ? null : chipId,
+              sectionId: String(data.get("sectionId") ?? item.sectionId),
+            });
+          }}
+        >
           <DialogHeader>
-            <DialogTitle>Eintrag bearbeiten</DialogTitle>
+            <DialogTitle>Eintrag</DialogTitle>
           </DialogHeader>
-          <input type="hidden" name="itemId" value={item.id} />
-          <input type="hidden" name="previousSectionId" value={item.sectionId} />
           <div className="space-y-2">
-            <Label htmlFor={`item-name-${item.id}`}>Name</Label>
-            <Input id={`item-name-${item.id}`} name="name" required maxLength={80} defaultValue={item.name} />
+            <Label htmlFor={`${id}-name`}>Name</Label>
+            <Input id={`${id}-name`} name="name" required maxLength={80} defaultValue={item.name} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor={`item-note-${item.id}`}>Notiz</Label>
-            <Input
-              id={`item-note-${item.id}`}
-              name="note"
-              maxLength={200}
-              defaultValue={item.note ?? ""}
-              placeholder="z. B. was alles dazugehört"
-            />
+            <Label htmlFor={`${id}-note`}>Notiz</Label>
+            <Input id={`${id}-note`} name="note" maxLength={200} defaultValue={item.note ?? ""} />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor={`item-section-${item.id}`}>Abschnitt</Label>
+              <Label htmlFor={`${id}-section`}>Abschnitt</Label>
               <Select name="sectionId" defaultValue={item.sectionId}>
-                <SelectTrigger id={`item-section-${item.id}`} className="w-full">
+                <SelectTrigger id={`${id}-section`} className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -414,16 +528,16 @@ function ItemDialog({ item, sections, chips }: { item: Item; sections: Section[]
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`item-chip-${item.id}`}>Chip</Label>
+              <Label htmlFor={`${id}-chip`}>Chip</Label>
               <Select name="chipId" defaultValue={item.chipId ?? "none"}>
-                <SelectTrigger id={`item-chip-${item.id}`} className="w-full">
+                <SelectTrigger id={`${id}-chip`} className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Immer dabei</SelectItem>
+                  <SelectItem value="none">Immer</SelectItem>
                   {chips.map((chip) => (
                     <SelectItem key={chip.id} value={chip.id}>
-                      Nur mit {chip.name}
+                      {chip.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -436,7 +550,7 @@ function ItemDialog({ item, sections, chips }: { item: Item; sections: Section[]
                 Abbrechen
               </Button>
             </DialogClose>
-            <SubmitButton>Speichern</SubmitButton>
+            <Button type="submit">Speichern</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -451,7 +565,7 @@ function DragHandle({ label, ...props }: { label: string } & React.ComponentProp
     <button
       type="button"
       aria-label={label}
-      className="inline-flex size-9 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:bg-accent active:cursor-grabbing"
+      className="inline-flex size-10 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground/60 active:cursor-grabbing"
       {...props}
     >
       <GripVerticalIcon className="size-4" />
@@ -469,7 +583,7 @@ function BlurInput({
     <Input
       key={value}
       defaultValue={value}
-      required
+      enterKeyHint="done"
       onBlur={(event) => {
         const next = event.currentTarget.value.trim();
         if (!next) event.currentTarget.value = value;
@@ -487,35 +601,51 @@ function BlurInput({
   );
 }
 
-// One-line form to add something; clears itself and keeps focus for the next entry.
-function AddForm({
+// A single field: Enter adds, clears it at once and keeps the keyboard open
+// for the next entry.
+function QuickAdd({
   label,
   placeholder,
   maxLength,
+  className,
   onAdd,
-  compact = false,
 }: {
   label: string;
   placeholder: string;
   maxLength: number;
-  onAdd: (name: string) => Promise<void>;
-  compact?: boolean;
+  className?: string;
+  onAdd: (name: string) => void;
 }) {
-  const id = useId();
+  const [value, setValue] = useState("");
   return (
     <form
-      action={async (formData) => {
-        await onAdd(String(formData.get("name") ?? ""));
+      className="relative"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const name = value.trim();
+        if (!name) return;
+        setValue("");
+        onAdd(name);
       }}
-      className={cn("flex gap-2", !compact && "rounded-lg bg-muted p-3")}
     >
-      <Label htmlFor={id} className="sr-only">
-        {label}
-      </Label>
-      <Input id={id} name="name" required maxLength={maxLength} placeholder={placeholder} className="bg-card" />
-      <SubmitButton variant="outline" size="icon" aria-label={label} className="shrink-0 bg-card">
-        <PlusIcon />
-      </SubmitButton>
+      <Input
+        aria-label={label}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        enterKeyHint="enter"
+        className={cn("bg-card pr-10", className)}
+      />
+      {value.trim() && (
+        <button
+          type="submit"
+          aria-label={label}
+          className="absolute inset-y-0 right-0 flex w-10 cursor-pointer items-center justify-center text-brand"
+        >
+          <PlusIcon className="size-5" />
+        </button>
+      )}
     </form>
   );
 }

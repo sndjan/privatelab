@@ -1,72 +1,34 @@
 "use client";
 
 import { ChevronRightIcon, RotateCcwIcon } from "lucide-react";
-import { useEffect, useOptimistic, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { resetList, tickItems, updateChip } from "./actions";
 import { isShown, progress, type Chip, type Item, type Section } from "./data";
-
-type Patch = { type: "tick"; ids: string[]; done: boolean } | { type: "chip"; id: string; active: boolean };
-type State = { items: Item[]; chips: Chip[] };
 
 const UNDO_MS = 6000;
 
 // Tick mode: tap items while packing, reset the list for the next time.
-// Ticks, chips and resets update at once and save in the background.
 export function Checklist({
-  listId,
   sections,
-  items: savedItems,
-  chips: savedChips,
+  items,
+  chips,
+  onTick,
+  onReset,
+  onChip,
+  onEdit,
 }: {
-  listId: string;
   sections: Section[];
   items: Item[];
   chips: Chip[];
+  onTick: (ids: string[], done: boolean) => void;
+  onReset: () => void;
+  onChip: (chip: Chip) => void;
+  onEdit: () => void;
 }) {
-  const [{ items, chips }, apply] = useOptimistic<State, Patch>(
-    { items: savedItems, chips: savedChips },
-    (current, patch) =>
-      patch.type === "tick"
-        ? {
-            ...current,
-            items: current.items.map((item) => (patch.ids.includes(item.id) ? { ...item, done: patch.done } : item)),
-          }
-        : {
-            ...current,
-            chips: current.chips.map((chip) => (chip.id === patch.id ? { ...chip, active: patch.active } : chip)),
-          },
-  );
-  const [, startTransition] = useTransition();
-  const [undo, setUndo] = useState<{ ids: string[] } | null>(null);
-
-  function tick(ids: string[], done: boolean) {
-    startTransition(async () => {
-      apply({ type: "tick", ids, done });
-      await tickItems(ids, done);
-    });
-  }
-
-  function toggleChip(chip: Chip) {
-    startTransition(async () => {
-      apply({ type: "chip", id: chip.id, active: !chip.active });
-      await updateChip(chip.id, { active: !chip.active });
-    });
-  }
-
-  function reset() {
-    const ticked = items.filter((item) => item.done).map((item) => item.id);
-    if (ticked.length === 0) return;
-    startTransition(async () => {
-      apply({ type: "tick", ids: ticked, done: false });
-      const ids = await resetList(listId);
-      setUndo({ ids });
-    });
-  }
+  const [undo, setUndo] = useState<string[] | null>(null);
 
   useEffect(() => {
     if (!undo) return;
@@ -75,42 +37,63 @@ export function Checklist({
   }, [undo]);
 
   const { done, total } = progress(items, chips);
+  const ticked = items.filter((item) => item.done).map((item) => item.id);
   const hidden = items.filter((item) => !isShown(item, chips));
   const chipName = (id: string | null) => chips.find((chip) => chip.id === id)?.name;
 
+  if (items.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-12 text-muted-foreground">
+        <p>Noch leer.</p>
+        <Button variant="outline" onClick={onEdit}>
+          Einträge hinzufügen
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-5">
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-          <span>
-            {done} von {total} erledigt
-            {done === total && total > 0 && <span className="font-medium text-brand"> · Alles dabei</span>}
-          </span>
-          <Button variant="outline" size="sm" onClick={reset} disabled={!items.some((item) => item.done)}>
-            <RotateCcwIcon /> Zurücksetzen
-          </Button>
-        </div>
+    <div className="space-y-4 pb-20">
+      <div className="flex items-center gap-3">
         <Progress
           value={total ? (done / total) * 100 : 0}
           aria-label="Fortschritt"
-          className="h-2 bg-muted"
+          className="h-2 flex-1 bg-muted"
           indicatorClassName="bg-brand"
         />
+        <span className={cn("font-mono text-sm tabular-nums", done === total && total > 0 && "text-brand")}>
+          {done}/{total}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="-mr-2 size-10 text-muted-foreground"
+          aria-label="Alles zurücksetzen"
+          disabled={ticked.length === 0}
+          onClick={() => {
+            setUndo(ticked);
+            onReset();
+          }}
+        >
+          <RotateCcwIcon />
+        </Button>
       </div>
 
       {chips.length > 0 && (
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Diesmal dabei">
+        <div
+          role="group"
+          aria-label="Diesmal dabei"
+          className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           {chips.map((chip) => (
             <button
               key={chip.id}
               type="button"
               aria-pressed={chip.active}
-              onClick={() => toggleChip(chip)}
+              onClick={() => onChip(chip)}
               className={cn(
-                "min-h-10 cursor-pointer rounded-full border px-4 text-sm transition-colors",
-                chip.active
-                  ? "border-brand bg-good text-good-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                "h-9 shrink-0 cursor-pointer rounded-full border px-4 text-sm transition-colors",
+                chip.active ? "border-brand bg-good text-good-foreground" : "text-muted-foreground line-through",
               )}
             >
               {chip.name}
@@ -119,54 +102,41 @@ export function Checklist({
         </div>
       )}
 
-      {total === 0 && hidden.length === 0 && (
-        <p className="text-muted-foreground">Die Liste ist noch leer. Tippe auf „Bearbeiten“, um Einträge hinzuzufügen.</p>
-      )}
-
       {sections.map((section) => {
         const shown = items.filter((item) => item.sectionId === section.id && isShown(item, chips));
         if (shown.length === 0) return null;
-        const open = shown.filter((item) => !item.done).length;
+        const complete = shown.every((item) => item.done);
         return (
-          <Card key={section.id} className="gap-2 py-4">
-            <CardHeader className="px-4">
-              <CardTitle className="flex items-baseline justify-between gap-2">
-                <h2>{section.name}</h2>
-                <span className="text-sm font-normal text-muted-foreground">
-                  {open === 0 ? "erledigt" : `${open} offen`}
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4">
-              <ItemRows items={openFirst(shown)} onTick={tick} />
-            </CardContent>
-          </Card>
+          <section key={section.id} aria-label={section.name} className="space-y-1.5">
+            <h3 className={cn("px-1 text-sm font-medium text-muted-foreground", complete && "text-brand")}>
+              {section.name}
+            </h3>
+            <ItemRows items={openFirst(shown)} onTick={onTick} />
+          </section>
         );
       })}
 
       {hidden.length > 0 && (
-        <details className="group rounded-xl border bg-card px-4 py-3">
-          <summary className="flex min-h-8 cursor-pointer list-none items-center gap-2 text-sm text-muted-foreground [&::-webkit-details-marker]:hidden">
+        <details className="group">
+          <summary className="flex h-10 cursor-pointer list-none items-center gap-1 px-1 text-sm text-muted-foreground [&::-webkit-details-marker]:hidden">
             <ChevronRightIcon className="size-4 transition-transform group-open:rotate-90" />
             Ausgeblendet ({hidden.length})
           </summary>
-          <div className="pt-2">
-            <ItemRows items={hidden} onTick={tick} muted label={(item) => chipName(item.chipId)} />
-          </div>
+          <ItemRows items={hidden} onTick={onTick} muted label={(item) => chipName(item.chipId)} />
         </details>
       )}
 
       {undo && (
         <div
           role="status"
-          className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-sm items-center justify-between gap-3 rounded-xl border bg-popover px-4 py-2 text-popover-foreground shadow-lg"
+          className="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-50 mx-auto flex max-w-sm items-center justify-between gap-3 rounded-xl border bg-popover py-1 pr-1 pl-4 text-popover-foreground shadow-lg"
         >
-          <span className="text-sm">Liste zurückgesetzt</span>
+          <span className="text-sm">Zurückgesetzt</span>
           <Button
             variant="ghost"
-            className="text-brand"
+            className="h-10 text-brand"
             onClick={() => {
-              tick(undo.ids, true);
+              onTick(undo, true);
               setUndo(null);
             }}
           >
@@ -195,12 +165,12 @@ function ItemRows({
   label?: (item: Item) => string | undefined;
 }) {
   return (
-    <ul className="divide-y">
+    <ul className="divide-y overflow-hidden rounded-xl border bg-card">
       {items.map((item) => (
         <li key={item.id}>
           <label
             className={cn(
-              "flex min-h-12 cursor-pointer items-center gap-3 py-1",
+              "flex min-h-12 cursor-pointer items-center gap-3 px-4 py-2 select-none active:bg-accent",
               (item.done || muted) && "text-muted-foreground",
             )}
           >
@@ -212,9 +182,9 @@ function ItemRows({
             <span className="flex min-w-0 flex-col">
               <span className={cn(item.done && "line-through")}>
                 {item.name}
-                {label?.(item) && <span className="ml-2 text-xs">({label(item)})</span>}
+                {label?.(item) && <span className="ml-2 text-xs">{label(item)}</span>}
               </span>
-              {item.note && <span className="text-xs text-muted-foreground">{item.note}</span>}
+              {item.note && !item.done && <span className="text-xs text-muted-foreground">{item.note}</span>}
             </span>
           </label>
         </li>

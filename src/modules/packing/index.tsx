@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -85,23 +85,16 @@ async function Overview() {
 
   if (lists.length === 0) {
     return (
-      <Card className="max-w-xl">
-        <CardHeader>
-          <CardTitle className="text-lg">
-            <h2>Noch keine Packlisten</h2>
-          </CardTitle>
-          <CardDescription>
-            Starte mit den Listen „Nach Stuttgart“ und „Nach Bellenberg“, sortiert in Abschnitte, mit Chips für Winter,
-            Gym und Regen. Alles lässt sich danach ändern.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <form action={loadStarter}>
-            <SubmitButton size="lg">Startlisten laden</SubmitButton>
-          </form>
+      <div className="mx-auto max-w-2xl space-y-3">
+        <form action={loadStarter}>
+          <SubmitButton size="lg" className="h-12 w-full">
+            Nach Stuttgart & Nach Bellenberg anlegen
+          </SubmitButton>
+        </form>
+        <div className="overflow-hidden rounded-xl border bg-card">
           <NewListForm />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
@@ -109,30 +102,21 @@ async function Overview() {
   const others = lists.filter((list) => !list.starred);
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-2xl space-y-6">
       {starred.length > 0 && (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid grid-cols-2 gap-3">
           {starred.map((list) => {
             const { done, total } = listProgress(list.id);
             return (
               <li key={list.id}>
                 <Link
                   href={`${PATH}?list=${list.id}`}
-                  className="flex h-full flex-col gap-4 rounded-xl border bg-card p-5 shadow-sm hover:border-brand"
+                  className="flex h-full min-h-28 flex-col justify-between gap-3 rounded-xl border bg-card p-4 shadow-sm active:bg-accent"
                 >
-                  <span className="flex items-center gap-2">
-                    <span className="flex-1 text-xl font-semibold">{list.name}</span>
-                    <ChevronRightIcon className="size-5 text-muted-foreground" />
-                  </span>
+                  <span className="text-lg leading-tight font-semibold">{list.name}</span>
                   <span className="space-y-1.5">
-                    <span className="block text-sm text-muted-foreground">
-                      {total === 0
-                        ? "Leer"
-                        : done === 0
-                          ? `${total} Einträge`
-                          : done === total
-                            ? "Alles dabei"
-                            : `${done} von ${total} erledigt`}
+                    <span className="block font-mono text-sm text-muted-foreground">
+                      {done}/{total}
                     </span>
                     <Progress
                       value={total ? (done / total) * 100 : 0}
@@ -148,84 +132,75 @@ async function Overview() {
         </ul>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            <h2>{starred.length > 0 ? "Weitere Listen" : "Listen"}</h2>
-          </CardTitle>
-          <CardDescription>Für Urlaub und andere Reisen. Mit dem Stern erscheint eine Liste groß oben.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {others.length > 0 && (
-            <ul className="divide-y">
-              {others.map((list) => {
-                const { done, total } = listProgress(list.id);
-                return (
-                  <li key={list.id}>
-                    <Link href={`${PATH}?list=${list.id}`} className="flex items-center gap-3 py-3 hover:text-brand">
-                      <span className="flex-1 font-medium">{list.name}</span>
-                      <span className="font-mono text-sm text-muted-foreground">
-                        {done}/{total}
-                      </span>
-                      <ChevronRightIcon className="size-4 text-muted-foreground" />
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <NewListForm />
-        </CardContent>
-      </Card>
+      <section aria-label="Listen" className="space-y-1.5">
+        {starred.length > 0 && <h2 className="px-1 text-sm font-medium text-muted-foreground">Weitere Listen</h2>}
+        <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+          {others.map((list) => {
+            const { done, total } = listProgress(list.id);
+            return (
+              <li key={list.id}>
+                <Link href={`${PATH}?list=${list.id}`} className="flex min-h-12 items-center gap-3 px-4 active:bg-accent">
+                  <span className="flex-1">{list.name}</span>
+                  <span className="font-mono text-sm text-muted-foreground">
+                    {done}/{total}
+                  </span>
+                  <ChevronRightIcon className="size-4 text-muted-foreground" />
+                </Link>
+              </li>
+            );
+          })}
+          <li>
+            <NewListForm />
+          </li>
+        </ul>
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            <h2>Inventar</h2>
-          </CardTitle>
-          <CardDescription>Was an welchem Ort schon da ist.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {places.length > 0 && (
-            <ul className="divide-y">
-              {places.map((place) => (
-                <li key={place.id}>
-                  <Link href={`${PATH}?place=${place.id}`} className="flex items-center gap-3 py-3 hover:text-brand">
-                    <span className="flex flex-1 flex-col">
-                      <span className="font-medium">{place.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {(inventoryRows ?? []).filter((row) => row.place_id === place.id).length} Sachen im Inventar
-                      </span>
-                    </span>
-                    <ChevronRightIcon className="size-4 text-muted-foreground" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-          <form action={addPlace} className="flex gap-2">
-            <Label htmlFor="new-place" className="sr-only">
-              Neuer Ort
-            </Label>
-            <Input id="new-place" name="name" required maxLength={60} placeholder="Neuer Ort" />
-            <SubmitButton variant="outline">Anlegen</SubmitButton>
-          </form>
-        </CardContent>
-      </Card>
+      <section aria-label="Inventar" className="space-y-1.5">
+        <h2 className="px-1 text-sm font-medium text-muted-foreground">Inventar</h2>
+        <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+          {places.map((place) => (
+            <li key={place.id}>
+              <Link href={`${PATH}?place=${place.id}`} className="flex min-h-12 items-center gap-3 px-4 active:bg-accent">
+                <span className="flex-1">{place.name}</span>
+                <span className="font-mono text-sm text-muted-foreground">
+                  {(inventoryRows ?? []).filter((row) => row.place_id === place.id).length}
+                </span>
+                <ChevronRightIcon className="size-4 text-muted-foreground" />
+              </Link>
+            </li>
+          ))}
+          <li>
+            <form action={addPlace}>
+              <Input
+                name="name"
+                required
+                maxLength={60}
+                aria-label="Neuer Ort"
+                placeholder="+ Ort"
+                enterKeyHint="enter"
+                className="h-12 rounded-none border-0 px-4 shadow-none focus-visible:ring-0"
+              />
+            </form>
+          </li>
+        </ul>
+      </section>
     </div>
   );
 }
 
+// Enter creates the list and opens it in edit mode.
 function NewListForm() {
   return (
-    <form action={createList} className="flex flex-1 gap-2">
-      <Label htmlFor="new-list" className="sr-only">
-        Neue Liste
-      </Label>
-      <Input id="new-list" name="name" required maxLength={80} placeholder="Neue Liste, z. B. Urlaub" className="h-11" />
-      <SubmitButton variant="outline" size="lg">
-        Anlegen
-      </SubmitButton>
+    <form action={createList}>
+      <Input
+        name="name"
+        required
+        maxLength={80}
+        aria-label="Neue Liste"
+        placeholder="+ Neue Liste, z. B. Urlaub"
+        enterKeyHint="enter"
+        className="h-12 rounded-none border-0 px-4 shadow-none focus-visible:ring-0"
+      />
     </form>
   );
 }
@@ -234,35 +209,27 @@ function NewListForm() {
 
 async function ListView({ listId, startInEditMode }: { listId: string; startInEditMode: boolean }) {
   const supabase = await createClient();
-  const { data: list } = await supabase
-    .from("packing_lists")
-    .select("id, name, starred")
-    .eq("id", listId)
-    .maybeSingle<List>();
-  if (!list) notFound();
-
-  const [{ data: sectionRows }, { data: itemRows }, { data: chipRows }] = await Promise.all([
-    supabase.from("packing_sections").select("id, name").eq("list_id", list.id).order("sort").order("created_at"),
+  const [{ data: list }, { data: sectionRows }, { data: itemRows }, { data: chipRows }] = await Promise.all([
+    supabase.from("packing_lists").select("id, name, starred").eq("id", listId).maybeSingle<List>(),
+    supabase.from("packing_sections").select("id, name").eq("list_id", listId).order("sort").order("created_at"),
     supabase
       .from("packing_items")
       .select("id, list_id, section_id, chip_id, name, note, done")
-      .eq("list_id", list.id)
+      .eq("list_id", listId)
       .order("sort")
       .order("created_at"),
-    supabase.from("packing_chips").select("id, name, active").eq("list_id", list.id).order("sort").order("created_at"),
+    supabase.from("packing_chips").select("id, name, active").eq("list_id", listId).order("sort").order("created_at"),
   ]);
+  if (!list) notFound();
 
   return (
-    <div className="space-y-4">
-      <BackLink />
-      <ListScreen
-        list={list}
-        sections={(sectionRows ?? []) as Section[]}
-        items={((itemRows ?? []) as ItemRow[]).map(toItem)}
-        chips={(chipRows ?? []) as Chip[]}
-        startInEditMode={startInEditMode}
-      />
-    </div>
+    <ListScreen
+      list={list}
+      sections={(sectionRows ?? []) as Section[]}
+      items={((itemRows ?? []) as ItemRow[]).map(toItem)}
+      chips={(chipRows ?? []) as Chip[]}
+      startInEditMode={startInEditMode}
+    />
   );
 }
 
@@ -291,7 +258,6 @@ async function PlaceView({ placeId }: { placeId: string }) {
           <CardTitle className="text-lg">
             <h2>Inventar in {place.name}</h2>
           </CardTitle>
-          <CardDescription>Was schon in {place.name} ist. Bei 0 ist gerade nichts davon dort.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {inventory.length === 0 ? (
