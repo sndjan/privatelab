@@ -1,9 +1,10 @@
 import { CheckIcon } from "lucide-react";
 import { Suspense } from "react";
+import { CopyButton } from "@/components/copy-button";
 import { Loading } from "@/components/loading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +16,40 @@ import { deleteFeedback, setFeedbackStatus } from "../feedback/actions";
 import { inviteUser, removeUser, setModuleAccess, setModuleVisibility } from "./actions";
 
 const feedbackKinds: Record<string, string> = { bug: "Fehler", idea: "Idee", other: "Sonstiges" };
+
+type FeedbackEntry = {
+  id: string;
+  user_id: string | null;
+  kind: string;
+  message: string;
+  page: string | null;
+  user_agent: string | null;
+  status: string;
+  created_at: string;
+};
+
+// Markdown for pasting into Claude: one section per entry, metadata as a
+// list, the message quoted verbatim.
+function feedbackAsMarkdown(entries: FeedbackEntry[], emails: Map<string, string>) {
+  const sections = entries.map((entry, index) =>
+    [
+      `## ${index + 1}. ${{ bug: "Bug", idea: "Idea", other: "Other" }[entry.kind] ?? entry.kind}${entry.page ? ` on ${entry.page}` : ""}`,
+      "",
+      `- ID: ${entry.id}`,
+      `- Status: ${entry.status === "done" ? "done" : "open"}`,
+      `- From: ${(entry.user_id && emails.get(entry.user_id)) ?? "deleted user"}`,
+      `- Sent: ${entry.created_at}`,
+      `- Page: ${entry.page ?? "unknown"}`,
+      `- Browser: ${entry.user_agent ?? "unknown"}`,
+      "",
+      entry.message
+        .split("\n")
+        .map((line) => `> ${line}`)
+        .join("\n"),
+    ].join("\n"),
+  );
+  return [`# Privatelab feedback (${entries.length} ${entries.length === 1 ? "entry" : "entries"})`, ...sections].join("\n\n");
+}
 
 export default function AdminPage() {
   return (
@@ -34,7 +69,7 @@ async function AdminContent() {
     supabase.from("modules").select("id, visibility"),
     supabase
       .from("feedback")
-      .select("id, user_id, kind, message, page, status, created_at")
+      .select("id, user_id, kind, message, page, user_agent, status, created_at")
       .order("created_at", { ascending: false })
       .limit(100),
   ]);
@@ -43,7 +78,8 @@ async function AdminContent() {
   const visibility = new Map((moduleRows ?? []).map((row) => [row.id, row.visibility]));
   const emails = new Map((profiles ?? []).map((profile) => [profile.id, profile.email]));
   const feedback = [...(feedbackRows ?? [])].sort((a, b) => Number(a.status === "done") - Number(b.status === "done"));
-  const openFeedback = feedback.filter((entry) => entry.status === "new").length;
+  const openEntries = feedback.filter((entry) => entry.status === "new");
+  const openFeedback = openEntries.length;
 
   return (
     <div className="space-y-8">
@@ -192,6 +228,15 @@ async function AdminContent() {
             {openFeedback === 1 ? "1 offener Eintrag" : `${openFeedback} offene Einträge`}. Alles liegt auch in der
             Tabelle <code className="font-mono">public.feedback</code> in Supabase.
           </CardDescription>
+          {openFeedback > 0 && (
+            <CardAction>
+              <CopyButton
+                label="Offene kopieren"
+                title="Alle offenen Einträge als Markdown kopieren, z. B. für Claude"
+                text={feedbackAsMarkdown(openEntries, emails)}
+              />
+            </CardAction>
+          )}
         </CardHeader>
         <CardContent>
           {feedback.length === 0 ? (
@@ -216,6 +261,7 @@ async function AdminContent() {
                       <p className={`whitespace-pre-wrap ${done ? "line-through" : ""}`}>{entry.message}</p>
                     </div>
                     <div className="flex shrink-0 gap-1">
+                      <CopyButton title="Als Markdown kopieren" text={feedbackAsMarkdown([entry], emails)} />
                       <form action={setFeedbackStatus}>
                         <input type="hidden" name="feedbackId" value={entry.id} />
                         <input type="hidden" name="status" value={done ? "new" : "done"} />
