@@ -66,6 +66,13 @@ export async function saveSettings(formData: FormData) {
   revalidatePath(PATH);
 }
 
+export async function setHolidayState(formData: FormData) {
+  const state = formData.get("state") === "BY" ? "BY" : "BW";
+  const { supabase, userId } = await db();
+  check(await supabase.from("worktime_settings").upsert({ user_id: userId, holiday_state: state }));
+  revalidatePath(PATH);
+}
+
 // --- Work time models -----------------------------------------------------
 
 export async function savePeriod(formData: FormData) {

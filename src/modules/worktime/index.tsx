@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/server";
 import type { ModulePageProps } from "@/modules/registry";
-import { saveSettings } from "./actions";
+import { saveSettings, setHolidayState } from "./actions";
 import { CalendarToggle } from "./calendar-toggle";
 import {
   addDays,
@@ -16,19 +16,18 @@ import {
   blockState,
   buildContext,
   christmasModes,
+  daysBetween,
+  holidayStates,
   dayInfo,
   defaultSettings,
   firstCountedDay,
-  formatBreak,
   formatDate,
-  formatDay,
   formatDays,
   formatHours,
   formatRange,
   formatTime,
   formatShortDate,
   isDate,
-  isoWeek,
   mondayOf,
   overtimeBalance,
   periodOn,
@@ -36,18 +35,15 @@ import {
   standardTimes,
   todayInGermany,
   vacationYear,
-  weekday,
-  weekdayNames,
   type ChristmasMode,
-  type Context,
+  type HolidayState,
   type DayEntry,
-  type DayInfo,
   type DayKind,
   type Period,
   type Settings,
   type VacationBlock,
 } from "./calc";
-import { DayDialog } from "./day-dialog";
+import { MonthCalendar, type CalendarDay } from "./month-calendar";
 import { PeriodDialog } from "./period-dialog";
 import { VacationDialog } from "./vacation-dialog";
 
@@ -81,6 +77,7 @@ export default async function WorktimeModule({ user, hasAccess, searchParams }: 
         defaultStart: settingsRow.default_start_minute,
         defaultBreak: settingsRow.default_break_minutes,
         christmasMode: settingsRow.christmas_mode as ChristmasMode,
+        holidayState: (settingsRow.holiday_state ?? "BW") as HolidayState,
       }
     : defaultSettings;
   const periods: Period[] = (periodRows ?? []).map((row) => ({
@@ -113,7 +110,7 @@ export default async function WorktimeModule({ user, hasAccess, searchParams }: 
       entries={entries}
       vacations={vacations}
       today={todayInGermany()}
-      week={param("week")}
+      month={param("month")}
       year={param("year")}
     />
   );
@@ -125,12 +122,12 @@ type ViewProps = {
   entries: DayEntry[];
   vacations: VacationBlock[];
   today: string;
-  // Query parameters: any day of the shown week, and the shown vacation year.
-  week?: string;
+  // Query parameters: the shown month (YYYY-MM) and vacation year.
+  month?: string;
   year?: string;
 };
 
-export function WorktimeView({ settings, periods, entries, vacations, today, week: weekParam, year: yearValue }: ViewProps) {
+export function WorktimeView({ settings, periods, entries, vacations, today, month: monthParam, year: yearValue }: ViewProps) {
   const context = buildContext(periods, settings, entries, vacations);
 
   if (periods.length === 0) {
@@ -155,14 +152,17 @@ export function WorktimeView({ settings, periods, entries, vacations, today, wee
     );
   }
 
-  const monday = mondayOf(weekParam && isDate(weekParam) ? weekParam : today);
+  const month = monthParam && /^\d{4}-\d{2}$/.test(monthParam) && isDate(`${monthParam}-01`) ? monthParam : today.slice(0, 7);
+  const monthStart = `${month}-01`;
+  const nextMonthStart = firstOfNextMonth(monthStart);
+  const previousMonth = addDays(monthStart, -1).slice(0, 7);
   const yearParam = Number(yearValue);
   const year = Number.isInteger(yearParam) && yearParam >= 2000 && yearParam <= 2100 ? yearParam : Number(today.slice(0, 4));
-  const href = (changes: { week?: string; year?: number }) => {
+  const href = (changes: { month?: string; year?: number }) => {
     const query = new URLSearchParams();
-    const week = changes.week ?? (weekParam ? monday : undefined);
+    const nextMonth = changes.month ?? (monthParam ? month : undefined);
     const nextYear = changes.year ?? (yearValue ? year : undefined);
-    if (week && week !== mondayOf(today)) query.set("week", week);
+    if (nextMonth && nextMonth !== today.slice(0, 7)) query.set("month", nextMonth);
     if (nextYear && nextYear !== Number(today.slice(0, 4))) query.set("year", String(nextYear));
     const search = query.toString();
     return search ? `${PATH}?${search}` : PATH;
@@ -171,9 +171,23 @@ export function WorktimeView({ settings, periods, entries, vacations, today, wee
   const balance = overtimeBalance(context, today);
   const plannedUse = plannedOvertimeUse(context, today);
   const firstDay = firstCountedDay(context);
-  const week = Array.from({ length: 7 }, (_, index) => dayInfo(addDays(monday, index), context));
-  const weekTarget = week.reduce((sum, day) => sum + day.target, 0);
-  const weekActual = week.reduce((sum, day) => sum + day.actual, 0);
+  const gridStart = mondayOf(monthStart);
+  const gridDays = daysBetween(gridStart, addDays(mondayOf(addDays(nextMonthStart, -1)), 7));
+  const calendarDays: CalendarDay[] = Array.from({ length: gridDays }, (_, index) => {
+    const info = dayInfo(addDays(gridStart, index), context);
+    return {
+      info,
+      standard: standardTimes(info.target, settings),
+      counted: info.date <= today && (!firstDay || info.date >= firstDay),
+      inMonth: info.date.startsWith(month),
+    };
+  });
+  const monthDays = calendarDays.filter((day) => day.inMonth).map((day) => day.info);
+  const monthTarget = monthDays.reduce((sum, day) => sum + day.target, 0);
+  const monthActual = monthDays.reduce((sum, day) => sum + day.actual, 0);
+  const initialDate = today.startsWith(month)
+    ? today
+    : (monthDays.find((day) => day.target > 0) ?? monthDays[0]).date;
   const thisWeek = Array.from({ length: 7 }, (_, index) => dayInfo(addDays(mondayOf(today), index), context)).filter(
     (day) => day.date <= today && (!firstDay || day.date >= firstDay),
   );
@@ -238,53 +252,63 @@ export function WorktimeView({ settings, periods, entries, vacations, today, wee
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">
-              <h2>KW {isoWeek(monday)}</h2>
+              <h2>{monthName(monthStart)}</h2>
             </CardTitle>
-            <CardDescription>
-              {formatShortDate(monday)} – {formatShortDate(addDays(monday, 6))}
-            </CardDescription>
             <CardAction className="flex gap-1">
-              <Button asChild variant="ghost" size="icon" aria-label="Vorherige Woche">
-                <Link href={href({ week: addDays(monday, -7) })}>
+              <Button asChild variant="ghost" size="icon" aria-label="Vorheriger Monat">
+                <Link href={href({ month: previousMonth })}>
                   <ChevronLeftIcon />
                 </Link>
               </Button>
-              {monday !== mondayOf(today) && (
+              {month !== today.slice(0, 7) && (
                 <Button asChild variant="ghost" size="sm" className="h-9">
-                  <Link href={href({ week: mondayOf(today) })}>Heute</Link>
+                  <Link href={href({ month: today.slice(0, 7) })}>Heute</Link>
                 </Button>
               )}
-              <Button asChild variant="ghost" size="icon" aria-label="Nächste Woche">
-                <Link href={href({ week: addDays(monday, 7) })}>
+              <Button asChild variant="ghost" size="icon" aria-label="Nächster Monat">
+                <Link href={href({ month: nextMonthStart.slice(0, 7) })}>
                   <ChevronRightIcon />
                 </Link>
               </Button>
             </CardAction>
           </CardHeader>
           <CardContent className="space-y-4 px-3 sm:px-6">
-            <ul className="flex flex-col sm:-mx-2">
-              {week.map((day) => (
-                <li key={day.date}>
-                  <DayRow day={day} today={today} firstDay={firstDay} context={context} />
-                </li>
-              ))}
-            </ul>
-            <dl className="grid grid-cols-3 gap-2 border-t px-2 pt-4 text-sm sm:px-0">
+            <MonthCalendar key={month} days={calendarDays} initialDate={initialDate} today={today} />
+            <dl className="grid grid-cols-3 gap-2 border-t px-1 pt-4 text-sm sm:px-0">
               <div>
                 <dt className="text-muted-foreground">Ist</dt>
-                <dd className="font-mono font-medium">{formatHours(weekActual)}</dd>
+                <dd className="font-mono font-medium">{formatHours(monthActual)}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Soll</dt>
-                <dd className="font-mono font-medium">{formatHours(weekTarget)}</dd>
+                <dd className="font-mono font-medium">{formatHours(monthTarget)}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Differenz</dt>
-                <dd className={`font-mono font-medium ${deltaClass(weekActual - weekTarget)}`}>
-                  {formatHours(weekActual - weekTarget, { signed: true })}
+                <dd className={`font-mono font-medium ${deltaClass(monthActual - monthTarget)}`}>
+                  {formatHours(monthActual - monthTarget, { signed: true })}
                 </dd>
               </div>
             </dl>
+            <form action={setHolidayState} className="flex items-center gap-2 px-1 text-sm sm:px-0">
+              <span className="text-muted-foreground">Feiertage</span>
+              <span className="flex rounded-md border p-0.5">
+                {holidayStates.map((state) => (
+                  <button
+                    key={state.value}
+                    name="state"
+                    value={state.value}
+                    aria-pressed={settings.holidayState === state.value}
+                    title={state.label}
+                    className={`rounded px-2.5 py-1 text-[13px] ${
+                      settings.holidayState === state.value ? "bg-muted font-medium" : "text-muted-foreground"
+                    }`}
+                  >
+                    {state.label}
+                  </button>
+                ))}
+              </span>
+            </form>
           </CardContent>
         </Card>
 
@@ -413,84 +437,6 @@ export function WorktimeView({ settings, periods, entries, vacations, today, wee
   );
 }
 
-function DayRow({ day, today, firstDay, context }: { day: DayInfo; today: string; firstDay: string | null; context: Context }) {
-  const standard = standardTimes(day.target, context.settings);
-  const weekend = weekday(day.date) >= 5;
-  const counted = day.date <= today && (!firstDay || day.date >= firstDay);
-  const delta = day.actual - day.target;
-  const [label, detail] = describe(day, standard);
-
-  return (
-    <DayDialog
-      key={JSON.stringify([day.entry, day.target])}
-      date={day.date}
-      title={formatDay(day.date)}
-      note={day.status === "vacation" ? "Urlaub" : day.holiday ?? (day.target > 0 ? "Standardtag" : "Frei")}
-      target={day.target}
-      entry={day.entry}
-      standard={standard}
-    >
-      <button
-        type="button"
-        className={`flex w-full items-center gap-3 rounded-lg px-2 text-left hover:bg-muted ${weekend ? "py-1.5 text-sm" : "py-2.5"} ${
-          day.date === today ? "bg-muted/60" : ""
-        }`}
-      >
-        <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ background: statusColor[day.status] }} />
-        <span className={`flex w-11 shrink-0 flex-col leading-tight ${weekend ? "text-muted-foreground" : ""}`}>
-          <span className={weekend ? "" : "font-medium"}>{weekdayNames[weekday(day.date)]}</span>
-          <span className="text-xs text-muted-foreground">{formatShortDate(day.date)}</span>
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className={`truncate ${day.status === "standard" || day.status === "free" ? "text-muted-foreground" : ""}`}>
-            {label}
-          </span>
-          {detail && <span className="truncate text-xs text-muted-foreground">{detail}</span>}
-        </span>
-        <span className="flex shrink-0 flex-col items-end font-mono text-sm whitespace-nowrap">
-          {(day.target > 0 || day.actual > 0) && <span>{formatHours(day.actual)}</span>}
-          {(day.target > 0 || day.actual > 0) && delta !== 0 && (
-            <span className={`text-xs ${counted ? deltaClass(delta) : "text-muted-foreground"}`}>
-              {formatHours(delta, { signed: true })}
-            </span>
-          )}
-        </span>
-      </button>
-    </DayDialog>
-  );
-}
-
-const statusColor: Record<DayInfo["status"], string> = {
-  standard: "var(--chart-3)",
-  work: "var(--chart-1)",
-  sick: "var(--chart-5)",
-  overtime_off: "var(--chart-4)",
-  vacation: "var(--chart-2)",
-  holiday: "var(--chart-2)",
-  free: "transparent",
-};
-
-function describe(day: DayInfo, standard: { start: number; end: number; breakMinutes: number }): [string, string | null] {
-  switch (day.status) {
-    case "work": {
-      const entry = day.entry!;
-      return [`${formatTime(entry.start ?? 0)} – ${formatTime(entry.end ?? 0)}`, formatBreak(entry.breakMinutes)];
-    }
-    case "standard":
-      return [`${formatTime(standard.start)} – ${formatTime(standard.end)}`, formatBreak(standard.breakMinutes)];
-    case "vacation":
-      return [day.vacation?.fromOvertime ? "Urlaub (Überstunden)" : "Urlaub", day.vacation?.note ?? null];
-    case "holiday":
-      return [day.holiday ?? "Feiertag", "Feiertag"];
-    case "sick":
-      return ["Krank", null];
-    case "overtime_off":
-      return ["Gleittag", "aus Überstunden"];
-    case "free":
-      return [day.holiday ?? "Frei", null];
-  }
-}
-
 function deltaClass(minutes: number) {
   if (minutes > 0) return "text-good-foreground dark:text-brand";
   if (minutes < 0) return "text-debt";
@@ -615,7 +561,6 @@ function SettingsCard({ settings }: { settings: Settings }) {
               className="h-11 font-mono"
             />
           </Field>
-          <p className="col-span-full text-[13px] text-muted-foreground">Feiertage: Baden-Württemberg.</p>
           <div className="col-span-full">
             <Button variant="brand" size="lg">
               Einstellungen speichern
@@ -648,6 +593,10 @@ function Tile({ label, value, note, tone }: { label: string; value: string; note
       <dd className="truncate text-xs text-muted-foreground">{note}</dd>
     </Card>
   );
+}
+
+function monthName(date: string) {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString("de-DE", { month: "long", year: "numeric", timeZone: "UTC" });
 }
 
 function firstOfNextMonth(today: string) {
