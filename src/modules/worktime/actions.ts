@@ -60,6 +60,7 @@ export async function saveSettings(formData: FormData) {
       default_start_minute: time(formData, "defaultStart"),
       default_break_minutes: int(formData, "defaultBreak", 0, 240),
       christmas_mode: (["work", "half", "off"].includes(mode) ? mode : "work") as ChristmasMode,
+      holiday_state: formData.get("holidayState") === "BY" ? "BY" : "BW",
       updated_at: new Date().toISOString(),
     }),
   );

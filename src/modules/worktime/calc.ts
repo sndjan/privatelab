@@ -4,6 +4,7 @@
 
 export type DayKind = "work" | "sick" | "overtime_off";
 export type ChristmasMode = "work" | "half" | "off";
+export type HolidayState = "BW" | "BY";
 
 export type Settings = {
   employer: string | null;
@@ -13,6 +14,7 @@ export type Settings = {
   defaultStart: number;
   defaultBreak: number;
   christmasMode: ChristmasMode;
+  holidayState: HolidayState;
 };
 
 export const defaultSettings: Settings = {
@@ -22,6 +24,7 @@ export const defaultSettings: Settings = {
   defaultStart: 7 * 60 + 30,
   defaultBreak: 60,
   christmasMode: "work",
+  holidayState: "BW",
 };
 
 export type Period = {
@@ -61,6 +64,11 @@ export const christmasModes: { value: ChristmasMode; label: string }[] = [
   { value: "work", label: "Normale Arbeitstage" },
   { value: "half", label: "Halbe Tage" },
   { value: "off", label: "Frei" },
+];
+
+export const holidayStates: { value: HolidayState; label: string }[] = [
+  { value: "BW", label: "Baden-Württemberg" },
+  { value: "BY", label: "Bayern" },
 ];
 
 export const weekdayNames = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
@@ -103,7 +111,7 @@ export function todayInGermany() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date());
 }
 
-// --- Public holidays (Baden-Württemberg) ------------------------------------
+// --- Public holidays (Baden-Württemberg or Bayern) ----------------------------
 
 // Easter Sunday (anonymous Gregorian algorithm).
 function easter(year: number) {
@@ -124,10 +132,12 @@ function easter(year: number) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-const holidayCache = new Map<number, Map<string, string>>();
+const holidayCache = new Map<string, Map<string, string>>();
 
-export function holidays(year: number) {
-  const cached = holidayCache.get(year);
+// Bayern: Mariä Himmelfahrt as in predominantly Catholic municipalities
+// (e.g. Bellenberg), without the Augsburger Friedensfest.
+export function holidays(year: number, state: HolidayState) {
+  const cached = holidayCache.get(`${state}${year}`);
   if (cached) return cached;
   const sunday = easter(year);
   const map = new Map<string, string>([
@@ -144,12 +154,13 @@ export function holidays(year: number) {
     [`${year}-12-25`, "1. Weihnachtstag"],
     [`${year}-12-26`, "2. Weihnachtstag"],
   ]);
-  holidayCache.set(year, map);
+  if (state === "BY") map.set(`${year}-08-15`, "Mariä Himmelfahrt");
+  holidayCache.set(`${state}${year}`, map);
   return map;
 }
 
-export function holidayName(date: string) {
-  return holidays(Number(date.slice(0, 4))).get(date) ?? null;
+export function holidayName(date: string, state: HolidayState) {
+  return holidays(Number(date.slice(0, 4)), state).get(date) ?? null;
 }
 
 function isChristmasDay(date: string) {
@@ -170,7 +181,7 @@ export function periodOn(periods: Period[], date: string) {
 }
 
 export function targetMinutes(date: string, periods: Period[], settings: Settings) {
-  if (holidayName(date)) return 0;
+  if (holidayName(date, settings.holidayState)) return 0;
   const base = periodOn(periods, date)?.weekdayMinutes[weekday(date)] ?? 0;
   if (!isChristmasDay(date) || settings.christmasMode === "work") return base;
   return settings.christmasMode === "half" ? Math.round(base / 2) : 0;
@@ -232,7 +243,7 @@ export function buildContext(
 export function dayInfo(date: string, context: Context): DayInfo {
   const { periods, settings } = context;
   const target = targetMinutes(date, periods, settings);
-  const holiday = holidayName(date);
+  const holiday = holidayName(date, settings.holidayState);
   const entry = context.entries.get(date) ?? null;
   const block = context.vacationByDay.get(date) ?? null;
   const base = { date, target, holiday, entry, vacation: block, vacationDays: 0 };
@@ -365,21 +376,8 @@ export function formatTime(minutes: number) {
   return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
-export function formatBreak(minutes: number) {
-  if (minutes === 0) return "ohne Pause";
-  if (minutes % 60 === 0) return `${minutes / 60} h Pause`;
-  return `${minutes} min Pause`;
-}
-
 export function formatDays(days: number) {
   return new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 }).format(days);
-}
-
-// ISO 8601 week number.
-export function isoWeek(date: string) {
-  const thursday = addDays(date, 3 - weekday(date));
-  const firstThursday = addDays(`${thursday.slice(0, 4)}-01-04`, 3 - weekday(`${thursday.slice(0, 4)}-01-04`));
-  return 1 + Math.round(daysBetween(firstThursday, thursday) / 7);
 }
 
 // "26.10."
