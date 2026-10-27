@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/server";
 import type { ModulePageProps } from "@/modules/registry";
-import { saveSettings, setHolidayState } from "./actions";
+import { saveSettings } from "./actions";
 import { CalendarToggle } from "./calendar-toggle";
 import {
   addDays,
@@ -290,25 +290,6 @@ export function WorktimeView({ settings, periods, entries, vacations, today, mon
                 </dd>
               </div>
             </dl>
-            <form action={setHolidayState} className="flex items-center gap-2 px-1 text-sm sm:px-0">
-              <span className="text-muted-foreground">Feiertage</span>
-              <span className="flex rounded-md border p-0.5">
-                {holidayStates.map((state) => (
-                  <button
-                    key={state.value}
-                    name="state"
-                    value={state.value}
-                    aria-pressed={settings.holidayState === state.value}
-                    title={state.label}
-                    className={`rounded px-2.5 py-1 text-[13px] ${
-                      settings.holidayState === state.value ? "bg-muted font-medium" : "text-muted-foreground"
-                    }`}
-                  >
-                    {state.label}
-                  </button>
-                ))}
-              </span>
-            </form>
           </CardContent>
         </Card>
 
@@ -527,6 +508,20 @@ function SettingsCard({ settings }: { settings: Settings }) {
               defaultValue={settings.defaultBreak}
               className="h-11 font-mono"
             />
+          </Field>
+          <Field id="setting-holidayState" label="Feiertage">
+            <Select name="holidayState" defaultValue={settings.holidayState}>
+              <SelectTrigger id="setting-holidayState" className="h-11! w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {holidayStates.map((state) => (
+                  <SelectItem key={state.value} value={state.value}>
+                    {state.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
           <Field id="setting-christmasMode" label="24. und 31.12.">
             <Select name="christmasMode" defaultValue={settings.christmasMode}>
