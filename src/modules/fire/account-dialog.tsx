@@ -2,6 +2,7 @@
 
 import { PencilIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
+import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -89,23 +90,23 @@ export function AccountDialog({ account }: { account?: Account }) {
           </div>
           {account && (
             <div className="flex flex-wrap gap-2 border-t pt-4">
-              <Button
+              <SubmitButton
                 variant="outline"
                 formAction={closingAfter(setAccountArchived)}
                 formNoValidate
                 className="flex-1"
               >
                 {account.archived ? "Wiederherstellen" : "Archivieren"}
-              </Button>
+              </SubmitButton>
               {account.archived && (
-                <Button
+                <SubmitButton
                   variant="ghost"
                   formAction={closingAfter(deleteAccount)}
                   formNoValidate
                   className="flex-1 text-destructive hover:text-destructive"
                 >
                   Endgültig löschen
-                </Button>
+                </SubmitButton>
               )}
             </div>
           )}
@@ -121,7 +122,7 @@ export function AccountDialog({ account }: { account?: Account }) {
                 Abbrechen
               </Button>
             </DialogClose>
-            <Button>{account ? "Speichern" : "Hinzufügen"}</Button>
+            <SubmitButton>{account ? "Speichern" : "Hinzufügen"}</SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>

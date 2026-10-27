@@ -2,6 +2,7 @@
 
 import { PencilIcon } from "lucide-react";
 import { useState } from "react";
+import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -69,7 +70,7 @@ export function TargetDialog({ target, calculated }: Props) {
           </div>
           <DialogFooter>
             {target !== null && (
-              <Button
+              <SubmitButton
                 type="submit"
                 variant="ghost"
                 onClick={(event) => {
@@ -78,14 +79,14 @@ export function TargetDialog({ target, calculated }: Props) {
                 }}
               >
                 Automatisch berechnen
-              </Button>
+              </SubmitButton>
             )}
             <DialogClose asChild>
               <Button type="button" variant="ghost">
                 Abbrechen
               </Button>
             </DialogClose>
-            <Button>Speichern</Button>
+            <SubmitButton>Speichern</SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>

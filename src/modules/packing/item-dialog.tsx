@@ -2,6 +2,7 @@
 
 import { PencilIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
+import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -109,7 +110,7 @@ export function ItemDialog({
                 Abbrechen
               </Button>
             </DialogClose>
-            <Button>Speichern</Button>
+            <SubmitButton>Speichern</SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>

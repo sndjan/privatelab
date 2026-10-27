@@ -1,6 +1,6 @@
 import { Trash2Icon } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -343,14 +343,14 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
                       />
                       <form action={deleteMonth}>
                         <input type="hidden" name="month" value={row.month} />
-                        <Button
+                        <SubmitButton
                           variant="ghost"
                           size="icon"
                           aria-label={`${formatMonth(row.month)} löschen`}
                           className="text-muted-foreground hover:text-destructive"
                         >
                           <Trash2Icon />
-                        </Button>
+                        </SubmitButton>
                       </form>
                     </TableCell>
                   </TableRow>
@@ -375,9 +375,9 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
             <SettingField label="Entnahmerate (%)" name="withdrawalRate" value={settings.withdrawalRate} step="0.01" />
             <SettingField label="Erwartete reale Rendite (%)" name="expectedReturn" value={settings.expectedReturn} step="0.01" />
             <div className="col-span-full">
-              <Button variant="brand" size="lg">
+              <SubmitButton variant="brand" size="lg">
                 Einstellungen speichern
-              </Button>
+              </SubmitButton>
             </div>
           </form>
         </CardContent>

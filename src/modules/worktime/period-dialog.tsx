@@ -2,6 +2,7 @@
 
 import { PencilIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
+import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -119,7 +120,7 @@ export function PeriodDialog({ period, defaultFrom, canDelete = false }: Props) 
           </div>
           <DialogFooter className="gap-2">
             {period && canDelete && (
-              <Button
+              <SubmitButton
                 type="submit"
                 variant="ghost"
                 formAction={closingAfter(deletePeriod)}
@@ -127,14 +128,14 @@ export function PeriodDialog({ period, defaultFrom, canDelete = false }: Props) 
                 className="text-destructive hover:text-destructive sm:mr-auto"
               >
                 Löschen
-              </Button>
+              </SubmitButton>
             )}
             <DialogClose asChild>
               <Button type="button" variant="ghost">
                 Abbrechen
               </Button>
             </DialogClose>
-            <Button>{period ? "Speichern" : "Anlegen"}</Button>
+            <SubmitButton>{period ? "Speichern" : "Anlegen"}</SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -1,6 +1,7 @@
 import { ArrowRightIcon, ChevronLeftIcon, ChevronRightIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -123,16 +124,16 @@ async function Overview({ places }: { places: Place[] }) {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           <form action={loadStarter}>
-            <Button size="lg">Startvorlagen laden</Button>
+            <SubmitButton size="lg">Startvorlagen laden</SubmitButton>
           </form>
           <form action={addPlace} className="flex gap-2">
             <Label htmlFor="first-place" className="sr-only">
               Ort
             </Label>
             <Input id="first-place" name="name" required maxLength={60} placeholder="Oder ersten Ort anlegen" className="h-11" />
-            <Button variant="outline" size="lg">
+            <SubmitButton variant="outline" size="lg">
               Anlegen
-            </Button>
+            </SubmitButton>
           </form>
         </CardContent>
       </Card>
@@ -214,9 +215,9 @@ async function Overview({ places }: { places: Place[] }) {
                 <Input id="new-template" name="name" required maxLength={80} placeholder="z. B. Nach Stuttgart" className="bg-card" />
               </div>
               <RouteFields places={places} />
-              <Button variant="outline" className="bg-card">
+              <SubmitButton variant="outline" className="bg-card">
                 Vorlage anlegen
-              </Button>
+              </SubmitButton>
             </form>
           </CardContent>
         </Card>
@@ -249,7 +250,7 @@ async function Overview({ places }: { places: Place[] }) {
                 Neuer Ort
               </Label>
               <Input id="new-place" name="name" required maxLength={60} placeholder="Neuer Ort" />
-              <Button variant="outline">Anlegen</Button>
+              <SubmitButton variant="outline">Anlegen</SubmitButton>
             </form>
           </CardContent>
         </Card>
@@ -378,7 +379,7 @@ async function RunView({ runId, places }: { runId: string; places: Place[] }) {
                     Eintrag
                   </Label>
                   <Input id="extra-item" name="name" required maxLength={80} placeholder="z. B. Geschenk" />
-                  <Button variant="outline">Hinzufügen</Button>
+                  <SubmitButton variant="outline">Hinzufügen</SubmitButton>
                 </form>
               </CardContent>
             </Card>
@@ -395,15 +396,15 @@ async function RunView({ runId, places }: { runId: string; places: Place[] }) {
             <CardContent className="flex flex-wrap gap-2">
               <form action={run.finished_at ? reopenRun : finishRun}>
                 <input type="hidden" name="runId" value={run.id} />
-                <Button variant={run.finished_at ? "outline" : "brand"}>
+                <SubmitButton variant={run.finished_at ? "outline" : "brand"}>
                   {run.finished_at ? "Wieder öffnen" : "Reise abschließen"}
-                </Button>
+                </SubmitButton>
               </form>
               <form action={deleteRun}>
                 <input type="hidden" name="runId" value={run.id} />
-                <Button variant="ghost" className="text-destructive hover:text-destructive">
+                <SubmitButton variant="ghost" className="text-destructive hover:text-destructive">
                   Löschen
-                </Button>
+                </SubmitButton>
               </form>
             </CardContent>
           </Card>
@@ -457,7 +458,7 @@ async function TemplateView({ templateId, places }: { templateId: string; places
               </div>
               <RouteFields places={places} from={template.from_place_id} to={template.to_place_id} />
             </div>
-            <Button>Speichern</Button>
+            <SubmitButton>Speichern</SubmitButton>
           </form>
         </CardContent>
       </Card>
@@ -497,14 +498,14 @@ async function TemplateView({ templateId, places }: { templateId: string; places
                       <ItemDialog templateId={template.id} item={item} />
                       <form action={deleteTemplateItem}>
                         <input type="hidden" name="itemId" value={item.id} />
-                        <Button
+                        <SubmitButton
                           variant="ghost"
                           size="icon"
                           aria-label={`${item.name} löschen`}
                           className="text-muted-foreground hover:text-destructive"
                         >
                           <Trash2Icon />
-                        </Button>
+                        </SubmitButton>
                       </form>
                     </li>
                   ))}
@@ -517,9 +518,9 @@ async function TemplateView({ templateId, places }: { templateId: string; places
 
       <form action={deleteTemplate}>
         <input type="hidden" name="templateId" value={template.id} />
-        <Button variant="ghost" className="text-destructive hover:text-destructive">
+        <SubmitButton variant="ghost" className="text-destructive hover:text-destructive">
           Vorlage löschen
-        </Button>
+        </SubmitButton>
       </form>
     </div>
   );
@@ -561,14 +562,14 @@ async function PlaceView({ place }: { place: Place | undefined }) {
                   <QuantityStepper id={entry.id} name={entry.name} quantity={entry.quantity} />
                   <form action={deleteInventoryItem}>
                     <input type="hidden" name="itemId" value={entry.id} />
-                    <Button
+                    <SubmitButton
                       variant="ghost"
                       size="icon"
                       aria-label={`${entry.name} löschen`}
                       className="text-muted-foreground hover:text-destructive"
                     >
                       <Trash2Icon />
-                    </Button>
+                    </SubmitButton>
                   </form>
                 </li>
               ))}
@@ -592,18 +593,18 @@ async function PlaceView({ place }: { place: Place | undefined }) {
                 className="bg-card font-mono"
               />
             </div>
-            <Button variant="outline" className="bg-card">
+            <SubmitButton variant="outline" className="bg-card">
               Eintragen
-            </Button>
+            </SubmitButton>
           </form>
         </CardContent>
       </Card>
 
       <form action={deletePlace}>
         <input type="hidden" name="placeId" value={place.id} />
-        <Button variant="ghost" className="text-destructive hover:text-destructive">
+        <SubmitButton variant="ghost" className="text-destructive hover:text-destructive">
           Ort löschen
-        </Button>
+        </SubmitButton>
       </form>
     </div>
   );

@@ -2,8 +2,8 @@ import { CheckIcon } from "lucide-react";
 import { Suspense } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { Loading } from "@/components/loading";
+import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -111,7 +111,7 @@ async function AdminContent() {
                 ))}
               </div>
             </fieldset>
-            <Button>Person hinzufügen</Button>
+            <SubmitButton>Person hinzufügen</SubmitButton>
           </form>
         </CardContent>
       </Card>
@@ -157,7 +157,7 @@ async function AdminContent() {
                             <input type="hidden" name="userId" value={profile.id} />
                             <input type="hidden" name="moduleId" value={module.id} />
                             <input type="hidden" name="enabled" value={String(!enabled)} />
-                            <Button size="sm" variant={enabled ? "secondary" : "outline"}>
+                            <SubmitButton size="sm" variant={enabled ? "secondary" : "outline"}>
                               {enabled ? (
                                 <>
                                   <CheckIcon className="text-brand" /> Entziehen
@@ -165,7 +165,7 @@ async function AdminContent() {
                               ) : (
                                 "Freigeben"
                               )}
-                            </Button>
+                            </SubmitButton>
                           </form>
                         )}
                       </TableCell>
@@ -175,9 +175,9 @@ async function AdminContent() {
                     {profile.id !== currentUser.id && (
                       <form action={removeUser}>
                         <input type="hidden" name="userId" value={profile.id} />
-                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive">
+                        <SubmitButton size="sm" variant="ghost" className="text-destructive hover:text-destructive">
                           Entfernen
-                        </Button>
+                        </SubmitButton>
                       </form>
                     )}
                   </TableCell>
@@ -208,9 +208,9 @@ async function AdminContent() {
                   <form action={setModuleVisibility} className="ml-auto">
                     <input type="hidden" name="moduleId" value={module.id} />
                     <input type="hidden" name="visibility" value={isPublic ? "private" : "public"} />
-                    <Button size="sm" variant="outline">
+                    <SubmitButton size="sm" variant="outline">
                       {isPublic ? "Privat machen" : "Öffentlich machen"}
-                    </Button>
+                    </SubmitButton>
                   </form>
                 </li>
               );
@@ -265,15 +265,15 @@ async function AdminContent() {
                       <form action={setFeedbackStatus}>
                         <input type="hidden" name="feedbackId" value={entry.id} />
                         <input type="hidden" name="status" value={done ? "new" : "done"} />
-                        <Button size="sm" variant="outline">
+                        <SubmitButton size="sm" variant="outline">
                           {done ? "Wieder öffnen" : "Erledigt"}
-                        </Button>
+                        </SubmitButton>
                       </form>
                       <form action={deleteFeedback}>
                         <input type="hidden" name="feedbackId" value={entry.id} />
-                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive">
+                        <SubmitButton size="sm" variant="ghost" className="text-destructive hover:text-destructive">
                           Löschen
-                        </Button>
+                        </SubmitButton>
                       </form>
                     </div>
                   </li>

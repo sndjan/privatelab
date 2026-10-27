@@ -2,7 +2,7 @@
 
 import { MinusIcon, PlusIcon } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
-import { useFormStatus } from "react-dom";
+import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
@@ -340,9 +340,4 @@ function DayEditor({ day }: { day: CalendarDay }) {
       )}
     </form>
   );
-}
-
-function SubmitButton({ disabled, ...props }: React.ComponentProps<typeof Button>) {
-  const { pending } = useFormStatus();
-  return <Button {...props} disabled={disabled || pending} />;
 }
