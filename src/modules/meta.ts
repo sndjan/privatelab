@@ -49,6 +49,14 @@ export const moduleMeta: ModuleMeta[] = [
     status: "live",
   },
   {
+    id: "tennis",
+    name: "Tennistraining",
+    description: "Trainingsstunden in 5 Minuten planen: Übungen mit Skizze, Lieblingsspiele pro Gruppe, Live-Ansicht und Ausdruck.",
+    icon: "🎾",
+    category: "alltag",
+    status: "live",
+  },
+  {
     id: "health",
     name: "Gesundheit-Dashboard",
     description: "Schlaf, Sport, Gewicht und andere Gesundheitswerte im Überblick.",

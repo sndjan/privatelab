@@ -7,6 +7,7 @@ import type { CurrentUser } from "@/lib/auth";
 import FireModule from "./fire";
 import { moduleMeta, type ModuleMeta } from "./meta";
 import PackingModule from "./packing";
+import TennisModule from "./tennis";
 import WorktimeModule from "./worktime";
 
 export type ModulePageProps = {
@@ -25,6 +26,7 @@ export type ModuleDefinition = ModuleMeta & {
 const pages: Record<string, ComponentType<ModulePageProps>> = {
   fire: FireModule,
   packing: PackingModule,
+  tennis: TennisModule,
   worktime: WorktimeModule,
 };
 
