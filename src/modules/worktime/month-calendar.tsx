@@ -1,9 +1,10 @@
 "use client";
 
 import { MinusIcon, PlusIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { resetDay, saveDay } from "./actions";
@@ -33,47 +34,72 @@ type Props = {
   days: CalendarDay[];
   initialDate: string;
   today: string;
+  // Month title and navigation, and the month's totals below the grid.
+  header: ReactNode;
+  summary: ReactNode;
 };
 
 const breakStep = 15;
 const maxBreak = 180;
 
-// Month grid with the selected day's editor above it. Tapping a day selects it.
-export function MonthCalendar({ days, initialDate, today }: Props) {
+// The selected day's editor in its own card, and the month grid below it.
+// Tapping a day selects it and scrolls the editor into view if needed.
+export function MonthCalendar({ days, initialDate, today, header, summary }: Props) {
   const [selected, setSelected] = useState(initialDate);
+  const editorRef = useRef<HTMLDivElement>(null);
   const day = days.find((candidate) => candidate.info.date === selected) ?? days.find((d) => d.inMonth)!;
 
-  return (
-    <div className="space-y-5">
-      <DayEditor key={JSON.stringify([day.info.date, day.info.entry, day.info.target])} day={day} />
+  function select(date: string) {
+    setSelected(date);
+    if ((editorRef.current?.getBoundingClientRect().top ?? 0) < 0) {
+      editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
 
-      <div>
-        <div aria-hidden="true" className="grid grid-cols-7 gap-1 pb-1 text-center text-xs text-muted-foreground">
-          {weekdayNames.map((name) => (
-            <span key={name}>{name}</span>
-          ))}
-        </div>
-        <div role="grid" aria-label="Monat" className="grid grid-cols-7 gap-1">
-          {days.map((cell) => (
-            <DayCell
-              key={cell.info.date}
-              cell={cell}
-              today={today}
-              selected={cell.info.date === day.info.date}
-              onSelect={() => setSelected(cell.info.date)}
-            />
-          ))}
-        </div>
-        <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          {legend.map((item) => (
-            <li key={item.label} className="flex items-center gap-1.5">
-              <span aria-hidden="true" className="size-2.5 rounded-sm" style={item.style} />
-              {item.label}
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
+  return (
+    <>
+      <Card ref={editorRef} className="scroll-mt-4 py-5">
+        <CardContent className="px-5">
+          <DayEditor key={JSON.stringify([day.info.date, day.info.entry, day.info.target])} day={day} />
+        </CardContent>
+      </Card>
+
+      <Card className="gap-4">
+        <CardHeader>{header}</CardHeader>
+        <CardContent className="space-y-4 px-3 sm:px-6">
+          <div>
+            <div
+              aria-hidden="true"
+              className="grid grid-cols-7 gap-1 pb-1 text-center text-[11px] text-muted-foreground"
+            >
+              {weekdayNames.map((name) => (
+                <span key={name}>{name}</span>
+              ))}
+            </div>
+            <div role="grid" aria-label="Monat" className="grid grid-cols-7 gap-1">
+              {days.map((cell) => (
+                <DayCell
+                  key={cell.info.date}
+                  cell={cell}
+                  today={today}
+                  selected={cell.info.date === day.info.date}
+                  onSelect={() => select(cell.info.date)}
+                />
+              ))}
+            </div>
+            <ul className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              {legend.map((item) => (
+                <li key={item.label} className="flex items-center gap-1.5">
+                  <span aria-hidden="true" className="size-2.5 rounded-sm" style={item.style} />
+                  {item.label}
+                </li>
+              ))}
+            </ul>
+          </div>
+          {summary}
+        </CardContent>
+      </Card>
+    </>
   );
 }
 
@@ -125,19 +151,19 @@ function DayCell({
         delta !== 0 ? `, ${formatHours(delta, { signed: true })}` : ""
       }`}
       onClick={onSelect}
-      className={`flex h-14 min-w-0 flex-col items-start justify-between rounded-md border p-1 text-left transition-colors sm:h-20 sm:p-1.5 ${
+      className={`flex h-11 min-w-0 flex-col items-start justify-between rounded-md border px-1 py-0.5 text-left transition-colors sm:h-14 sm:p-1 ${
         selected ? "border-brand ring-2 ring-brand/40" : (style?.className ?? "border-transparent hover:border-input")
       } ${cell.inMonth ? "" : "opacity-40"} ${!style && !weekend ? "bg-muted/50" : ""}`}
       style={style ? { background: style.color } : undefined}
     >
       <span
-        className={`flex size-6 items-center justify-center rounded-full text-sm ${
+        className={`flex size-5 items-center justify-center rounded-full text-xs sm:size-6 sm:text-sm ${
           info.date === today ? "bg-brand font-semibold text-brand-foreground" : weekend ? "text-muted-foreground" : ""
         }`}
       >
         {Number(info.date.slice(8))}
       </span>
-      <span className="w-full min-w-0 truncate text-[10px] leading-tight sm:text-xs">
+      <span className="w-full min-w-0 truncate text-[9px] leading-tight sm:text-[11px]">
         {info.entry?.kind === "work" || (delta !== 0 && !style) ? (
           <span className={`font-mono ${cell.counted ? deltaClass(delta) : "text-muted-foreground"}`}>
             {delta === 0 ? "±0" : formatHours(delta, { signed: true }).replace(" h", "")}
@@ -197,7 +223,7 @@ function DayEditor({ day }: { day: CalendarDay }) {
   const delta = actual - target;
 
   return (
-    <form action={saveDay} className="space-y-4 rounded-xl border bg-muted/40 p-4">
+    <form action={saveDay} className="space-y-4">
       <input type="hidden" name="day" value={info.date} />
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="start" value={range[0]} />
@@ -220,7 +246,7 @@ function DayEditor({ day }: { day: CalendarDay }) {
       </div>
 
       {!editing ? (
-        <Button type="button" variant="outline" className="w-full bg-card" onClick={() => setEditing(true)}>
+        <Button type="button" variant="outline" className="w-full" onClick={() => setEditing(true)}>
           Trotzdem eintragen
         </Button>
       ) : (
@@ -232,7 +258,7 @@ function DayEditor({ day }: { day: CalendarDay }) {
             aria-label="Art des Tages"
             value={kind}
             onValueChange={(value) => value && setKind(value as DayKind)}
-            className="w-full bg-card"
+            className="w-full"
           >
             {dayKinds.map((option) => (
               <ToggleGroupItem key={option.value} value={option.value} className="flex-1 px-2 text-[13px]">
@@ -275,7 +301,6 @@ function DayEditor({ day }: { day: CalendarDay }) {
                     aria-label="Pause 15 Minuten kürzer"
                     disabled={breakMinutes <= 0}
                     onClick={() => setBreakMinutes(breakMinutes - breakStep)}
-                    className="bg-card"
                   >
                     <MinusIcon />
                   </Button>
@@ -289,7 +314,6 @@ function DayEditor({ day }: { day: CalendarDay }) {
                     aria-label="Pause 15 Minuten länger"
                     disabled={breakMinutes + breakStep > maxBreak || breakMinutes + breakStep >= range[1] - range[0]}
                     onClick={() => setBreakMinutes(breakMinutes + breakStep)}
-                    className="bg-card"
                   >
                     <PlusIcon />
                   </Button>
@@ -307,7 +331,7 @@ function DayEditor({ day }: { day: CalendarDay }) {
               Speichern
             </SubmitButton>
             {entry && (
-              <SubmitButton formAction={resetDay} variant="outline" className="flex-1 bg-card">
+              <SubmitButton formAction={resetDay} variant="outline" className="flex-1">
                 Zurück auf Standard
               </SubmitButton>
             )}
