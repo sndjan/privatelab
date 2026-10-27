@@ -40,6 +40,15 @@ export async function proxy(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const signedIn = Boolean(data?.claims);
 
+  // The start page is for visitors; signed-in users go straight to their
+  // modules (and visitors the other way), so neither sees the wrong page first.
+  if (signedIn && request.nextUrl.pathname === "/") {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+  if (!signedIn && request.nextUrl.pathname === "/dashboard") {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
   if (!signedIn && !isPublic(request.nextUrl.pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";

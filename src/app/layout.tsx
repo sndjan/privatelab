@@ -7,7 +7,9 @@ import { Feedback } from "@/components/feedback";
 import { AllModulesLink, HeaderBrand, HeaderBrandFallback } from "@/components/header-brand";
 import { ServiceWorker } from "@/components/service-worker";
 import { Button } from "@/components/ui/button";
+import { RememberSession } from "@/components/session-hint";
 import { getCurrentUser } from "@/lib/auth";
+import { sessionScript } from "@/lib/session-hint";
 import { themeColors, themeScript } from "@/lib/theme";
 import "./globals.css";
 
@@ -46,6 +48,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <meta name="theme-color" content={themeColors.light} suppressHydrationWarning />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: sessionScript }} />
       </head>
       <body className="flex min-h-full flex-col pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
         <header className="border-b bg-card">
@@ -55,7 +58,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <HeaderBrand />
             </Suspense>
             <div className="ml-auto flex shrink-0 items-center gap-1">
-              <Suspense>
+              {/* Until the session is checked, shows the signed-in icons if the
+                  browser remembers being signed in (see lib/session-hint). */}
+              <Suspense
+                fallback={
+                  <div className="hidden signed-in:contents">
+                    <SignedInActions />
+                  </div>
+                }
+              >
                 <NavActions />
               </Suspense>
             </div>
@@ -73,14 +84,26 @@ async function NavActions() {
   const user = await getCurrentUser();
   if (!user) {
     return (
-      <Button asChild variant="ghost" size="icon" className="text-muted-foreground">
-        <Link href="/login" aria-label="Anmelden" title="Anmelden">
-          <LogInIcon />
-        </Link>
-      </Button>
+      <>
+        <RememberSession hint={null} />
+        <Button asChild variant="ghost" size="icon" className="text-muted-foreground">
+          <Link href="/login" aria-label="Anmelden" title="Anmelden">
+            <LogInIcon />
+          </Link>
+        </Button>
+      </>
     );
   }
 
+  return (
+    <>
+      <RememberSession hint={{ isAdmin: user.isAdmin }} />
+      <SignedInActions />
+    </>
+  );
+}
+
+function SignedInActions() {
   return (
     <>
       <AllModulesLink />

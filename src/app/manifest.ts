@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Private Lab",
     description: "Eine private Spielwiese für kleine Apps und Prototypen.",
     lang: "de",
-    start_url: "/",
+    start_url: "/dashboard",
     scope: "/",
     display: "standalone",
     background_color: "#f3f4f1",
