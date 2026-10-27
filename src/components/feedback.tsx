@@ -1,8 +1,9 @@
 "use client";
 
-import { MessageSquareIcon } from "lucide-react";
+import { Loader2Icon, MessageSquareIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { useFormStatus } from "react-dom";
 import { sendFeedback } from "@/app/feedback/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,16 +33,17 @@ export function Feedback() {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState("idea");
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function send(formData: FormData) {
-    setError(false);
+    setError(null);
     formData.set("userAgent", navigator.userAgent);
     try {
-      await sendFeedback(formData);
-      setSent(true);
+      const result = await sendFeedback(formData);
+      if (result.error) setError(result.error);
+      else setSent(true);
     } catch {
-      setError(true);
+      setError("Keine Verbindung zum Server. Versuch es bitte noch einmal.");
     }
   }
 
@@ -50,13 +52,15 @@ export function Feedback() {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next) setSent(false);
+        if (next) {
+          setSent(false);
+          setError(null);
+        }
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="ghost" className="text-muted-foreground" aria-label="Feedback geben">
+        <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="Feedback geben" title="Feedback">
           <MessageSquareIcon />
-          <span className="hidden sm:inline">Feedback</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -106,18 +110,32 @@ export function Feedback() {
                 placeholder={kind === "bug" ? "Was ist passiert, und was hättest du erwartet?" : "Erzähl …"}
               />
             </div>
-            {error && <p className="text-sm text-destructive">Das hat nicht geklappt. Versuch es bitte noch einmal.</p>}
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
             <DialogFooter>
               <DialogClose asChild>
                 <Button type="button" variant="ghost">
                   Abbrechen
                 </Button>
               </DialogClose>
-              <Button>Senden</Button>
+              <SendButton />
             </DialogFooter>
           </form>
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SendButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button disabled={pending}>
+      {pending && <Loader2Icon className="animate-spin" />}
+      Senden
+    </Button>
   );
 }

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { Loading } from "@/components/loading";
 import { ModuleGrid } from "@/components/module-grid";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -16,7 +17,7 @@ export default function Home() {
       </section>
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">Öffentliche Module</h2>
-        <Suspense fallback={<p className="text-muted-foreground">Lädt …</p>}>
+        <Suspense fallback={<Loading />}>
           <PublicModules />
         </Suspense>
       </section>

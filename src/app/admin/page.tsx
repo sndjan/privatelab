@@ -1,5 +1,6 @@
 import { CheckIcon } from "lucide-react";
 import { Suspense } from "react";
+import { Loading } from "@/components/loading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +18,7 @@ const feedbackKinds: Record<string, string> = { bug: "Fehler", idea: "Idee", oth
 
 export default function AdminPage() {
   return (
-    <Suspense fallback={<p className="text-muted-foreground">Lädt …</p>}>
+    <Suspense fallback={<Loading />}>
       <AdminContent />
     </Suspense>
   );

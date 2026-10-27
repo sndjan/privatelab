@@ -1,12 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
+import { Loading } from "@/components/loading";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getModule } from "@/modules/registry";
 
 export default function ModulePage({ params, searchParams }: PageProps<"/m/[module]">) {
   return (
-    <Suspense fallback={<p className="text-muted-foreground">Lädt …</p>}>
+    <Suspense fallback={<Loading />}>
       <ModuleContent params={params} searchParams={searchParams} />
     </Suspense>
   );

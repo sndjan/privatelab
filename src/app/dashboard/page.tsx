@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { Loading } from "@/components/loading";
 import { ModuleGrid } from "@/components/module-grid";
 import { PlannedModules } from "@/components/planned-modules";
 import { getCurrentUser } from "@/lib/auth";
@@ -10,7 +11,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold tracking-tight">Deine Module</h1>
-      <Suspense fallback={<p className="text-muted-foreground">Lädt …</p>}>
+      <Suspense fallback={<Loading />}>
         <VisibleModules />
       </Suspense>
     </div>

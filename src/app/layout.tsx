@@ -1,12 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
+import { CircleUserRoundIcon, LogInIcon } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Feedback } from "@/components/feedback";
-import { HeaderBrand, HeaderBrandFallback } from "@/components/header-brand";
+import { AllModulesLink, HeaderBrand, HeaderBrandFallback } from "@/components/header-brand";
 import { ServiceWorker } from "@/components/service-worker";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
+import { themeColors, themeScript } from "@/lib/theme";
 import "./globals.css";
 
 const instrumentSans = Instrument_Sans({
@@ -25,11 +27,12 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "Private Lab", statusBarStyle: "default" },
 };
 
+// The theme-color meta (status bar) is rendered below and kept in sync with the
+// light/dark setting by themeScript. viewport-fit=cover lets the page draw
+// behind Android's navigation bar (Chrome 135+), so the bar takes on the
+// page's background instead of staying white; the body pads for it.
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#181e1b" },
-  ],
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -37,15 +40,21 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="de"
       className={`${instrumentSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      // themeScript sets data-theme before React hydrates.
+      suppressHydrationWarning
     >
-      <body className="flex min-h-full flex-col">
+      <head>
+        <meta name="theme-color" content={themeColors.light} suppressHydrationWarning />
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className="flex min-h-full flex-col pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
         <header className="border-b bg-card">
           <nav className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2">
             {/* The module name needs the URL, which is only known per request. */}
             <Suspense fallback={<HeaderBrandFallback />}>
               <HeaderBrand />
             </Suspense>
-            <div className="ml-auto flex items-center gap-1">
+            <div className="ml-auto flex shrink-0 items-center gap-1">
               <Suspense>
                 <NavActions />
               </Suspense>
@@ -64,25 +73,23 @@ async function NavActions() {
   const user = await getCurrentUser();
   if (!user) {
     return (
-      <Button asChild variant="outline">
-        <Link href="/login">Anmelden</Link>
+      <Button asChild variant="ghost" size="icon" className="text-muted-foreground">
+        <Link href="/login" aria-label="Anmelden" title="Anmelden">
+          <LogInIcon />
+        </Link>
       </Button>
     );
   }
 
   return (
     <>
+      <AllModulesLink />
       <Feedback />
-      {user.isAdmin && (
-        <Button asChild variant="ghost">
-          <Link href="/admin">Admin</Link>
-        </Button>
-      )}
-      <form action="/auth/signout" method="post">
-        <Button variant="ghost" className="text-muted-foreground">
-          Abmelden
-        </Button>
-      </form>
+      <Button asChild variant="ghost" size="icon" className="text-muted-foreground">
+        <Link href="/profile" aria-label="Profil und Einstellungen" title="Profil">
+          <CircleUserRoundIcon className="size-5" />
+        </Link>
+      </Button>
     </>
   );
 }

@@ -46,7 +46,7 @@ The module is then served at `/m/<id>` and appears on the dashboard and admin pa
 
 ## Feedback
 
-Signed-in users can send feedback (Fehler / Idee / Sonstiges) from the header; the page they were on is saved with it. Admins see it at the bottom of `/admin`. To pull it from Supabase, e.g. in the SQL editor:
+Signed-in users can send feedback (Fehler / Idee / Sonstiges) from the header (needs the `20261028000000_feedback.sql` migration); the page they were on is saved with it. Admins see it at the bottom of `/admin`. To pull it from Supabase, e.g. in the SQL editor:
 
 ```sql
 select f.created_at, p.email, f.kind, f.page, f.message
@@ -57,7 +57,7 @@ order by f.created_at;
 
 ## UI
 
-Components come from [shadcn/ui](https://ui.shadcn.com) (new-york style) and live in `src/components/ui/`. Add more with `npx shadcn@latest add <component>`. The theme is in `src/app/globals.css`: the standard shadcn tokens plus `brand` (deep green) and a few FIRE-specific colors; dark mode follows the system setting.
+Components come from [shadcn/ui](https://ui.shadcn.com) (new-york style) and live in `src/components/ui/`. Add more with `npx shadcn@latest add <component>`. The theme is in `src/app/globals.css`: the standard shadcn tokens plus `brand` (deep green) and a few FIRE-specific colors. Dark mode follows the system unless the user picks Hell or Dunkel on `/profile`; the choice is stored per device in localStorage and applied before the first paint by the inline script from `src/lib/theme.ts` (it sets `data-theme` on `<html>` and the `theme-color` meta).
 
 ## PWA and language
 
@@ -67,7 +67,7 @@ The app is installable as a PWA: `src/app/manifest.ts`, icons in `public/` and `
 
 ```
 src/
-  app/            routes: /, /login, /auth/*, /dashboard, /admin, /m/[module]
+  app/            routes: /, /login, /auth/*, /dashboard, /profile, /admin, /m/[module]
   components/ui/  shadcn/ui components
   lib/            Supabase clients, auth helpers, cn()
   modules/        one folder per module + registry.ts
