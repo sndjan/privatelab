@@ -43,10 +43,10 @@ export const moduleMeta: ModuleMeta[] = [
   {
     id: "worktime",
     name: "Arbeitszeit-Tracker",
-    description: "Arbeitszeiten erfassen, mit Wochensummen und Überstunden.",
+    description: "Überstunden, Wochenübersicht und Urlaubsplanung mit Kalender-Häkchen.",
     icon: "⏱️",
     category: "alltag",
-    status: "planned",
+    status: "live",
   },
   {
     id: "health",
