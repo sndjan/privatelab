@@ -1,7 +1,6 @@
 import { CalendarXIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,14 +26,18 @@ import {
   formatHours,
   formatRange,
   formatTime,
+  formatShortDate,
   isDate,
+  isoWeek,
   mondayOf,
   overtimeBalance,
   periodOn,
+  plannedOvertimeUse,
   standardTimes,
   todayInGermany,
   vacationYear,
   weekday,
+  weekdayNames,
   type ChristmasMode,
   type Context,
   type DayEntry,
@@ -64,7 +67,10 @@ export default async function WorktimeModule({ user, hasAccess, searchParams }: 
       .select("id, valid_from, label, weekday_minutes, vacation_days_per_month")
       .order("valid_from"),
     supabase.from("worktime_days").select("day, kind, start_minute, end_minute, break_minutes"),
-    supabase.from("worktime_vacations").select("id, start_date, end_date, note, in_calendar").order("start_date"),
+    supabase
+      .from("worktime_vacations")
+      .select("id, start_date, end_date, note, in_calendar, from_overtime")
+      .order("start_date"),
   ]);
 
   const settings: Settings = settingsRow
@@ -97,9 +103,34 @@ export default async function WorktimeModule({ user, hasAccess, searchParams }: 
     endDate: row.end_date,
     note: row.note,
     inCalendar: row.in_calendar,
+    fromOvertime: row.from_overtime ?? false,
   }));
 
-  const today = todayInGermany();
+  return (
+    <WorktimeView
+      settings={settings}
+      periods={periods}
+      entries={entries}
+      vacations={vacations}
+      today={todayInGermany()}
+      week={param("week")}
+      year={param("year")}
+    />
+  );
+}
+
+type ViewProps = {
+  settings: Settings;
+  periods: Period[];
+  entries: DayEntry[];
+  vacations: VacationBlock[];
+  today: string;
+  // Query parameters: any day of the shown week, and the shown vacation year.
+  week?: string;
+  year?: string;
+};
+
+export function WorktimeView({ settings, periods, entries, vacations, today, week: weekParam, year: yearValue }: ViewProps) {
   const context = buildContext(periods, settings, entries, vacations);
 
   if (periods.length === 0) {
@@ -124,14 +155,13 @@ export default async function WorktimeModule({ user, hasAccess, searchParams }: 
     );
   }
 
-  const weekParam = param("week");
   const monday = mondayOf(weekParam && isDate(weekParam) ? weekParam : today);
-  const yearParam = Number(param("year"));
+  const yearParam = Number(yearValue);
   const year = Number.isInteger(yearParam) && yearParam >= 2000 && yearParam <= 2100 ? yearParam : Number(today.slice(0, 4));
   const href = (changes: { week?: string; year?: number }) => {
     const query = new URLSearchParams();
     const week = changes.week ?? (weekParam ? monday : undefined);
-    const nextYear = changes.year ?? (param("year") ? year : undefined);
+    const nextYear = changes.year ?? (yearValue ? year : undefined);
     if (week && week !== mondayOf(today)) query.set("week", week);
     if (nextYear && nextYear !== Number(today.slice(0, 4))) query.set("year", String(nextYear));
     const search = query.toString();
@@ -139,6 +169,7 @@ export default async function WorktimeModule({ user, hasAccess, searchParams }: 
   };
 
   const balance = overtimeBalance(context, today);
+  const plannedUse = plannedOvertimeUse(context, today);
   const firstDay = firstCountedDay(context);
   const week = Array.from({ length: 7 }, (_, index) => dayInfo(addDays(monday, index), context));
   const weekTarget = week.reduce((sum, day) => sum + day.target, 0);
@@ -161,67 +192,57 @@ export default async function WorktimeModule({ user, hasAccess, searchParams }: 
 
   return (
     <div className="space-y-6">
-      <section aria-label="Übersicht" className="flex flex-wrap items-stretch gap-4 sm:gap-6">
-        <div className="flex min-w-0 flex-[999_1_420px] flex-col justify-between gap-5 rounded-xl bg-hero p-5 text-hero-foreground sm:p-8">
-          <div className="flex flex-wrap items-baseline justify-between gap-3 text-sm">
-            <span className="text-hero-muted">Überstunden{settings.employer && ` · ${settings.employer}`}</span>
-            <span className="font-mono text-hero-bar">
-              {formatHours(thisWeekDelta, { signed: true })} diese Woche
-            </span>
+      <section aria-label="Übersicht" className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-4 rounded-xl bg-hero p-5 text-hero-foreground sm:p-8">
+          <div className="flex items-baseline justify-between gap-3 text-sm">
+            <span className="truncate text-hero-muted">Überstunden{settings.employer && ` · ${settings.employer}`}</span>
+            <span className="shrink-0 font-mono text-hero-bar">{formatHours(thisWeekDelta, { signed: true })} Woche</span>
           </div>
           <div className="font-mono text-5xl leading-none font-medium tracking-tighter sm:text-[64px]">
             {formatHours(balance, { signed: true })}
           </div>
-          <p className="text-sm text-hero-muted">
-            Stand heute
-            {settings.openingDate &&
-              `, ausgehend von ${formatHours(settings.openingBalance, { signed: true })} am ${formatDate(settings.openingDate)}`}
-            . Tage ohne Eintrag zählen als Standardtag.
-          </p>
+          {plannedUse > 0 && (
+            <p className="text-sm text-hero-muted">
+              Nach Planung{" "}
+              <span className="font-mono text-hero-foreground">
+                {formatHours(balance - plannedUse, { signed: true })}
+              </span>
+            </p>
+          )}
         </div>
 
-        <dl className="grid min-w-0 flex-[1_1_300px] grid-cols-2 gap-3">
+        <dl className="grid min-w-0 grid-cols-2 gap-3">
           <Tile
             label="Urlaub übrig"
             value={`${formatDays(vacationNow.left)} Tage`}
-            note={`${currentYear}, nach ${formatDays(vacationNow.planned)} geplanten`}
+            note={`${formatDays(vacationNow.planned)} geplant`}
             tone={vacationNow.left < 0 ? "bad" : undefined}
           />
           <Tile
             label="Nächster Urlaub"
-            value={nextBlock ? formatRange(nextBlock.startDate, nextBlock.endDate).replace(/\.\d{4}$/, ".") : "–"}
-            note={
-              nextBlock
-                ? nextBlock.inCalendar
-                  ? "im Kalender eingetragen"
-                  : "noch nicht im Kalender"
-                : "nichts geplant"
-            }
+            value={nextBlock ? formatShortDate(nextBlock.startDate) : "–"}
+            note={nextBlock ? (nextBlock.inCalendar ? "im Kalender" : "nicht im Kalender") : "nichts geplant"}
             tone={nextBlock && !nextBlock.inCalendar ? "bad" : undefined}
           />
           <Tile
-            label="Urlaub geplant"
-            value={`${formatDays(vacationNow.planned)} Tage`}
-            note={notInCalendar.length > 0 ? `${notInCalendar.length} nicht im Kalender` : "alles im Kalender"}
+            label="Nicht im Kalender"
+            value={String(notInCalendar.length)}
+            note={notInCalendar.length === 1 ? "Urlaub" : "Urlaube"}
             tone={notInCalendar.length > 0 ? "bad" : undefined}
           />
-          <Tile
-            label="Soll pro Woche"
-            value={formatHours(weeklyHours)}
-            note={currentPeriod.label || `seit ${formatDate(currentPeriod.validFrom)}`}
-          />
+          <Tile label="Soll / Woche" value={formatHours(weeklyHours)} note={currentPeriod.label || "aktuell"} />
         </dl>
       </section>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">
-              <h2>
-                Woche {formatDay(monday).slice(3)} – {formatDay(addDays(monday, 6)).slice(3)}
-              </h2>
+              <h2>KW {isoWeek(monday)}</h2>
             </CardTitle>
-            <CardDescription>Tippe auf einen Tag, um ihn zu ändern.</CardDescription>
+            <CardDescription>
+              {formatShortDate(monday)} – {formatShortDate(addDays(monday, 6))}
+            </CardDescription>
             <CardAction className="flex gap-1">
               <Button asChild variant="ghost" size="icon" aria-label="Vorherige Woche">
                 <Link href={href({ week: addDays(monday, -7) })}>
@@ -240,15 +261,15 @@ export default async function WorktimeModule({ user, hasAccess, searchParams }: 
               </Button>
             </CardAction>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <ul className="-mx-2 flex flex-col">
+          <CardContent className="space-y-4 px-3 sm:px-6">
+            <ul className="flex flex-col sm:-mx-2">
               {week.map((day) => (
                 <li key={day.date}>
                   <DayRow day={day} today={today} firstDay={firstDay} context={context} />
                 </li>
               ))}
             </ul>
-            <dl className="grid grid-cols-3 gap-2 border-t pt-4 text-sm">
+            <dl className="grid grid-cols-3 gap-2 border-t px-2 pt-4 text-sm sm:px-0">
               <div>
                 <dt className="text-muted-foreground">Ist</dt>
                 <dd className="font-mono font-medium">{formatHours(weekActual)}</dd>
@@ -291,9 +312,7 @@ export default async function WorktimeModule({ user, hasAccess, searchParams }: 
             {notInCalendar.length > 0 && (
               <p className="flex items-start gap-2 rounded-lg bg-bad px-3 py-2.5 text-sm text-bad-foreground">
                 <CalendarXIcon className="mt-0.5 size-4 shrink-0" />
-                {notInCalendar.length === 1
-                  ? "1 Urlaub ist noch nicht im Arbeitskalender eingetragen."
-                  : `${notInCalendar.length} Urlaube sind noch nicht im Arbeitskalender eingetragen.`}
+                {notInCalendar.length === 1 ? "1 Urlaub" : `${notInCalendar.length} Urlaube`} noch nicht im Kalender
               </p>
             )}
 
@@ -303,6 +322,7 @@ export default async function WorktimeModule({ user, hasAccess, searchParams }: 
               <ul className="flex flex-col divide-y">
                 {yearBlocks.map((block) => {
                   const state = blockState(block, today);
+                  const used = blockDays(block, context);
                   return (
                     <li key={block.id} className="flex items-center gap-3 py-2.5">
                       <CalendarToggle
@@ -311,19 +331,21 @@ export default async function WorktimeModule({ user, hasAccess, searchParams }: 
                         label={`${formatRange(block.startDate, block.endDate)} im Kalender eingetragen`}
                       />
                       <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="font-medium">{formatRange(block.startDate, block.endDate)}</span>
-                        <span className="truncate text-xs text-muted-foreground">
-                          {formatDays(blockDays(block, context))}{" "}
-                          {blockDays(block, context) === 1 ? "Tag" : "Tage"}
-                          {block.note && ` · ${block.note}`}
-                          {!block.inCalendar && state !== "taken" && (
-                            <span className="text-bad-foreground"> · nicht im Kalender</span>
-                          )}
+                        <span className="font-medium whitespace-nowrap">
+                          {formatShortDate(block.startDate)}
+                          {block.endDate !== block.startDate && ` – ${formatShortDate(block.endDate)}`}
                         </span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {block.fromOvertime
+                            ? `${formatHours(-used.minutes, { signed: true })}`
+                            : `${formatDays(used.days)} ${used.days === 1 ? "Tag" : "Tage"}`}
+                          {` · ${state === "taken" ? "genommen" : state === "running" ? "läuft" : "geplant"}`}
+                          {block.note && ` · ${block.note}`}
+                        </span>
+                        {!block.inCalendar && state !== "taken" && (
+                          <span className="text-xs text-debt">nicht im Kalender</span>
+                        )}
                       </span>
-                      <Badge variant={state === "taken" ? "secondary" : "outline"}>
-                        {state === "taken" ? "Genommen" : state === "running" ? "Läuft" : "Geplant"}
-                      </Badge>
                       <VacationDialog
                         key={JSON.stringify(block)}
                         vacation={block}
@@ -337,9 +359,6 @@ export default async function WorktimeModule({ user, hasAccess, searchParams }: 
                 })}
               </ul>
             )}
-            <p className="text-[13px] text-muted-foreground">
-              Haken = im Arbeitskalender eingetragen. Vergangene Tage zählen als genommen, künftige als geplant.
-            </p>
             <VacationDialog
               today={year === currentYear ? today : `${year}-01-01`}
               periods={context.periods}
@@ -350,13 +369,12 @@ export default async function WorktimeModule({ user, hasAccess, searchParams }: 
         </Card>
       </div>
 
-      <div className="grid items-start gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">
               <h2>Arbeitszeitmodelle</h2>
             </CardTitle>
-            <CardDescription>Ein Modell gilt ab seinem Datum, bis das nächste beginnt.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <ul className="flex flex-col divide-y">
@@ -366,16 +384,16 @@ export default async function WorktimeModule({ user, hasAccess, searchParams }: 
                   className={`flex items-center gap-3 py-2.5 ${period === currentPeriod ? "" : "text-muted-foreground"}`}
                 >
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="font-medium">
-                      ab {formatDate(period.validFrom)}
-                      {period.label && ` · ${period.label}`}
+                    <span className="truncate font-medium">
+                      {period.label || "Ohne Namen"}
+                      {period === currentPeriod && <span className="font-normal text-muted-foreground"> · aktuell</span>}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {formatHours(period.weekdayMinutes.reduce((sum, minutes) => sum + minutes, 0))} pro Woche ·{" "}
-                      {formatDays(period.vacationPerMonth)} Urlaubstage pro Monat
+                      ab {formatDate(period.validFrom)} ·{" "}
+                      {formatHours(period.weekdayMinutes.reduce((sum, minutes) => sum + minutes, 0))}/Woche ·{" "}
+                      {formatDays(period.vacationPerMonth)} Urlaub/Monat
                     </span>
                   </span>
-                  {period === currentPeriod && <Badge variant="secondary">Aktuell</Badge>}
                   <PeriodDialog
                     key={JSON.stringify(period)}
                     period={period}
@@ -414,13 +432,14 @@ function DayRow({ day, today, firstDay, context }: { day: DayInfo; today: string
     >
       <button
         type="button"
-        className={`flex w-full items-center gap-3 rounded-lg px-2 text-left hover:bg-muted ${weekend ? "py-1.5 text-sm" : "py-3"} ${
+        className={`flex w-full items-center gap-3 rounded-lg px-2 text-left hover:bg-muted ${weekend ? "py-1.5 text-sm" : "py-2.5"} ${
           day.date === today ? "bg-muted/60" : ""
         }`}
       >
         <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ background: statusColor[day.status] }} />
-        <span className={`w-16 shrink-0 ${weekend ? "text-muted-foreground" : "font-medium"}`}>
-          {formatDay(day.date)}
+        <span className={`flex w-11 shrink-0 flex-col leading-tight ${weekend ? "text-muted-foreground" : ""}`}>
+          <span className={weekend ? "" : "font-medium"}>{weekdayNames[weekday(day.date)]}</span>
+          <span className="text-xs text-muted-foreground">{formatShortDate(day.date)}</span>
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className={`truncate ${day.status === "standard" || day.status === "free" ? "text-muted-foreground" : ""}`}>
@@ -428,7 +447,7 @@ function DayRow({ day, today, firstDay, context }: { day: DayInfo; today: string
           </span>
           {detail && <span className="truncate text-xs text-muted-foreground">{detail}</span>}
         </span>
-        <span className="flex shrink-0 flex-col items-end font-mono text-sm">
+        <span className="flex shrink-0 flex-col items-end font-mono text-sm whitespace-nowrap">
           {(day.target > 0 || day.actual > 0) && <span>{formatHours(day.actual)}</span>}
           {(day.target > 0 || day.actual > 0) && delta !== 0 && (
             <span className={`text-xs ${counted ? deltaClass(delta) : "text-muted-foreground"}`}>
@@ -458,15 +477,15 @@ function describe(day: DayInfo, standard: { start: number; end: number; breakMin
       return [`${formatTime(entry.start ?? 0)} – ${formatTime(entry.end ?? 0)}`, formatBreak(entry.breakMinutes)];
     }
     case "standard":
-      return [`${formatTime(standard.start)} – ${formatTime(standard.end)}`, `Standard · ${formatBreak(standard.breakMinutes)}`];
+      return [`${formatTime(standard.start)} – ${formatTime(standard.end)}`, formatBreak(standard.breakMinutes)];
     case "vacation":
-      return ["Urlaub", day.vacation?.note ?? null];
+      return [day.vacation?.fromOvertime ? "Urlaub (Überstunden)" : "Urlaub", day.vacation?.note ?? null];
     case "holiday":
       return [day.holiday ?? "Feiertag", "Feiertag"];
     case "sick":
       return ["Krank", null];
     case "overtime_off":
-      return ["Überstundenabbau", null];
+      return ["Gleittag", "aus Überstunden"];
     case "free":
       return [day.holiday ?? "Frei", null];
   }
@@ -500,15 +519,14 @@ function VacationBar({ vacation }: { vacation: ReturnType<typeof vacationYear> }
           )}
         </div>
       )}
-      <dl className="grid grid-cols-4 gap-2 text-sm">
-        <div>
-          <dt className="text-muted-foreground">Anspruch</dt>
+      <dl className="flex justify-between gap-2">
+        <div className="min-w-0">
+          <dt className="truncate text-xs text-muted-foreground">Anspruch</dt>
           <dd className="font-mono font-medium">{formatDays(total)}</dd>
         </div>
         {parts.map((part) => (
-          <div key={part.label}>
-            <dt className="flex items-center gap-1.5 text-muted-foreground">
-              <span aria-hidden="true" className="size-2 rounded-full border" style={{ background: part.color }} />
+          <div key={part.label} className="min-w-0">
+            <dt className="truncate border-l-2 pl-1.5 text-xs text-muted-foreground" style={{ borderColor: part.color }}>
               {part.label}
             </dt>
             <dd className={`font-mono font-medium ${part.label === "Übrig" && vacation.left < 0 ? "text-debt" : ""}`}>
@@ -519,7 +537,7 @@ function VacationBar({ vacation }: { vacation: ReturnType<typeof vacationYear> }
       </dl>
       {vacation.carryOver !== 0 && (
         <p className="text-[13px] text-muted-foreground">
-          {formatDays(vacation.entitlement)} Tage Anspruch + {formatDays(vacation.carryOver)} Resturlaub aus dem Vorjahr.
+          Inkl. {formatDays(vacation.carryOver)} Resturlaub aus dem Vorjahr.
         </p>
       )}
     </div>
@@ -597,10 +615,7 @@ function SettingsCard({ settings }: { settings: Settings }) {
               className="h-11 font-mono"
             />
           </Field>
-          <p className="col-span-full text-[13px] text-muted-foreground">
-            Ohne Datum zählen alle Tage ab dem ersten Arbeitszeitmodell. Feiertage: Baden-Württemberg. Die Pause gilt
-            für Standardtage über 6 Stunden.
-          </p>
+          <p className="col-span-full text-[13px] text-muted-foreground">Feiertage: Baden-Württemberg.</p>
           <div className="col-span-full">
             <Button variant="brand" size="lg">
               Einstellungen speichern
@@ -625,12 +640,12 @@ function Field({ id, label, children }: { id: string; label: string; children: R
 
 function Tile({ label, value, note, tone }: { label: string; value: string; note: string; tone?: "bad" }) {
   return (
-    <Card className="min-w-0 gap-1.5 p-4 sm:p-[18px]">
-      <dt className="text-[13px] text-muted-foreground">{label}</dt>
-      <dd className={`font-mono text-lg font-medium break-words sm:text-[22px] ${tone === "bad" ? "text-debt" : ""}`}>
+    <Card className="min-w-0 gap-1 p-3.5 sm:p-[18px]">
+      <dt className="truncate text-[13px] text-muted-foreground">{label}</dt>
+      <dd className={`font-mono text-xl font-medium whitespace-nowrap sm:text-[22px] ${tone === "bad" ? "text-debt" : ""}`}>
         {value}
       </dd>
-      <dd className="text-xs text-muted-foreground">{note}</dd>
+      <dd className="truncate text-xs text-muted-foreground">{note}</dd>
     </Card>
   );
 }

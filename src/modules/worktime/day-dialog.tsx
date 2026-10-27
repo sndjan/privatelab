@@ -139,7 +139,7 @@ export function DayDialog({ date, title, note, target, entry, standard, children
             <p className="text-sm text-muted-foreground">Ein Krankheitstag zählt wie ein erfüllter Arbeitstag.</p>
           )}
           {kind === "overtime_off" && (
-            <p className="text-sm text-muted-foreground">Der freie Tag wird von deinen Überstunden abgezogen.</p>
+            <p className="text-sm text-muted-foreground">Freier Tag, der von deinen Überstunden abgezogen wird.</p>
           )}
 
           <dl aria-live="polite" className="grid grid-cols-2 gap-3">
