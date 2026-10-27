@@ -56,6 +56,14 @@ export const moduleMeta: ModuleMeta[] = [
     category: "alltag",
     status: "planned",
   },
+  {
+    id: "challenges",
+    name: "Challenges",
+    description: "Raum mit Freunden öffnen und gegeneinander antreten, z. B. 3× pro Woche Gym, sonst Spende.",
+    icon: "🏆",
+    category: "alltag",
+    status: "planned",
+  },
 
   // Listen & Sammlungen
   {
