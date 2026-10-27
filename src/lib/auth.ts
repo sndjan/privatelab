@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 
 export type CurrentUser = {
@@ -7,8 +8,9 @@ export type CurrentUser = {
   isAdmin: boolean;
 };
 
-// Returns the signed-in user with their profile, or null.
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+// Returns the signed-in user with their profile, or null. Cached per request,
+// so the header and the page share one lookup.
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const userId = data?.claims?.sub;
@@ -25,7 +27,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     email: profile?.email ?? data.claims.email ?? "",
     isAdmin: profile?.is_admin ?? false,
   };
-}
+});
 
 export async function requireAdmin() {
   const user = await getCurrentUser();

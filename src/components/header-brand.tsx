@@ -32,7 +32,7 @@ export function HeaderBrand() {
 // Shown while the current module is not known yet.
 export function HeaderBrandFallback() {
   return (
-    <Link href="/" className="flex shrink-0 items-center gap-2 font-semibold">
+    <Link href="/dashboard" className="flex shrink-0 items-center gap-2 font-semibold">
       <Logo />
       Private Lab
     </Link>
@@ -45,7 +45,7 @@ export function AllModulesLink() {
   if (!useCurrentModule()) return null;
   return (
     <Button asChild variant="ghost" size="icon" className="text-muted-foreground">
-      <Link href="/" aria-label="Alle Module" title="Alle Module">
+      <Link href="/dashboard" aria-label="Alle Module" title="Alle Module">
         <LayoutGridIcon />
       </Link>
     </Button>

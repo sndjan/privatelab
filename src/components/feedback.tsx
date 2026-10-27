@@ -1,10 +1,10 @@
 "use client";
 
-import { Loader2Icon, MessageSquareIcon } from "lucide-react";
+import { MessageSquareIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { useFormStatus } from "react-dom";
 import { sendFeedback } from "@/app/feedback/actions";
+import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -121,21 +121,11 @@ export function Feedback() {
                   Abbrechen
                 </Button>
               </DialogClose>
-              <SendButton />
+              <SubmitButton>Senden</SubmitButton>
             </DialogFooter>
           </form>
         )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-function SendButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button disabled={pending}>
-      {pending && <Loader2Icon className="animate-spin" />}
-      Senden
-    </Button>
   );
 }

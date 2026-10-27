@@ -1,6 +1,7 @@
 import { CalendarXIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -545,9 +546,9 @@ function SettingsCard({ settings }: { settings: Settings }) {
             />
           </Field>
           <div className="col-span-full">
-            <Button variant="brand" size="lg">
+            <SubmitButton variant="brand" size="lg">
               Einstellungen speichern
-            </Button>
+            </SubmitButton>
           </div>
         </form>
       </CardContent>

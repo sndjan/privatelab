@@ -3,6 +3,7 @@
 import { PencilIcon } from "lucide-react";
 import { useState } from "react";
 import { saveBalances } from "./actions";
+import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -175,7 +176,7 @@ export function RecordMonth({ accounts, netWorth, defaultMonth, edit }: Props) {
                 Abbrechen
               </Button>
             </DialogClose>
-            <Button size="lg">{month ? `${monthName(month)} speichern` : "Speichern"}</Button>
+            <SubmitButton size="lg">{month ? `${monthName(month)} speichern` : "Speichern"}</SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>

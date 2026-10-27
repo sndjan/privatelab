@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ModuleDefinition } from "@/modules/registry";
+import type { ModuleMeta } from "@/modules/meta";
 
-export function ModuleGrid({ modules }: { modules: ModuleDefinition[] }) {
+export function ModuleGrid({ modules }: { modules: ModuleMeta[] }) {
   if (modules.length === 0) {
     return <p className="text-muted-foreground">Hier gibt es noch keine Module.</p>;
   }

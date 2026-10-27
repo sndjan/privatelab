@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -104,9 +104,9 @@ export function StartRun({ templates, today }: Props) {
             </div>
           </fieldset>
 
-          <Button size="lg" disabled={templates.length === 0}>
+          <SubmitButton size="lg" disabled={templates.length === 0}>
             Liste starten
-          </Button>
+          </SubmitButton>
         </form>
       </CardContent>
     </Card>

@@ -2,6 +2,7 @@
 
 import { PencilIcon, PlusIcon } from "lucide-react";
 import { useMemo, useState } from "react";
+import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -165,7 +166,7 @@ export function VacationDialog({ vacation, today, periods, settings, entries }: 
           </div>
           <DialogFooter className="gap-2">
             {vacation && (
-              <Button
+              <SubmitButton
                 type="submit"
                 variant="ghost"
                 formAction={closingAfter(deleteVacation)}
@@ -173,14 +174,14 @@ export function VacationDialog({ vacation, today, periods, settings, entries }: 
                 className="text-destructive hover:text-destructive sm:mr-auto"
               >
                 Löschen
-              </Button>
+              </SubmitButton>
             )}
             <DialogClose asChild>
               <Button type="button" variant="ghost">
                 Abbrechen
               </Button>
             </DialogClose>
-            <Button disabled={!valid}>{vacation ? "Speichern" : "Planen"}</Button>
+            <SubmitButton disabled={!valid}>{vacation ? "Speichern" : "Planen"}</SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>

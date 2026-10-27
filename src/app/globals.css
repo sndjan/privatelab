@@ -5,6 +5,9 @@
    script in layout.tsx sets from the user's setting or the system. */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
+/* Set by sessionScript when the browser remembers a signed-in session. */
+@custom-variant signed-in (&:where([data-signed-in] *));
+
 /* shadcn/ui theme. Colors follow the FIRE design: cool off-white ground, ink
    text, deep green as the brand accent. */
 :root {
