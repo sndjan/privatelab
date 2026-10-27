@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { claimNames, deleteClaims } from "./claims";
-import { cleanWish, toRow, type WishFields } from "./data";
+import { cleanWish, newShareToken, toRow, type WishFields } from "./data";
 import { analyzeLink, type LinkResult } from "./link-import";
 
 // Lists and wishes are written with the user's own Supabase client, so RLS
@@ -83,7 +83,7 @@ export async function renewShareLink(formData: FormData) {
   const id = String(formData.get("listId"));
   const supabase = await db();
   const old = check(await supabase.from("wishlist_lists").select("share_token").eq("id", id).single());
-  check(await supabase.from("wishlist_lists").update({ share_token: crypto.randomUUID() }).eq("id", id));
+  check(await supabase.from("wishlist_lists").update({ share_token: newShareToken() }).eq("id", id));
   refresh(old.share_token);
 }
 

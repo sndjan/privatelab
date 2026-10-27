@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/server";
 import { ensureDeviceHash, rememberGuestName } from "./claims";
+import { isShareToken } from "./data";
 
 // Actions of the public share page /w/<token>. Guests have no account, so
 // these use the secret key; the share token is what grants access, and every
@@ -18,7 +19,7 @@ function cleanName(value: string) {
 
 // The open wish on the list behind this share token, or null.
 async function openWish(shareToken: string, itemId: string) {
-  if (!isId(shareToken) || !isId(itemId)) return null;
+  if (!isShareToken(shareToken) || !isId(itemId)) return null;
   const { data } = await createAdminClient()
     .from("wishlist_items")
     .select("id, user_id, wishlist_lists!inner (share_token)")

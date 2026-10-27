@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeftIcon, ImagePlusIcon, Loader2Icon, SparklesIcon, StarIcon, XIcon } from "lucide-react";
+import { ChevronLeftIcon, HeartIcon, ImagePlusIcon, Loader2Icon, SparklesIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
@@ -262,15 +262,23 @@ export function WishEditor({ listId, wish }: { listId: string; wish?: Wish }) {
                 />
               </div>
 
-              <Button
+              <button
                 type="button"
-                variant="outline"
                 aria-pressed={fields.favorite}
                 onClick={() => setFields((current) => ({ ...current, favorite: !current.favorite }))}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors",
+                  fields.favorite ? "border-rose-500/40 bg-rose-500/5" : "hover:bg-accent",
+                )}
               >
-                <StarIcon className={cn(fields.favorite && "fill-amber-400 text-amber-500")} />
-                Herzenswunsch
-              </Button>
+                <HeartIcon className={cn("size-5 shrink-0", fields.favorite ? "fill-rose-500 text-rose-500" : "text-muted-foreground")} />
+                <span>
+                  <span className="block text-sm font-medium">Herzenswunsch</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Steht für deine Gäste ganz oben, unter „Darüber freue ich mich besonders“.
+                  </span>
+                </span>
+              </button>
             </CardContent>
           </Card>
 

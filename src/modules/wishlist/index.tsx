@@ -1,4 +1,4 @@
-import { ArchiveIcon, ChevronLeftIcon, ChevronRightIcon, ExternalLinkIcon, PencilIcon, PlusIcon, StarIcon } from "lucide-react";
+import { ArchiveIcon, ChevronLeftIcon, ChevronRightIcon, ExternalLinkIcon, PencilIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SubmitButton } from "@/components/submit-button";
@@ -18,6 +18,7 @@ import {
   updateList,
 } from "./actions";
 import { formatDate, formatPrice, joinNames, sortWishes, toWish, wishColumns, type Wish, type WishRow } from "./data";
+import { FavoriteBadge } from "./favorite-badge";
 import { ShareLink } from "./share-link";
 import { WishEditor } from "./wish-editor";
 import { WishImage } from "./wish-image";
@@ -193,12 +194,10 @@ function OwnerWishCard({ listId, wish }: { listId: string; wish: Wish }) {
       <WishImage src={wish.imageUrl} alt="" className="size-20 shrink-0 rounded-lg sm:size-24" />
       <div className="min-w-0 flex-1 space-y-1.5">
         <div className="flex items-start gap-1">
-          <p className="min-w-0 flex-1 leading-snug font-medium">
-            {wish.favorite && (
-              <StarIcon aria-label="Herzenswunsch" className="mr-1 inline size-4 -translate-y-px fill-amber-400 text-amber-500" />
-            )}
-            {wish.title}
-          </p>
+          <div className="min-w-0 flex-1 space-y-1">
+            {wish.favorite && <FavoriteBadge />}
+            <p className="leading-snug font-medium">{wish.title}</p>
+          </div>
           <Button asChild variant="ghost" size="icon" className="text-muted-foreground">
             <Link href={`${PATH}?list=${listId}&wish=${wish.id}`} aria-label={`${wish.title} bearbeiten`}>
               <PencilIcon />
