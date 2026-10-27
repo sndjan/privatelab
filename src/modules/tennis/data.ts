@@ -1,0 +1,355 @@
+// Shared by server and client components of the tennis trainer module:
+// types, the court diagram format, the session generator and the JSON format
+// for exercises written by an AI chat.
+
+export const phases = [
+  { id: "warmup", name: "Aufwärmen" },
+  { id: "technique", name: "Technik" },
+  { id: "game", name: "Spiel" },
+  { id: "cooldown", name: "Abschluss" },
+] as const;
+
+export type Phase = (typeof phases)[number]["id"];
+
+export const phaseName = (phase: Phase) => phases.find((entry) => entry.id === phase)?.name ?? phase;
+
+export const focusTags = [
+  "Vorhand",
+  "Rückhand",
+  "Volley",
+  "Aufschlag",
+  "Beinarbeit",
+  "Koordination",
+  "Ballgefühl",
+  "Taktik",
+] as const;
+
+export type Exercise = {
+  id: string;
+  name: string;
+  phase: Phase;
+  minutes: number;
+  summary: string;
+  description: string;
+  // Short cues to call out while the kids play.
+  tips: string[];
+  focus: string[];
+  diagram: Diagram;
+  notes: string;
+};
+
+export type Group = {
+  id: string;
+  name: string;
+  note: string;
+  startTime: string; // "16:00"
+  minutes: number;
+};
+
+export type PlanItem = { exerciseId: string; minutes: number };
+
+export type Session = {
+  id: string;
+  groupId: string | null;
+  date: string; // "2026-10-27"
+  startTime: string; // "16:00"
+  minutes: number;
+  focus: string | null;
+  plan: PlanItem[];
+  notes: string;
+};
+
+// --- Court diagram ------------------------------------------------------------
+//
+// Coordinates are meters from the center of the net: x runs across the court
+// (doubles sidelines at ±5.49, singles sidelines at ±4.12), y along it (net at
+// 0, service lines at ±6.40, baselines at ±11.89). The trainer's half is
+// y < 0 (top of the picture), the kids' half y > 0. Arrows go from (x, y) to
+// (x2, y2): "run" is a running path, "shot" the flight of the ball.
+
+export const court = {
+  minX: -8,
+  maxX: 8,
+  minY: -14.5,
+  maxY: 14.5,
+  doubles: 5.485,
+  singles: 4.115,
+  service: 6.4,
+  baseline: 11.885,
+};
+
+export const pieceTypes = ["coach", "player", "cone", "target", "basket", "ball"] as const;
+export const arrowTypes = ["run", "shot"] as const;
+
+export type PieceType = (typeof pieceTypes)[number];
+export type ArrowType = (typeof arrowTypes)[number];
+export type Piece = { type: PieceType; x: number; y: number; label?: string };
+export type Arrow = { type: ArrowType; x: number; y: number; x2: number; y2: number };
+export type DiagramItem = Piece | Arrow;
+export type Diagram = { items: DiagramItem[] };
+
+export const emptyDiagram: Diagram = { items: [] };
+
+export const isArrow = (item: DiagramItem): item is Arrow => (arrowTypes as readonly string[]).includes(item.type);
+
+const round = (value: number) => Math.round(value * 100) / 100;
+export const clampX = (x: number) => round(Math.min(court.maxX, Math.max(court.minX, x)));
+export const clampY = (y: number) => round(Math.min(court.maxY, Math.max(court.minY, y)));
+
+// Reads a diagram from the database or an AI's JSON, dropping anything unknown.
+export function parseDiagram(value: unknown): Diagram {
+  const raw = value && typeof value === "object" && "items" in value ? (value as { items: unknown }).items : value;
+  if (!Array.isArray(raw)) return { items: [] };
+  const items: DiagramItem[] = [];
+  for (const entry of raw.slice(0, 60)) {
+    if (!entry || typeof entry !== "object") continue;
+    const { type, x, y, x2, y2, label } = entry as Record<string, unknown>;
+    if (typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) continue;
+    if ((arrowTypes as readonly unknown[]).includes(type)) {
+      if (typeof x2 !== "number" || typeof y2 !== "number" || !Number.isFinite(x2) || !Number.isFinite(y2)) continue;
+      items.push({ type: type as ArrowType, x: clampX(x), y: clampY(y), x2: clampX(x2), y2: clampY(y2) });
+    } else if ((pieceTypes as readonly unknown[]).includes(type)) {
+      const piece: Piece = { type: type as PieceType, x: clampX(x), y: clampY(y) };
+      if (typeof label === "string" || typeof label === "number") piece.label = String(label).slice(0, 3);
+      items.push(piece);
+    }
+  }
+  return { items };
+}
+
+// --- Session generator -------------------------------------------------------
+
+export type Slot = { phase: Phase; minutes: number };
+
+const round5 = (value: number) => Math.max(5, Math.round(value / 5) * 5);
+
+// The shape of a session: warm-up, one technique block per ~15 minutes, a
+// game and (from 45 minutes on) a short finish. 60 minutes = 10 + 15 + 15 + 15 + 5.
+export function slotsFor(total: number): Slot[] {
+  const warmup = round5(total * 0.17);
+  const game = round5(total * 0.25);
+  const cooldown = total >= 90 ? 10 : total >= 45 ? 5 : 0;
+  const rest = Math.max(5, total - warmup - game - cooldown);
+  const blocks = Math.max(1, Math.round(rest / 15));
+  const each = round5(rest / blocks);
+  const technique = Array.from({ length: blocks }, (_, index) =>
+    index === blocks - 1 ? Math.max(5, rest - each * (blocks - 1)) : each,
+  );
+  return [
+    { phase: "warmup", minutes: warmup },
+    ...technique.map((minutes) => ({ phase: "technique" as const, minutes })),
+    { phase: "game", minutes: game },
+    ...(cooldown ? [{ phase: "cooldown" as const, minutes: cooldown }] : []),
+  ];
+}
+
+export type PickContext = {
+  exercises: Exercise[];
+  // Favorites of the group: picked about four times as often.
+  favorites: Set<string>;
+  // Played in the group's last sessions: picked less often.
+  recent: Set<string>;
+  focus: string | null;
+};
+
+// A phase without own exercises borrows from the closest one.
+const fallback: Record<Phase, Phase[]> = {
+  warmup: ["game", "technique"],
+  technique: ["game", "warmup"],
+  game: ["technique", "cooldown"],
+  cooldown: ["game", "warmup"],
+};
+
+function weight(exercise: Exercise, context: PickContext) {
+  let value = 1;
+  if (context.favorites.has(exercise.id)) value *= 4;
+  if (context.recent.has(exercise.id)) value *= 0.25;
+  if (context.focus && exercise.focus.includes(context.focus)) value *= 3;
+  return value;
+}
+
+// Picks a random exercise for the phase, weighted by favorites, focus and
+// what the group played lately. Never one of `taken`.
+export function pickExercise(phase: Phase, context: PickContext, taken: Set<string>, random = Math.random) {
+  for (const candidatePhase of [phase, ...fallback[phase]]) {
+    const pool = context.exercises.filter((exercise) => exercise.phase === candidatePhase && !taken.has(exercise.id));
+    if (pool.length === 0) continue;
+    const weights = pool.map((exercise) => weight(exercise, context));
+    let target = random() * weights.reduce((sum, value) => sum + value, 0);
+    for (let index = 0; index < pool.length; index++) {
+      target -= weights[index];
+      if (target <= 0) return pool[index];
+    }
+    return pool[pool.length - 1];
+  }
+  return undefined;
+}
+
+export function generatePlan(total: number, context: PickContext, random = Math.random): PlanItem[] {
+  const taken = new Set<string>();
+  const plan: PlanItem[] = [];
+  for (const slot of slotsFor(total)) {
+    const exercise = pickExercise(slot.phase, context, taken, random);
+    if (!exercise) continue;
+    taken.add(exercise.id);
+    plan.push({ exerciseId: exercise.id, minutes: slot.minutes });
+  }
+  return plan;
+}
+
+// --- Times -------------------------------------------------------------------
+
+export function todayInGermany() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date());
+}
+
+const toMinutes = (time: string) => {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+};
+
+export const formatClock = (minutes: number) =>
+  `${String(Math.floor(minutes / 60) % 24).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+
+// Start and end of every item, as minutes of the day.
+export function timeline(startTime: string, plan: { minutes: number }[]) {
+  let start = toMinutes(startTime);
+  return plan.map((item) => {
+    const range = { start, end: start + item.minutes };
+    start = range.end;
+    return range;
+  });
+}
+
+export function formatSessionDate(date: string) {
+  return new Date(`${date}T00:00:00`).toLocaleDateString("de-DE", {
+    weekday: "short",
+    day: "numeric",
+    month: "numeric",
+    year: date.slice(0, 4) === todayInGermany().slice(0, 4) ? undefined : "numeric",
+  });
+}
+
+// Where a session is at `now` (in the device's time zone, which is where the
+// trainer stands): before it, during item `index`, or over.
+export type LiveState =
+  | { kind: "before"; minutesUntil: number }
+  | { kind: "running"; index: number; minutesLeft: number; progress: number }
+  | { kind: "over" };
+
+export function liveState(
+  session: { date: string; startTime: string; plan: { minutes: number }[] },
+  now: Date,
+): LiveState | null {
+  const start = new Date(`${session.date}T${session.startTime}:00`);
+  const minutesSinceStart = (now.getTime() - start.getTime()) / 60000;
+  const ranges = timeline("00:00", session.plan);
+  const total = ranges.at(-1)?.end ?? 0;
+  if (minutesSinceStart < 0) {
+    // Only counts down on the day itself.
+    return minutesSinceStart > -12 * 60 ? { kind: "before", minutesUntil: Math.ceil(-minutesSinceStart) } : null;
+  }
+  if (minutesSinceStart >= total) return minutesSinceStart < 12 * 60 ? { kind: "over" } : null;
+  const index = ranges.findIndex((range) => minutesSinceStart < range.end);
+  const range = ranges[index];
+  return {
+    kind: "running",
+    index,
+    minutesLeft: Math.ceil(range.end - minutesSinceStart),
+    progress: (minutesSinceStart - range.start) / (range.end - range.start),
+  };
+}
+
+// --- Exercises written elsewhere (e.g. by an AI chat) ------------------------
+
+export type ExerciseInput = Omit<Exercise, "id" | "notes">;
+
+const text = (value: unknown, max: number) => (typeof value === "string" ? value.trim().slice(0, max) : "");
+
+export function cleanExercise(value: Record<string, unknown>): ExerciseInput | null {
+  const name = text(value.name, 80);
+  if (!name) return null;
+  const phase = phases.some((entry) => entry.id === value.phase) ? (value.phase as Phase) : "technique";
+  const minutes = Math.min(60, Math.max(5, Math.round(Number(value.minutes) || 10)));
+  const tips = (Array.isArray(value.tips) ? value.tips : typeof value.tips === "string" ? value.tips.split("\n") : [])
+    .map((tip) => text(tip, 120))
+    .filter(Boolean)
+    .slice(0, 6);
+  const focus = (Array.isArray(value.focus) ? value.focus : []).filter((tag): tag is string =>
+    (focusTags as readonly unknown[]).includes(tag),
+  );
+  return {
+    name,
+    phase,
+    minutes,
+    summary: text(value.summary, 200),
+    description: text(value.description, 2000),
+    tips,
+    focus,
+    diagram: parseDiagram(value.diagram),
+  };
+}
+
+// Accepts one exercise, a list of them or { "exercises": [...] }, also inside
+// a ```json block or with text around it, as chats like to answer.
+export function parseExercises(input: string): { exercises: ExerciseInput[]; error: string | null } {
+  const start = input.search(/[[{]/);
+  const end = Math.max(input.lastIndexOf("]"), input.lastIndexOf("}"));
+  if (start < 0 || end < start) return { exercises: [], error: "Kein JSON gefunden." };
+  let data: unknown;
+  try {
+    data = JSON.parse(input.slice(start, end + 1));
+  } catch {
+    return { exercises: [], error: "Das JSON ist nicht vollständig oder fehlerhaft." };
+  }
+  if (data && typeof data === "object" && !Array.isArray(data) && "exercises" in data) {
+    data = (data as { exercises: unknown }).exercises;
+  }
+  const list = Array.isArray(data) ? data : [data];
+  const exercises = list
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    .map(cleanExercise)
+    .filter((entry): entry is ExerciseInput => entry !== null)
+    .slice(0, 50);
+  return { exercises, error: exercises.length === 0 ? "Keine Übung mit Namen gefunden." : null };
+}
+
+// A prompt for any AI chat (free Claude or ChatGPT is enough). The answer is
+// pasted back into the import dialog.
+export function aiPrompt(wish: string, existing: string[]) {
+  return `Du bist ein erfahrener Tennistrainer für Kinder und Jugendliche (Anfänger bis Mittelstufe, Verein, C-Trainer-Niveau). Erfinde Übungen, die vor allem Spaß machen und nebenbei besser machen. Der Trainer steht meist mit dem Ballkorb auf der einen Seite und spielt zu; Übungen, die ohne ständiges Zuspiel laufen (Stationen, Spiele untereinander), sind besonders willkommen.
+
+Wunsch: ${wish.trim() || "5 abwechslungsreiche, lustige Übungen für eine Gruppe von 4–8 Kindern"}
+
+${existing.length > 0 ? `Diese Übungen habe ich schon, bitte nichts Gleiches:\n${existing.map((name) => `- ${name}`).join("\n")}\n\n` : ""}Antworte NUR mit JSON in diesem Format (ein Array, Texte auf Deutsch):
+
+[
+  {
+    "name": "Kurzer, einprägsamer Name",
+    "phase": "warmup" | "technique" | "game" | "cooldown",
+    "minutes": 10,
+    "summary": "Ein Satz: worum geht es?",
+    "description": "Ablauf in 2–5 Sätzen: Aufbau, Regeln, Punkte, Wechsel.",
+    "tips": ["Kurzer Zuruf für die Kinder", "Noch einer"],
+    "focus": ["Vorhand"],
+    "diagram": { "items": [ ... ] }
+  }
+]
+
+"focus" nur aus: ${focusTags.join(", ")}.
+
+Das Diagramm zeigt den Platz von oben, Koordinaten in Metern ab der Netzmitte:
+- x quer zum Platz: Doppel-Seitenlinien bei -5.49 und 5.49, Einzel-Seitenlinien bei -4.12 und 4.12, Mittellinie bei 0. Erlaubt: -8 bis 8.
+- y längs: Netz bei 0, Aufschlaglinien bei -6.4 und 6.4, Grundlinien bei -11.89 und 11.89. Erlaubt: -14.5 bis 14.5.
+- Die Trainerseite ist oben (y negativ), die Kinder stehen meist unten (y positiv).
+Elemente:
+- {"type": "coach", "x": 0, "y": -9}  Trainer
+- {"type": "player", "x": -2, "y": 10, "label": "1"}  Kind, label 1–3 Zeichen
+- {"type": "cone", "x": 3, "y": 4}  Hütchen
+- {"type": "target", "x": -3, "y": -9}  Ziel/Reifen
+- {"type": "basket", "x": 1, "y": -9}  Ballkorb
+- {"type": "ball", "x": 0, "y": 2}  Ball
+- {"type": "run", "x": -2, "y": 10, "x2": 2, "y2": 8}  Laufweg (gestrichelter Pfeil)
+- {"type": "shot", "x": 0, "y": -9, "x2": -2, "y2": 8}  Ballweg (Pfeil)
+Nimm 3–12 Elemente, so dass man die Übung auf einen Blick versteht.`;
+}

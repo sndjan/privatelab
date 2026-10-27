@@ -51,7 +51,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: sessionScript }} />
       </head>
       <body className="flex min-h-full flex-col pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
-        <header className="border-b bg-card">
+        <header className="border-b bg-card print:hidden">
           <nav className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2">
             {/* The module name needs the URL, which is only known per request. */}
             <Suspense fallback={<HeaderBrandFallback />}>
@@ -72,7 +72,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </div>
           </nav>
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 print:p-0">{children}</main>
         <ServiceWorker />
       </body>
     </html>
