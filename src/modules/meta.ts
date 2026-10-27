@@ -93,10 +93,10 @@ export const moduleMeta: ModuleMeta[] = [
   {
     id: "wishlist",
     name: "Wunsch-Liste",
-    description: "Eigene Wünsche sammeln und mit anderen teilen.",
+    description: "Link einfügen, die KI füllt Preis und Bild aus. Teilen per Link: Gäste reservieren ohne Anmeldung.",
     icon: "⭐",
     category: "sammlungen",
-    status: "planned",
+    status: "live",
   },
   {
     id: "games",
