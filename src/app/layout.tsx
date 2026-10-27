@@ -106,7 +106,10 @@ async function NavActions() {
 function SignedInActions() {
   return (
     <>
-      <AllModulesLink />
+      {/* Needs the URL, which is only known per request. */}
+      <Suspense>
+        <AllModulesLink />
+      </Suspense>
       <Feedback />
       <Button asChild variant="ghost" size="icon" className="text-muted-foreground">
         <Link href="/profile" aria-label="Profil und Einstellungen" title="Profil">
