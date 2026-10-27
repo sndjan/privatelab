@@ -35,7 +35,7 @@ export const moduleMeta: ModuleMeta[] = [
   {
     id: "packing",
     name: "Packliste",
-    description: "Packlisten für die Fahrt zwischen Zuhause und Uni, mit Vorlagen und Inventar.",
+    description: "Abhaken wie in einer Notiz: Listen für die Fahrt zwischen Zuhause und Uni, plus Inventar.",
     icon: "🧳",
     category: "alltag",
     status: "live",
