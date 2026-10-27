@@ -113,18 +113,28 @@ export function toRow(wish: WishInput) {
   };
 }
 
+// --- Share links --------------------------------------------------------------
+
+// Same format as private.wishlist_share_token() in the database: 10 of 32
+// characters that can't be mixed up. Old links are UUIDs and keep working.
+const TOKEN_ALPHABET = "23456789abcdefghijkmnpqrstuvwxyz";
+
+export function newShareToken() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(10)), (byte) => TOKEN_ALPHABET[byte % 32]).join("");
+}
+
+export const isShareToken = (value: unknown): value is string =>
+  typeof value === "string" && /^[0-9a-z-]{10,36}$/.test(value);
+
 // --- Reservations -------------------------------------------------------------
 
 // What a guest sees of one reservation. mine = made from this browser.
+// The owner never sees reservations (only the givers' names once received).
 export type GuestClaim = {
   id: string;
-  isGroup: boolean;
   mine: boolean;
   names: string[];
 };
-
-// What the owner sees: that a wish is taken, never by whom.
-export type OwnerClaims = { taken: number; groups: number; people: number };
 
 export function displayName(name: string) {
   return name.trim() || "Jemand";

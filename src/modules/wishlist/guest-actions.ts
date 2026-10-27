@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/server";
 import { ensureDeviceHash, rememberGuestName } from "./claims";
+import { isShareToken } from "./data";
 
 // Actions of the public share page /w/<token>. Guests have no account, so
 // these use the secret key; the share token is what grants access, and every
@@ -18,7 +19,7 @@ function cleanName(value: string) {
 
 // The open wish on the list behind this share token, or null.
 async function openWish(shareToken: string, itemId: string) {
-  if (!isId(shareToken) || !isId(itemId)) return null;
+  if (!isShareToken(shareToken) || !isId(itemId)) return null;
   const { data } = await createAdminClient()
     .from("wishlist_items")
     .select("id, user_id, wishlist_lists!inner (share_token)")
@@ -27,35 +28,22 @@ async function openWish(shareToken: string, itemId: string) {
     .is("received_at", null)
     .maybeSingle<{ id: string; user_id: string }>();
   if (!data) return null;
-  // The owner can't reserve their own wishes (and would see names doing so).
+  // The owner can't reserve their own wishes (and must not see reservations).
   const user = await getCurrentUser();
   if (user?.id === data.user_id) return null;
   return data;
 }
 
-async function claimOf(shareToken: string, claimId: string) {
-  if (!isId(claimId)) return null;
-  const { data } = await createAdminClient()
-    .from("wishlist_claims")
-    .select("id, item_id, is_group")
-    .eq("id", claimId)
-    .maybeSingle<{ id: string; item_id: string; is_group: boolean }>();
-  if (!data || !(await openWish(shareToken, data.item_id))) return null;
-  return data;
-}
-
 type Result = { error: string } | undefined;
 
-export async function reserve(shareToken: string, itemId: string, group: boolean, rawName: string): Promise<Result> {
+export async function reserve(shareToken: string, itemId: string, rawName: string): Promise<Result> {
   const name = cleanName(rawName);
-  if (group && !name) return { error: "Für ein Gruppengeschenk brauchen die anderen deinen Namen." };
   if (!(await openWish(shareToken, itemId))) return { error: "Diesen Wunsch gibt es nicht mehr." };
 
   const device = await ensureDeviceHash();
   await rememberGuestName(name);
   const { data, error } = await createAdminClient().rpc("wishlist_claim", {
     target_item: itemId,
-    group_gift: group,
     guest_name: name,
     guest_device_hash: device,
   });
@@ -64,41 +52,27 @@ export async function reserve(shareToken: string, itemId: string, group: boolean
   if (!data) return { error: "Schade, jemand war schneller: der Wunsch ist schon vergeben." };
 }
 
-export async function joinGroup(shareToken: string, claimId: string, rawName: string): Promise<Result> {
-  const name = cleanName(rawName);
-  if (!name) return { error: "Bitte gib deinen Namen an, damit die anderen wissen, wer mitmacht." };
-  const claim = await claimOf(shareToken, claimId);
-  if (!claim?.is_group) return { error: "Diese Gruppe gibt es nicht mehr." };
-
-  const device = await ensureDeviceHash();
-  await rememberGuestName(name);
-  const { error } = await createAdminClient()
-    .from("wishlist_claim_members")
-    .upsert({ claim_id: claim.id, name, device_hash: device }, { onConflict: "claim_id,device_hash" });
-  if (error) throw new Error(error.message);
-  revalidatePath(`/w/${shareToken}`);
-}
-
-// Leaves a reservation made from this browser. The last one out frees the wish.
+// Undoes a reservation made from this browser.
 export async function release(shareToken: string, claimId: string): Promise<Result> {
-  const claim = await claimOf(shareToken, claimId);
-  if (!claim) return { error: "Diese Reservierung gibt es nicht mehr." };
-  const device = await ensureDeviceHash();
+  if (!isId(claimId)) return { error: "Diese Reservierung gibt es nicht mehr." };
   const admin = createAdminClient();
+  const { data: claim } = await admin
+    .from("wishlist_claims")
+    .select("id, item_id")
+    .eq("id", claimId)
+    .maybeSingle<{ id: string; item_id: string }>();
+  if (!claim || !(await openWish(shareToken, claim.item_id))) return { error: "Diese Reservierung gibt es nicht mehr." };
 
-  const { data: removed, error } = await admin
+  const device = await ensureDeviceHash();
+  const { data: mine, error } = await admin
     .from("wishlist_claim_members")
-    .delete()
+    .select("id")
     .eq("claim_id", claim.id)
-    .eq("device_hash", device)
-    .select("id");
+    .eq("device_hash", device);
   if (error) throw new Error(error.message);
-  if (!removed?.length) return { error: "Diese Reservierung wurde in einem anderen Browser gemacht." };
+  if (!mine?.length) return { error: "Diese Reservierung wurde in einem anderen Browser gemacht." };
 
-  const { count } = await admin
-    .from("wishlist_claim_members")
-    .select("id", { count: "exact", head: true })
-    .eq("claim_id", claim.id);
-  if (!count) await admin.from("wishlist_claims").delete().eq("id", claim.id);
+  const { error: deleteError } = await admin.from("wishlist_claims").delete().eq("id", claim.id);
+  if (deleteError) throw new Error(deleteError.message);
   revalidatePath(`/w/${shareToken}`);
 }

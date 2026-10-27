@@ -17,6 +17,18 @@ function useCurrentModule() {
 // place, so the module feels like an app of its own.
 export function HeaderBrand() {
   const current = useCurrentModule();
+  const pathname = usePathname();
+  // Shared wishlists are for guests: no link into the app.
+  if (pathname.startsWith("/w/")) {
+    return (
+      <span className="flex min-w-0 items-center gap-2 font-semibold">
+        <span aria-hidden="true" className="w-6 shrink-0 text-center text-xl leading-none">
+          ⭐
+        </span>
+        <span className="truncate">Wunschliste</span>
+      </span>
+    );
+  }
   if (!current) return <HeaderBrandFallback />;
 
   return (

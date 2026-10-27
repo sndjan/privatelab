@@ -1,11 +1,11 @@
 // Server-only: reservations are read and written with the secret key, because
-// guests have no account and the owner must not see the names (see the
-// wishlist migration). Every caller checks first that the list was reached
+// guests have no account and the owner must not see them (see the wishlist
+// migration). Every caller checks first that the list was reached
 // through its share token or belongs to the signed-in user.
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/server";
-import { displayName, type GuestClaim, type OwnerClaims } from "./data";
+import { displayName, type GuestClaim } from "./data";
 
 const DEVICE_COOKIE = "wishlist_device";
 const NAME_COOKIE = "wishlist_name";
@@ -15,7 +15,6 @@ const secure = process.env.NODE_ENV === "production";
 type ClaimRow = {
   id: string;
   item_id: string;
-  is_group: boolean;
   wishlist_claim_members: { name: string; device_hash: string; created_at: string }[];
 };
 
@@ -52,7 +51,7 @@ async function loadClaimRows(itemIds: string[]) {
   if (itemIds.length === 0) return [];
   const { data, error } = await createAdminClient()
     .from("wishlist_claims")
-    .select("id, item_id, is_group, wishlist_claim_members (name, device_hash, created_at)")
+    .select("id, item_id, wishlist_claim_members (name, device_hash, created_at)")
     .in("item_id", itemIds)
     .order("created_at");
   if (error) throw new Error(error.message);
@@ -69,24 +68,10 @@ export async function guestClaims(itemIds: string[], device: string | null) {
     const members = membersOf(row);
     const claim: GuestClaim = {
       id: row.id,
-      isGroup: row.is_group,
       mine: device !== null && members.some((member) => member.device_hash === device),
       names: members.map((member) => member.name),
     };
     byItem.set(row.item_id, [...(byItem.get(row.item_id) ?? []), claim]);
-  }
-  return byItem;
-}
-
-export async function ownerClaims(itemIds: string[]) {
-  const byItem = new Map<string, OwnerClaims>();
-  for (const row of await loadClaimRows(itemIds)) {
-    const current = byItem.get(row.item_id) ?? { taken: 0, groups: 0, people: 0 };
-    byItem.set(row.item_id, {
-      taken: current.taken + 1,
-      groups: current.groups + (row.is_group ? 1 : 0),
-      people: current.people + row.wishlist_claim_members.length,
-    });
   }
   return byItem;
 }

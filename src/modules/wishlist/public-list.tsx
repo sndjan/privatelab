@@ -1,20 +1,19 @@
-import { ExternalLinkIcon, StarIcon } from "lucide-react";
+import { ExternalLinkIcon, HeartIcon } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { deviceHash, guestClaims, guestName } from "./claims";
-import { formatDate, formatPrice, sortWishes, toWish, wishColumns, type WishRow } from "./data";
+import { formatDate, formatPrice, isShareToken, sortWishes, toWish, wishColumns, type GuestClaim, type Wish, type WishRow } from "./data";
+import { FavoriteBadge } from "./favorite-badge";
 import { GuestButtons } from "./guest-buttons";
 import { WishImage } from "./wish-image";
-
-const isId = (value: string) => /^[0-9a-f-]{36}$/i.test(value);
 
 type PublicListRow = { id: string; user_id: string; name: string; occasion_date: string | null };
 
 // Loaded with the secret key: the share token is the only way in.
 export async function loadPublicList(token: string) {
-  if (!isId(token)) return null;
+  if (!isShareToken(token)) return null;
   const { data } = await createAdminClient()
     .from("wishlist_lists")
     .select("id, user_id, name, occasion_date")
@@ -40,9 +39,55 @@ export async function PublicList({ token }: { token: string }) {
   const [user, device, savedName] = await Promise.all([getCurrentUser(), deviceHash(), guestName()]);
   const isOwner = user?.id === list.user_id;
   const wishes = sortWishes(((rows ?? []) as WishRow[]).map(toWish));
-  const claims = await guestClaims(wishes.map((wish) => wish.id), device);
+  // The owner sees the list like before anyone reserved anything.
+  const claims = isOwner ? new Map<string, GuestClaim[]>() : await guestClaims(wishes.map((wish) => wish.id), device);
   const free = (id: string, quantity: number) => Math.max(0, quantity - (claims.get(id)?.length ?? 0));
-  const ordered = [...wishes.filter((wish) => free(wish.id, wish.quantity) > 0), ...wishes.filter((wish) => free(wish.id, wish.quantity) === 0)];
+  // Within a section, wishes nobody can take any more go to the bottom.
+  const byFree = (list: Wish[]) => [
+    ...list.filter((wish) => free(wish.id, wish.quantity) > 0),
+    ...list.filter((wish) => free(wish.id, wish.quantity) === 0),
+  ];
+  const favorites = byFree(wishes.filter((wish) => wish.favorite));
+  const others = byFree(wishes.filter((wish) => !wish.favorite));
+
+  function card(wish: Wish) {
+    const price = formatPrice(wish.price, wish.currency);
+    const left = free(wish.id, wish.quantity);
+    const wishClaims = claims.get(wish.id) ?? [];
+    return (
+      <li
+        key={wish.id}
+        className={cn(
+          "flex gap-3 rounded-xl border bg-card p-3 shadow-xs",
+          wish.favorite && "border-rose-500/30",
+          left === 0 && !wishClaims.some((claim) => claim.mine) && "opacity-60",
+        )}
+      >
+        <WishImage src={wish.imageUrl} alt="" className="size-20 shrink-0 rounded-lg sm:size-28" />
+        <div className="min-w-0 flex-1 space-y-1.5">
+          {wish.favorite && <FavoriteBadge />}
+          <p className="leading-snug font-medium">{wish.title}</p>
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+            {price && <span className="font-mono text-foreground">{price}</span>}
+            {wish.quantity > 1 && (
+              <span>{isOwner ? `${wish.quantity}×` : left === 0 ? `alle ${wish.quantity} vergeben` : `noch ${left} von ${wish.quantity}`}</span>
+            )}
+            {wish.url && (
+              <a href={wish.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline-offset-2 hover:text-foreground hover:underline">
+                <ExternalLinkIcon className="size-3.5" /> Zum Shop
+              </a>
+            )}
+          </p>
+          {wish.note && <p className="text-sm whitespace-pre-line text-muted-foreground">{wish.note}</p>}
+          {!isOwner && (
+            <div className="pt-1">
+              <GuestButtons token={token} wishId={wish.id} claims={wishClaims} free={left} savedName={savedName} />
+            </div>
+          )}
+        </div>
+      </li>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -53,7 +98,8 @@ export async function PublicList({ token }: { token: string }) {
 
       {isOwner ? (
         <p className="rounded-lg border border-brand/30 bg-brand/5 px-4 py-3 text-sm">
-          Das ist deine Liste, so sehen sie deine Gäste. Wer was reserviert hat, bleibt für dich verborgen.
+          Das ist deine Liste. Deine Gäste können hier Wünsche reservieren; ob und was reserviert ist, siehst du nicht,
+          damit die Überraschung bleibt.
         </p>
       ) : (
         <p className="text-sm text-muted-foreground">
@@ -62,50 +108,29 @@ export async function PublicList({ token }: { token: string }) {
         </p>
       )}
 
-      {ordered.length === 0 ? (
-        <p className="text-center text-sm text-muted-foreground">Auf dieser Liste steht gerade nichts.</p>
-      ) : (
-        <ul className="space-y-3">
-          {ordered.map((wish) => {
-            const price = formatPrice(wish.price, wish.currency);
-            const left = free(wish.id, wish.quantity);
-            const wishClaims = claims.get(wish.id) ?? [];
-            return (
-              <li key={wish.id} className={cn("flex gap-3 rounded-xl border bg-card p-3 shadow-xs", left === 0 && !wishClaims.some((claim) => claim.mine) && "opacity-60")}>
-                <WishImage src={wish.imageUrl} alt="" className="size-20 shrink-0 rounded-lg sm:size-28" />
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <p className="leading-snug font-medium">
-                    {wish.favorite && (
-                      <StarIcon aria-label="Herzenswunsch" className="mr-1 inline size-4 -translate-y-px fill-amber-400 text-amber-500" />
-                    )}
-                    {wish.title}
-                  </p>
-                  <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                    {price && <span className="font-mono text-foreground">{price}</span>}
-                    {wish.quantity > 1 && <span>{left === 0 ? `alle ${wish.quantity} vergeben` : `noch ${left} von ${wish.quantity}`}</span>}
-                    {wish.url && (
-                      <a href={wish.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline-offset-2 hover:text-foreground hover:underline">
-                        <ExternalLinkIcon className="size-3.5" /> Zum Shop
-                      </a>
-                    )}
-                  </p>
-                  {wish.note && <p className="text-sm whitespace-pre-line text-muted-foreground">{wish.note}</p>}
-                  <div className="pt-1">
-                    <GuestButtons
-                      token={token}
-                      wishId={wish.id}
-                      title={wish.title}
-                      claims={wishClaims}
-                      free={left}
-                      savedName={savedName}
-                      readOnly={isOwner}
-                    />
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+      {wishes.length === 0 && <p className="text-center text-sm text-muted-foreground">Auf dieser Liste steht gerade nichts.</p>}
+
+      {favorites.length > 0 && (
+        <section aria-labelledby="favorites-title" className="space-y-2">
+          <div className="px-1">
+            <h2 id="favorites-title" className="flex items-center gap-1.5 font-semibold">
+              <HeartIcon aria-hidden="true" className="size-4 fill-rose-500 text-rose-500" /> Herzenswünsche
+            </h2>
+            <p className="text-sm text-muted-foreground">Darüber freue ich mich besonders.</p>
+          </div>
+          <ul className="space-y-3">{favorites.map(card)}</ul>
+        </section>
+      )}
+
+      {others.length > 0 && (
+        <section aria-labelledby={favorites.length > 0 ? "others-title" : undefined} className="space-y-2">
+          {favorites.length > 0 && (
+            <h2 id="others-title" className="px-1 font-semibold">
+              Weitere Wünsche
+            </h2>
+          )}
+          <ul className="space-y-3">{others.map(card)}</ul>
+        </section>
       )}
     </div>
   );
