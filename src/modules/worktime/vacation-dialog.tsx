@@ -15,11 +15,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { deleteVacation, saveVacation } from "./actions";
 import {
   blockDays,
   buildContext,
   formatDays,
+  formatHours,
   formatRange,
   isDate,
   type DayEntry,
@@ -38,14 +40,15 @@ type Props = {
 };
 
 // Adds a vacation block, or edits / deletes one when `vacation` is given.
-// Shows how many vacation days the dates use while typing.
+// Shows how many vacation days (or overtime hours) the dates use while typing.
 export function VacationDialog({ vacation, today, periods, settings, entries }: Props) {
   const [open, setOpen] = useState(false);
   const [startDate, setStartDate] = useState(vacation?.startDate ?? today);
   const [endDate, setEndDate] = useState(vacation?.endDate ?? today);
+  const [paidWith, setPaidWith] = useState(vacation?.fromOvertime ? "overtime" : "vacation");
   const context = useMemo(() => buildContext(periods, settings, entries, []), [periods, settings, entries]);
   const valid = isDate(startDate) && isDate(endDate) && endDate >= startDate;
-  const days = valid ? blockDays({ startDate, endDate }, context) : null;
+  const used = valid ? blockDays({ startDate, endDate }, context) : null;
 
   function closingAfter(action: (formData: FormData) => Promise<void>) {
     return async (formData: FormData) => {
@@ -106,13 +109,41 @@ export function VacationDialog({ vacation, today, periods, settings, entries }: 
               />
             </div>
           </div>
+          <div className="space-y-2">
+            <span id="vacation-paid" className="text-sm font-medium">
+              Bezahlt mit
+            </span>
+            <input type="hidden" name="paidWith" value={paidWith} />
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              aria-labelledby="vacation-paid"
+              value={paidWith}
+              onValueChange={(value) => value && setPaidWith(value)}
+              className="w-full"
+            >
+              <ToggleGroupItem value="vacation" className="flex-1">
+                Urlaubstagen
+              </ToggleGroupItem>
+              <ToggleGroupItem value="overtime" className="flex-1">
+                Überstunden
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
           <p aria-live="polite" className="rounded-lg bg-muted px-3 py-2.5 text-sm">
-            {days === null ? (
+            {used === null ? (
               "Das Ende muss nach dem Start liegen."
             ) : (
               <>
-                <strong className="font-mono font-medium">{formatDays(days)}</strong>{" "}
-                {days === 1 ? "Urlaubstag" : "Urlaubstage"} (ohne Wochenenden und Feiertage)
+                <strong className="font-mono font-medium">{formatDays(used.days)}</strong>{" "}
+                {used.days === 1 ? "Arbeitstag" : "Arbeitstage"}
+                {paidWith === "overtime" && (
+                  <>
+                    {" "}
+                    = <strong className="font-mono font-medium">{formatHours(-used.minutes, { signed: true })}</strong>{" "}
+                    Überstunden
+                  </>
+                )}
               </>
             )}
           </p>

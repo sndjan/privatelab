@@ -47,12 +47,14 @@ export type VacationBlock = {
   endDate: string;
   note: string | null;
   inCalendar: boolean;
+  // Paid with overtime instead of vacation days.
+  fromOvertime: boolean;
 };
 
 export const dayKinds: { value: DayKind; label: string }[] = [
   { value: "work", label: "Arbeit" },
   { value: "sick", label: "Krank" },
-  { value: "overtime_off", label: "Überstundenabbau" },
+  { value: "overtime_off", label: "Gleittag" },
 ];
 
 export const christmasModes: { value: ChristmasMode; label: string }[] = [
@@ -240,6 +242,7 @@ export function dayInfo(date: string, context: Context): DayInfo {
     return { ...base, actual, status: entry.kind };
   }
   if (block && target > 0) {
+    if (block.fromOvertime) return { ...base, actual: 0, status: "vacation" };
     const fullTarget = periodOn(periods, date)?.weekdayMinutes[weekday(date)] ?? 0;
     return { ...base, actual: target, status: "vacation", vacationDays: target < fullTarget ? 0.5 : 1 };
   }
@@ -263,6 +266,21 @@ export function overtimeBalance(context: Context, until: string) {
     balance += info.actual - info.target;
   }
   return balance;
+}
+
+// Overtime that days after `today` will use up: vacation paid with overtime
+// and planned days off from overtime.
+export function plannedOvertimeUse(context: Context, today: string) {
+  const days = new Set([...context.vacationByDay.keys(), ...context.entries.keys()]);
+  let total = 0;
+  for (const day of days) {
+    if (day <= today) continue;
+    const info = dayInfo(day, context);
+    if (info.status === "overtime_off" || (info.status === "vacation" && info.vacation?.fromOvertime)) {
+      total += info.target - info.actual;
+    }
+  }
+  return total;
 }
 
 // --- Vacation ---------------------------------------------------------------
@@ -309,17 +327,20 @@ export function vacationYear(year: number, context: Context, today: string): Vac
   return { entitlement, carryOver, taken, planned, left: entitlement + carryOver - taken - planned };
 }
 
+// Workdays in a block and their target minutes (the overtime it uses when
+// paid with overtime). Works for blocks that aren't saved yet.
 export function blockDays(block: Pick<VacationBlock, "startDate" | "endDate">, context: Context) {
-  let total = 0;
+  let days = 0;
+  let minutes = 0;
   for (let day = block.startDate; day <= block.endDate; day = addDays(day, 1)) {
     const info = dayInfo(day, context);
-    // Count the block's own days, even before it is saved.
     if (!info.entry && info.target > 0) {
       const fullTarget = periodOn(context.periods, day)?.weekdayMinutes[weekday(day)] ?? 0;
-      total += info.target < fullTarget ? 0.5 : 1;
+      days += info.target < fullTarget ? 0.5 : 1;
+      minutes += info.target;
     }
   }
-  return total;
+  return { days, minutes };
 }
 
 export function blockState(block: VacationBlock, today: string) {
@@ -352,6 +373,18 @@ export function formatBreak(minutes: number) {
 
 export function formatDays(days: number) {
   return new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 }).format(days);
+}
+
+// ISO 8601 week number.
+export function isoWeek(date: string) {
+  const thursday = addDays(date, 3 - weekday(date));
+  const firstThursday = addDays(`${thursday.slice(0, 4)}-01-04`, 3 - weekday(`${thursday.slice(0, 4)}-01-04`));
+  return 1 + Math.round(daysBetween(firstThursday, thursday) / 7);
+}
+
+// "26.10."
+export function formatShortDate(date: string) {
+  return `${date.slice(8, 10)}.${date.slice(5, 7)}.`;
 }
 
 // "Mo 26.10."

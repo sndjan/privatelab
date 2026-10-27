@@ -140,6 +140,7 @@ export async function saveVacation(formData: FormData) {
     end_date: endDate < startDate ? startDate : endDate,
     note: text(formData, "note", 120) || null,
     in_calendar: formData.get("inCalendar") === "on",
+    from_overtime: formData.get("paidWith") === "overtime",
   };
   const { supabase } = await db();
   const vacationId = String(formData.get("vacationId") ?? "");
