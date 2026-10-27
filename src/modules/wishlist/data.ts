@@ -116,15 +116,12 @@ export function toRow(wish: WishInput) {
 // --- Reservations -------------------------------------------------------------
 
 // What a guest sees of one reservation. mine = made from this browser.
+// The owner never sees reservations (only the givers' names once received).
 export type GuestClaim = {
   id: string;
-  isGroup: boolean;
   mine: boolean;
   names: string[];
 };
-
-// What the owner sees: that a wish is taken, never by whom.
-export type OwnerClaims = { taken: number; groups: number; people: number };
 
 export function displayName(name: string) {
   return name.trim() || "Jemand";

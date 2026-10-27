@@ -42,12 +42,12 @@ async function ownWish(supabase: Awaited<ReturnType<typeof db>>, id: string) {
   const wish = check(
     await supabase
       .from("wishlist_items")
-      .select("id, list_id, wishlist_lists (share_token)")
+      .select("id, list_id, image_url, wishlist_lists (share_token)")
       .eq("id", id)
-      .maybeSingle<{ id: string; list_id: string; wishlist_lists: { share_token: string } }>(),
+      .maybeSingle<{ id: string; list_id: string; image_url: string | null; wishlist_lists: { share_token: string } }>(),
   );
   if (!wish) throw new Error("Not found");
-  return { id: wish.id, listId: wish.list_id, shareToken: wish.wishlist_lists.share_token };
+  return { id: wish.id, listId: wish.list_id, imageUrl: wish.image_url, shareToken: wish.wishlist_lists.share_token };
 }
 
 // --- Lists ----------------------------------------------------------------------
@@ -89,7 +89,10 @@ export async function renewShareLink(formData: FormData) {
 
 export async function deleteList(formData: FormData) {
   const supabase = await db();
-  check(await supabase.from("wishlist_lists").delete().eq("id", String(formData.get("listId"))));
+  const id = String(formData.get("listId"));
+  const items = check(await supabase.from("wishlist_items").select("image_url").eq("list_id", id));
+  check(await supabase.from("wishlist_lists").delete().eq("id", id));
+  await removeImages(supabase, items.map((item) => item.image_url));
   revalidatePath(PATH);
   redirect(PATH);
 }
@@ -115,7 +118,43 @@ export async function prefillFromLink(url: string): Promise<LinkResult | { error
   }
 }
 
+// --- Images -------------------------------------------------------------------
+
+const BUCKET = "wishlist-images";
+const IMAGE_TYPES: Record<string, string> = { "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png" };
+
+// The storage path of an image in our bucket, or null for shop images.
+function storedPath(url: string | null) {
+  const prefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/`;
+  return url?.startsWith(prefix) ? decodeURIComponent(url.slice(prefix.length)) : null;
+}
+
+async function removeImages(supabase: Awaited<ReturnType<typeof db>>, urls: (string | null)[]) {
+  const paths = urls.map(storedPath).filter((path): path is string => path !== null);
+  // A file left behind is harmless, so a failed cleanup doesn't fail the action.
+  if (paths.length > 0) await supabase.storage.from(BUCKET).remove(paths);
+}
+
+// Stores a cropped image (made in the browser) in the user's folder and
+// returns its public URL. Storage policies check the folder and module access.
+export async function uploadWishImage(formData: FormData): Promise<{ url: string } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Not signed in");
+  const file = formData.get("image");
+  if (!(file instanceof File) || !IMAGE_TYPES[file.type] || file.size > 2_000_000) {
+    return { error: "Das Bild konnte nicht verarbeitet werden." };
+  }
+  const supabase = await createClient();
+  const path = `${user.id}/${crypto.randomUUID()}.${IMAGE_TYPES[file.type]}`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, cacheControl: "31536000" });
+  if (error) return { error: `Hochladen fehlgeschlagen: ${error.message}` };
+  return { url: supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl };
+}
+
+// --- Saving -------------------------------------------------------------------
+
 // input comes straight from the form (price as typed, e.g. "29,99").
+// Goes back to the list afterwards.
 export async function saveWish(listId: string, id: string | null, input: WishFields) {
   const wish = cleanWish(input);
   if (!wish) throw new Error("Titel fehlt");
@@ -123,12 +162,14 @@ export async function saveWish(listId: string, id: string | null, input: WishFie
   if (id) {
     const own = await ownWish(supabase, id);
     check(await supabase.from("wishlist_items").update(toRow(wish)).eq("id", id));
+    if (own.imageUrl !== wish.imageUrl) await removeImages(supabase, [own.imageUrl]);
     refresh(own.shareToken);
   } else {
     check(await supabase.from("wishlist_items").insert({ ...toRow(wish), list_id: listId }));
     const list = check(await supabase.from("wishlist_lists").select("share_token").eq("id", listId).single());
     refresh(list.share_token);
   }
+  redirect(`${PATH}?list=${listId}`);
 }
 
 export async function setFavorite(id: string, favorite: boolean) {
@@ -138,18 +179,12 @@ export async function setFavorite(id: string, favorite: boolean) {
   refresh(own.shareToken);
 }
 
+// Reservations go with it; the owner isn't told about them.
 export async function deleteWish(formData: FormData) {
   const supabase = await db();
   const own = await ownWish(supabase, String(formData.get("wishId")));
   check(await supabase.from("wishlist_items").delete().eq("id", own.id));
-  refresh(own.shareToken);
-}
-
-// Frees the wish again, e.g. when a guest reserved it by mistake.
-export async function clearReservations(formData: FormData) {
-  const supabase = await db();
-  const own = await ownWish(supabase, String(formData.get("wishId")));
-  await deleteClaims(own.id);
+  await removeImages(supabase, [own.imageUrl]);
   refresh(own.shareToken);
 }
 

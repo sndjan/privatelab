@@ -1,8 +1,7 @@
-import { ArchiveIcon, ChevronLeftIcon, ChevronRightIcon, ExternalLinkIcon, StarIcon, UsersIcon } from "lucide-react";
+import { ArchiveIcon, ChevronLeftIcon, ChevronRightIcon, ExternalLinkIcon, PencilIcon, PlusIcon, StarIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SubmitButton } from "@/components/submit-button";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/server";
 import type { ModulePageProps } from "@/modules/registry";
 import {
-  clearReservations,
   createList,
   deleteList,
   deleteWish,
@@ -19,10 +17,9 @@ import {
   unmarkReceived,
   updateList,
 } from "./actions";
-import { ownerClaims } from "./claims";
-import { formatDate, formatPrice, joinNames, sortWishes, toWish, wishColumns, type OwnerClaims, type Wish, type WishRow } from "./data";
+import { formatDate, formatPrice, joinNames, sortWishes, toWish, wishColumns, type Wish, type WishRow } from "./data";
 import { ShareLink } from "./share-link";
-import { WishDialog } from "./wish-form";
+import { WishEditor } from "./wish-editor";
 import { WishImage } from "./wish-image";
 
 const PATH = "/m/wishlist";
@@ -34,6 +31,8 @@ export default async function WishlistModule({ user, hasAccess, searchParams }: 
 
   const params = await searchParams;
   const listId = typeof params.list === "string" ? params.list : undefined;
+  const wishId = typeof params.wish === "string" ? params.wish : undefined;
+  if (listId && wishId) return <WishView listId={listId} wishId={wishId} />;
   if (listId) return <ListView listId={listId} />;
   return <Overview />;
 }
@@ -104,7 +103,6 @@ async function ListView({ listId }: { listId: string }) {
   const rows = (itemRows ?? []) as ItemRow[];
   const open = sortWishes(rows.filter((row) => !row.received_at).map(toWish));
   const received = rows.filter((row) => row.received_at).sort((a, b) => b.received_at!.localeCompare(a.received_at!));
-  const claims = await ownerClaims(open.map((wish) => wish.id));
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -120,7 +118,11 @@ async function ListView({ listId }: { listId: string }) {
         </div>
       </div>
 
-      <WishDialog listId={list.id} />
+      <Button asChild size="lg" className="h-12 w-full">
+        <Link href={`${PATH}?list=${list.id}&wish=new`}>
+          <PlusIcon /> Wunsch hinzufügen
+        </Link>
+      </Button>
 
       {open.length === 0 ? (
         <p className="text-center text-sm text-muted-foreground">Noch keine Wünsche. Füge einen Link aus einem Shop ein.</p>
@@ -128,7 +130,7 @@ async function ListView({ listId }: { listId: string }) {
         <ul className="space-y-3">
           {open.map((wish) => (
             <li key={wish.id}>
-              <OwnerWishCard listId={list.id} wish={wish} claims={claims.get(wish.id)} />
+              <OwnerWishCard listId={list.id} wish={wish} />
             </li>
           ))}
         </ul>
@@ -142,8 +144,8 @@ async function ListView({ listId }: { listId: string }) {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Wer den Link hat, sieht die Liste und kann Wünsche reservieren, ganz ohne Anmeldung. Du siehst nur, dass etwas
-            reserviert ist; von wem, erfährst du, wenn du es als erhalten markierst.
+            Wer den Link hat, sieht die Liste und kann Wünsche reservieren, ganz ohne Anmeldung. Du siehst davon nichts;
+            von wem ein Geschenk kam, steht erst im Archiv, wenn du es als erhalten markierst.
           </p>
           <ShareLink token={list.share_token} title={list.name} />
         </CardContent>
@@ -182,9 +184,9 @@ async function ListView({ listId }: { listId: string }) {
   );
 }
 
-function OwnerWishCard({ listId, wish, claims }: { listId: string; wish: Wish; claims?: OwnerClaims }) {
+// No reservation status here on purpose: the owner shouldn't know what's coming.
+function OwnerWishCard({ listId, wish }: { listId: string; wish: Wish }) {
   const price = formatPrice(wish.price, wish.currency);
-  const taken = claims?.taken ?? 0;
 
   return (
     <div className="flex gap-3 rounded-xl border bg-card p-3 shadow-xs">
@@ -197,7 +199,11 @@ function OwnerWishCard({ listId, wish, claims }: { listId: string; wish: Wish; c
             )}
             {wish.title}
           </p>
-          <WishDialog listId={listId} wish={wish} />
+          <Button asChild variant="ghost" size="icon" className="text-muted-foreground">
+            <Link href={`${PATH}?list=${listId}&wish=${wish.id}`} aria-label={`${wish.title} bearbeiten`}>
+              <PencilIcon />
+            </Link>
+          </Button>
         </div>
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
           {price && <span className="font-mono text-foreground">{price}</span>}
@@ -210,22 +216,7 @@ function OwnerWishCard({ listId, wish, claims }: { listId: string; wish: Wish; c
         </p>
         {wish.note && <p className="text-sm whitespace-pre-line text-muted-foreground">{wish.note}</p>}
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          {taken > 0 && (
-            <Badge variant="secondary">
-              {claims!.groups > 0 && <UsersIcon />}
-              {wish.quantity > 1 ? `${taken} von ${wish.quantity} reserviert` : "Reserviert"}
-              {claims!.groups > 0 && ` · ${claims!.people} Personen`}
-            </Badge>
-          )}
           <div className="ml-auto flex flex-wrap gap-1">
-            {taken > 0 && (
-              <form action={clearReservations}>
-                <input type="hidden" name="wishId" value={wish.id} />
-                <SubmitButton variant="ghost" size="sm" className="text-muted-foreground">
-                  Freigeben
-                </SubmitButton>
-              </form>
-            )}
             <form action={markReceived}>
               <input type="hidden" name="wishId" value={wish.id} />
               <SubmitButton variant="outline" size="sm">
@@ -243,6 +234,24 @@ function OwnerWishCard({ listId, wish, claims }: { listId: string; wish: Wish; c
       </div>
     </div>
   );
+}
+
+// --- Add or edit a wish -------------------------------------------------------
+
+async function WishView({ listId, wishId }: { listId: string; wishId: string }) {
+  const supabase = await createClient();
+  const { data: list } = await supabase.from("wishlist_lists").select("id").eq("id", listId).maybeSingle();
+  if (!list) notFound();
+  if (wishId === "new") return <WishEditor listId={listId} />;
+
+  const { data: row } = await supabase
+    .from("wishlist_items")
+    .select(wishColumns)
+    .eq("id", wishId)
+    .eq("list_id", listId)
+    .maybeSingle<WishRow>();
+  if (!row) notFound();
+  return <WishEditor key={row.id} listId={listId} wish={toWish(row)} />;
 }
 
 function ListSettings({ list }: { list: List }) {

@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { deviceHash, guestClaims, guestName } from "./claims";
-import { formatDate, formatPrice, sortWishes, toWish, wishColumns, type WishRow } from "./data";
+import { formatDate, formatPrice, sortWishes, toWish, wishColumns, type GuestClaim, type WishRow } from "./data";
 import { GuestButtons } from "./guest-buttons";
 import { WishImage } from "./wish-image";
 
@@ -40,7 +40,8 @@ export async function PublicList({ token }: { token: string }) {
   const [user, device, savedName] = await Promise.all([getCurrentUser(), deviceHash(), guestName()]);
   const isOwner = user?.id === list.user_id;
   const wishes = sortWishes(((rows ?? []) as WishRow[]).map(toWish));
-  const claims = await guestClaims(wishes.map((wish) => wish.id), device);
+  // The owner sees the list like before anyone reserved anything.
+  const claims = isOwner ? new Map<string, GuestClaim[]>() : await guestClaims(wishes.map((wish) => wish.id), device);
   const free = (id: string, quantity: number) => Math.max(0, quantity - (claims.get(id)?.length ?? 0));
   const ordered = [...wishes.filter((wish) => free(wish.id, wish.quantity) > 0), ...wishes.filter((wish) => free(wish.id, wish.quantity) === 0)];
 
@@ -53,7 +54,8 @@ export async function PublicList({ token }: { token: string }) {
 
       {isOwner ? (
         <p className="rounded-lg border border-brand/30 bg-brand/5 px-4 py-3 text-sm">
-          Das ist deine Liste, so sehen sie deine Gäste. Wer was reserviert hat, bleibt für dich verborgen.
+          Das ist deine Liste. Deine Gäste können hier Wünsche reservieren; ob und was reserviert ist, siehst du nicht,
+          damit die Überraschung bleibt.
         </p>
       ) : (
         <p className="text-sm text-muted-foreground">
@@ -82,7 +84,9 @@ export async function PublicList({ token }: { token: string }) {
                   </p>
                   <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                     {price && <span className="font-mono text-foreground">{price}</span>}
-                    {wish.quantity > 1 && <span>{left === 0 ? `alle ${wish.quantity} vergeben` : `noch ${left} von ${wish.quantity}`}</span>}
+                    {wish.quantity > 1 && (
+                      <span>{isOwner ? `${wish.quantity}×` : left === 0 ? `alle ${wish.quantity} vergeben` : `noch ${left} von ${wish.quantity}`}</span>
+                    )}
                     {wish.url && (
                       <a href={wish.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline-offset-2 hover:text-foreground hover:underline">
                         <ExternalLinkIcon className="size-3.5" /> Zum Shop
@@ -90,17 +94,11 @@ export async function PublicList({ token }: { token: string }) {
                     )}
                   </p>
                   {wish.note && <p className="text-sm whitespace-pre-line text-muted-foreground">{wish.note}</p>}
-                  <div className="pt-1">
-                    <GuestButtons
-                      token={token}
-                      wishId={wish.id}
-                      title={wish.title}
-                      claims={wishClaims}
-                      free={left}
-                      savedName={savedName}
-                      readOnly={isOwner}
-                    />
-                  </div>
+                  {!isOwner && (
+                    <div className="pt-1">
+                      <GuestButtons token={token} wishId={wish.id} claims={wishClaims} free={left} savedName={savedName} />
+                    </div>
+                  )}
                 </div>
               </li>
             );
