@@ -1,5 +1,6 @@
 "use client";
 
+import { MinusIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,8 @@ type Props = {
   today: string;
 };
 
-const breaks = [0, 15, 30, 45, 60, 90];
+const breakStep = 15;
+const maxBreak = 180;
 
 // Month grid with the selected day's editor above it. Tapping a day selects it.
 export function MonthCalendar({ days, initialDate, today }: Props) {
@@ -265,21 +267,33 @@ function DayEditor({ day }: { day: CalendarDay }) {
                 <span id="break-label" className="shrink-0 text-sm text-muted-foreground">
                   Pause
                 </span>
-                <ToggleGroup
-                  type="single"
-                  variant="outline"
-                  size="sm"
-                  aria-labelledby="break-label"
-                  value={String(breakMinutes)}
-                  onValueChange={(value) => value && setBreakMinutes(Number(value))}
-                  className="w-full bg-card"
-                >
-                  {breaks.map((minutes) => (
-                    <ToggleGroupItem key={minutes} value={String(minutes)} className="flex-1 px-0 font-mono">
-                      {minutes}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
+                <div className="ml-auto flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Pause 15 Minuten kürzer"
+                    disabled={breakMinutes <= 0}
+                    onClick={() => setBreakMinutes(breakMinutes - breakStep)}
+                    className="bg-card"
+                  >
+                    <MinusIcon />
+                  </Button>
+                  <output aria-labelledby="break-label" className="w-20 text-center font-mono">
+                    {breakMinutes} min
+                  </output>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Pause 15 Minuten länger"
+                    disabled={breakMinutes + breakStep > maxBreak || breakMinutes + breakStep >= range[1] - range[0]}
+                    onClick={() => setBreakMinutes(breakMinutes + breakStep)}
+                    className="bg-card"
+                  >
+                    <PlusIcon />
+                  </Button>
+                </div>
               </div>
             </div>
           )}
