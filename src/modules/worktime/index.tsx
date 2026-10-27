@@ -199,99 +199,87 @@ export function WorktimeView({ settings, periods, entries, vacations, today, mon
   const yearBlocks = vacations.filter(
     (block) => block.startDate <= `${year}-12-31` && block.endDate >= `${year}-01-01`,
   );
-  const nextBlock = vacations.find((block) => block.endDate >= today);
   const notInCalendar = vacations.filter((block) => !block.inCalendar && block.endDate >= today);
   const currentPeriod = periodOn(context.periods, today) ?? context.periods[0];
-  const weeklyHours = currentPeriod.weekdayMinutes.reduce((sum, minutes) => sum + minutes, 0);
 
   return (
     <div className="space-y-6">
-      <section aria-label="Übersicht" className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <div className="flex min-w-0 flex-col gap-4 rounded-xl bg-hero p-5 text-hero-foreground sm:p-8">
-          <div className="flex items-baseline justify-between gap-3 text-sm">
-            <span className="truncate text-hero-muted">Überstunden{settings.employer && ` · ${settings.employer}`}</span>
-            <span className="shrink-0 font-mono text-hero-bar">{formatHours(thisWeekDelta, { signed: true })} Woche</span>
-          </div>
-          <div className="font-mono text-5xl leading-none font-medium tracking-tighter sm:text-[64px]">
-            {formatHours(balance, { signed: true })}
-          </div>
-          {plannedUse > 0 && (
-            <p className="text-sm text-hero-muted">
-              Nach Planung{" "}
-              <span className="font-mono text-hero-foreground">
-                {formatHours(balance - plannedUse, { signed: true })}
-              </span>
-            </p>
-          )}
-        </div>
-
-        <dl className="grid min-w-0 grid-cols-2 gap-3">
-          <Tile
-            label="Urlaub übrig"
-            value={`${formatDays(vacationNow.left)} Tage`}
-            note={`${formatDays(vacationNow.planned)} geplant`}
-            tone={vacationNow.left < 0 ? "bad" : undefined}
-          />
-          <Tile
-            label="Nächster Urlaub"
-            value={nextBlock ? formatShortDate(nextBlock.startDate) : "–"}
-            note={nextBlock ? (nextBlock.inCalendar ? "im Kalender" : "nicht im Kalender") : "nichts geplant"}
-            tone={nextBlock && !nextBlock.inCalendar ? "bad" : undefined}
-          />
-          <Tile
-            label="Nicht im Kalender"
-            value={String(notInCalendar.length)}
-            note={notInCalendar.length === 1 ? "Urlaub" : "Urlaube"}
-            tone={notInCalendar.length > 0 ? "bad" : undefined}
-          />
-          <Tile label="Soll / Woche" value={formatHours(weeklyHours)} note={currentPeriod.label || "aktuell"} />
-        </dl>
-      </section>
-
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">
-              <h2>{monthName(monthStart)}</h2>
-            </CardTitle>
-            <CardAction className="flex gap-1">
-              <Button asChild variant="ghost" size="icon" aria-label="Vorheriger Monat">
-                <Link href={href({ month: previousMonth })}>
-                  <ChevronLeftIcon />
-                </Link>
-              </Button>
-              {month !== today.slice(0, 7) && (
-                <Button asChild variant="ghost" size="sm" className="h-9">
-                  <Link href={href({ month: today.slice(0, 7) })}>Heute</Link>
-                </Button>
-              )}
-              <Button asChild variant="ghost" size="icon" aria-label="Nächster Monat">
-                <Link href={href({ month: nextMonthStart.slice(0, 7) })}>
-                  <ChevronRightIcon />
-                </Link>
-              </Button>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="space-y-4 px-3 sm:px-6">
-            <MonthCalendar key={month} days={calendarDays} initialDate={initialDate} today={today} />
-            <dl className="grid grid-cols-3 gap-2 border-t px-1 pt-4 text-sm sm:px-0">
-              <div>
-                <dt className="text-muted-foreground">Ist</dt>
-                <dd className="font-mono font-medium">{formatHours(monthActual)}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Soll</dt>
-                <dd className="font-mono font-medium">{formatHours(monthTarget)}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Differenz</dt>
-                <dd className={`font-mono font-medium ${deltaClass(monthActual - monthTarget)}`}>
-                  {formatHours(monthActual - monthTarget, { signed: true })}
-                </dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
+        <div className="flex min-w-0 flex-col gap-6">
+          <section
+            aria-label="Überstunden"
+            className="flex flex-col gap-3 rounded-xl bg-hero p-5 text-hero-foreground sm:p-6"
+          >
+            <div className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="truncate text-hero-muted">
+                Überstunden{settings.employer && ` · ${settings.employer}`}
+              </span>
+              <span className="shrink-0 font-mono text-hero-bar">
+                {formatHours(thisWeekDelta, { signed: true })} Woche
+              </span>
+            </div>
+            <div className="font-mono text-5xl leading-none font-medium tracking-tighter">
+              {formatHours(balance, { signed: true })}
+            </div>
+            {plannedUse > 0 && (
+              <p className="text-sm text-hero-muted">
+                Nach Planung{" "}
+                <span className="font-mono text-hero-foreground">
+                  {formatHours(balance - plannedUse, { signed: true })}
+                </span>
+              </p>
+            )}
+          </section>
+
+          <MonthCalendar
+            key={month}
+            days={calendarDays}
+            initialDate={initialDate}
+            today={today}
+            header={
+              <>
+                <CardTitle className="text-lg">
+                  <h2>{monthName(monthStart)}</h2>
+                </CardTitle>
+                <CardAction className="flex gap-1">
+                  <Button asChild variant="ghost" size="icon" aria-label="Vorheriger Monat">
+                    <Link href={href({ month: previousMonth })}>
+                      <ChevronLeftIcon />
+                    </Link>
+                  </Button>
+                  {month !== today.slice(0, 7) && (
+                    <Button asChild variant="ghost" size="sm" className="h-9">
+                      <Link href={href({ month: today.slice(0, 7) })}>Heute</Link>
+                    </Button>
+                  )}
+                  <Button asChild variant="ghost" size="icon" aria-label="Nächster Monat">
+                    <Link href={href({ month: nextMonthStart.slice(0, 7) })}>
+                      <ChevronRightIcon />
+                    </Link>
+                  </Button>
+                </CardAction>
+              </>
+            }
+            summary={
+              <dl className="grid grid-cols-3 gap-2 border-t px-1 pt-4 text-sm sm:px-0">
+                <div>
+                  <dt className="text-muted-foreground">Ist</dt>
+                  <dd className="font-mono font-medium">{formatHours(monthActual)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Soll</dt>
+                  <dd className="font-mono font-medium">{formatHours(monthTarget)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Differenz</dt>
+                  <dd className={`font-mono font-medium ${deltaClass(monthActual - monthTarget)}`}>
+                    {formatHours(monthActual - monthTarget, { signed: true })}
+                  </dd>
+                </div>
+              </dl>
+            }
+          />
+        </div>
 
         <Card>
           <CardHeader>
@@ -575,18 +563,6 @@ function Field({ id, label, children }: { id: string; label: string; children: R
       </Label>
       {children}
     </div>
-  );
-}
-
-function Tile({ label, value, note, tone }: { label: string; value: string; note: string; tone?: "bad" }) {
-  return (
-    <Card className="min-w-0 gap-1 p-3.5 sm:p-[18px]">
-      <dt className="truncate text-[13px] text-muted-foreground">{label}</dt>
-      <dd className={`font-mono text-xl font-medium whitespace-nowrap sm:text-[22px] ${tone === "bad" ? "text-debt" : ""}`}>
-        {value}
-      </dd>
-      <dd className="truncate text-xs text-muted-foreground">{note}</dd>
-    </Card>
   );
 }
 
