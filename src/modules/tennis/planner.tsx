@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -107,6 +108,7 @@ export function Planner({
     const taken = new Set(plan.map((item) => item.exerciseId));
     const exercise = pickExercise(current.phase, context(), taken);
     if (exercise) setPlan(plan.map((item, at) => (at === index ? { ...item, exerciseId: exercise.id } : item)));
+    else toast.info(`Keine andere Übung für ${phaseName(current.phase)} in der Sammlung.`);
   }
 
   function pick(exercise: Exercise) {
@@ -134,7 +136,15 @@ export function Planner({
       else next.delete(key);
       return next;
     });
-    startFavorite(() => setFavorite(groupId, exerciseId, on));
+    const group = groups.find((entry) => entry.id === groupId)?.name;
+    toast.success(on ? `Lieblingsübung von ${group}` : `Keine Lieblingsübung mehr von ${group}`, { id: `favorite-${exerciseId}` });
+    startFavorite(async () => {
+      try {
+        await setFavorite(groupId, exerciseId, on);
+      } catch {
+        toast.error("Favorit konnte nicht gespeichert werden.");
+      }
+    });
   }
 
   function save() {
@@ -268,7 +278,8 @@ export function Planner({
         {plan.map((item, index) => {
           const exercise = byId.get(item.exerciseId)!;
           return (
-            <li key={`${index}-${item.exerciseId}`} className="rounded-xl border bg-card p-3 shadow-xs">
+            // The key changes when an exercise is swapped, so the new one fades in.
+            <li key={`${index}-${item.exerciseId}`} className="rounded-xl border bg-card p-3 shadow-xs animate-in fade-in-0 zoom-in-[0.98] duration-300">
               <div className="flex gap-3">
                 <button
                   type="button"

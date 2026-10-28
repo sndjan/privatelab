@@ -147,3 +147,13 @@
     @apply bg-background font-sans text-foreground;
   }
 }
+
+/* NavigationProgress (components/navigation-progress.tsx). */
+@keyframes navigation-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(0.9);
+  }
+}

@@ -50,7 +50,7 @@ The module is then served at `/m/<id>` and appears on the dashboard and admin pa
 
 ## Feedback
 
-Signed-in users can send feedback (Fehler / Idee / Sonstiges) from the header (needs the `20261028000000_feedback.sql` migration); the page they were on is saved with it. Admins see it at the bottom of `/admin`. To pull it from Supabase, e.g. in the SQL editor:
+Signed-in users can send feedback (Fehler / Idee / Sonstiges) from the header (needs the `20261028000000_feedback.sql` migration); the page they were on is saved with it. On a desktop it opens as a panel in the bottom right that leaves the page usable; `F` (outside text fields) or `Alt+Shift+F` jumps into it, `Strg/⌘+Enter` sends and keeps the field focused for the next one, and `@Fehler`, `@Idee` or `@Sonstiges` in the text sets the kind (Tab completes it). On phones it stays a dialog. Admins see it at the bottom of `/admin`. To pull it from Supabase, e.g. in the SQL editor:
 
 ```sql
 select f.created_at, p.email, f.kind, f.page, f.message
@@ -62,6 +62,8 @@ order by f.created_at;
 ## UI
 
 Components come from [shadcn/ui](https://ui.shadcn.com) (new-york style) and live in `src/components/ui/`. Dialogs open at the top of the screen on phones, so the keyboard never covers them. Add more with `npx shadcn@latest add <component>`. The theme is in `src/app/globals.css`: the standard shadcn tokens plus `brand` (deep green) and a few FIRE-specific colors. Dark mode follows the system unless the user picks Hell or Dunkel on `/profile`; the choice is stored per device in localStorage and applied before the first paint by the inline script from `src/lib/theme.ts` (it sets `data-theme` on `<html>` and the `theme-color` meta).
+
+Feedback on actions: a thin bar at the top runs from a click on a link until the next view is there (`src/components/navigation-progress.tsx`; module views switch by search params, which otherwise keep the old view on screen without any sign). `SubmitButton` shows a spinner while its server action runs and a check mark afterwards; with `done="Gespeichert"` it also shows a toast (sonner, `src/components/ui/sonner.tsx`). Forms sent with Enter show `FormPending`. A failing action lands on `src/app/error.tsx` with a retry button.
 
 ## PWA and language
 

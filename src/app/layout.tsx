@@ -5,8 +5,10 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Feedback } from "@/components/feedback";
 import { AllModulesLink, HeaderBrand, HeaderBrandFallback } from "@/components/header-brand";
+import { NavigationProgress } from "@/components/navigation-progress";
 import { ServiceWorker } from "@/components/service-worker";
 import { Button } from "@/components/ui/button";
+import { Toaster } from "@/components/ui/sonner";
 import { RememberSession } from "@/components/session-hint";
 import { getCurrentUser } from "@/lib/auth";
 import { sessionScript } from "@/lib/session-hint";
@@ -72,7 +74,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </div>
           </nav>
         </header>
+        {/* Uses URL hooks, which aren't known while prerendering. */}
+        <Suspense>
+          <NavigationProgress />
+        </Suspense>
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 print:p-0">{children}</main>
+        <Toaster position="bottom-center" />
         <ServiceWorker />
       </body>
     </html>
