@@ -11,6 +11,8 @@ export type Settings = {
   // Required length in pages, for the progress estimate.
   targetPages: number | null;
   wordsPerPage: number;
+  // How the Überblick is arranged; null until it was changed.
+  overviewLayout: OverviewLayout | null;
 };
 
 export const emptySettings: Settings = {
@@ -23,7 +25,55 @@ export const emptySettings: Settings = {
   endDate: null,
   targetPages: null,
   wordsPerPage: 300,
+  overviewLayout: null,
 };
+
+// The cards of the Überblick. top spans the width, left and right are the
+// two columns below it (one after the other on a phone).
+export const overviewWidgets = [
+  { id: "timeframe", label: "Zeitraum" },
+  { id: "stats", label: "Kennzahlen" },
+  { id: "todos", label: "Nächste Schritte" },
+  { id: "events", label: "Termine & Deadlines" },
+  { id: "comments", label: "Offene Kommentare" },
+  { id: "infos", label: "Allgemeine Infos" },
+  { id: "chapters", label: "Kapitel" },
+  { id: "log", label: "Arbeitslog" },
+  { id: "topic", label: "Thema" },
+  { id: "people", label: "Personen" },
+  { id: "phases", label: "Phasen" },
+] as const;
+
+export type WidgetId = (typeof overviewWidgets)[number]["id"];
+export type OverviewArea = "top" | "left" | "right" | "hidden";
+export type OverviewLayout = Record<OverviewArea, WidgetId[]>;
+
+export const overviewAreas: OverviewArea[] = ["top", "left", "right", "hidden"];
+
+export const defaultOverviewLayout: OverviewLayout = {
+  top: ["timeframe", "stats"],
+  left: ["todos", "comments", "events", "infos"],
+  right: ["chapters", "topic", "people", "phases"],
+  hidden: ["log"],
+};
+
+// A stored layout without unknown cards or duplicates; cards it doesn't know
+// yet go where the default layout has them.
+export function normalizeOverviewLayout(raw: unknown): OverviewLayout {
+  const stored = (raw && typeof raw === "object" ? raw : {}) as Partial<Record<OverviewArea, unknown>>;
+  const known = new Set<string>(overviewWidgets.map((widget) => widget.id));
+  const seen = new Set<string>();
+  const layout = Object.fromEntries(
+    overviewAreas.map((area) => {
+      const list = Array.isArray(stored[area]) ? (stored[area] as unknown[]) : [];
+      return [area, list.filter((id): id is WidgetId => typeof id === "string" && known.has(id) && !seen.has(id) && !!seen.add(id))];
+    }),
+  ) as OverviewLayout;
+  for (const area of overviewAreas) {
+    for (const id of defaultOverviewLayout[area]) if (!seen.has(id)) layout[area].push(id);
+  }
+  return layout;
+}
 
 export type Phase = { id: string; name: string; startDate: string; endDate: string };
 
