@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
@@ -71,6 +71,7 @@ export function SourceForm({ source, today }: Props) {
     doi: has("doi") ? values.doi : "",
     url: has("url") ? values.url : "",
     accessed: has("accessed") && values.accessed ? values.accessed : null,
+    summary: "",
     notes: "",
   };
 
@@ -177,6 +178,16 @@ export function SourceForm({ source, today }: Props) {
       )}
 
       {input("title", { maxLength: 500 })}
+
+      <Field id="source-summary" label="Kurzbeschreibung" hint="Worum es geht, in ein paar Worten. Hilft beim Wiederfinden und Zitieren.">
+        <Input
+          id="source-summary"
+          name="summary"
+          maxLength={300}
+          defaultValue={source?.summary ?? ""}
+          placeholder="z. B. Vergleich von Rich-Text-Editoren für React"
+        />
+      </Field>
 
       {has("editors") && (
         <Field id="source-editors" label={label("editors")} hint="Eine Person pro Zeile als „Nachname, Vorname“.">

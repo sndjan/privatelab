@@ -1,10 +1,12 @@
+"use client";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { addDays, formatHours, formatShortDate, isoWeek, mondayOf, phaseOn, type LogEntry } from "./data";
 import { LogDialog, LogForm } from "./log-dialog";
-import { loadLog, loadPhases } from "./queries";
+import { useThesis } from "./use-thesis";
 
-export async function LogTab({ today }: { today: string }) {
-  const [phases, log] = await Promise.all([loadPhases(), loadLog()]);
+export function LogTab({ today }: { today: string }) {
+  const [phases, log] = useThesis("phases", "log");
   const total = log.reduce((sum, entry) => sum + entry.hours, 0);
 
   // Newest week first; entries are already newest first.

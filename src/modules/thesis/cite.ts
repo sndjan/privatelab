@@ -28,6 +28,8 @@ export type Source = {
   doi: string;
   url: string;
   accessed: string | null;
+  // What it is about in a few words, shown when citing.
+  summary: string;
   notes: string;
 };
 

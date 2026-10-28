@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Source, SourceKind, SourceStatus } from "./cite";
-import type { Section, SectionStatus } from "./writing";
+import type { Section, SectionComment, SectionStatus } from "./writing";
 import {
   DOCUMENT_BUCKET,
   emptySettings,
@@ -32,6 +32,8 @@ export async function loadSettings(userId: string): Promise<Settings> {
     company: data.company,
     startDate: data.start_date,
     endDate: data.end_date,
+    targetPages: data.target_pages ?? null,
+    wordsPerPage: data.words_per_page ?? 300,
   };
 }
 
@@ -116,6 +118,7 @@ type SourceRow = {
   doi: string;
   url: string;
   accessed: string | null;
+  summary: string;
   notes: string;
 };
 
@@ -140,6 +143,7 @@ const toSource = (row: SourceRow): Source => ({
   doi: row.doi,
   url: row.url,
   accessed: row.accessed,
+  summary: row.summary ?? "",
   notes: row.notes,
 });
 
@@ -292,17 +296,19 @@ export async function documentUrls(document: ThesisDocument) {
 
 export async function loadSections(): Promise<Section[]> {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("thesis_sections")
-    .select("id, depth, title, body, status, target_words")
-    .order("position")
-    .order("created_at");
-  return (data ?? []).map((row) => ({
+  const query = (columns: string) => supabase.from("thesis_sections").select(columns).order("position").order("created_at");
+  let { data, error } = await query("id, depth, title, body, status, target_words, comments");
+  // Before the migration 20261111000000_thesis_feedback.sql there are no
+  // comments yet; the text must still show up.
+  if (error) ({ data, error } = await query("id, depth, title, body, status, target_words"));
+  type SectionRow = { id: string; depth: number; title: string; body: string; status: string; target_words: number | null; comments?: unknown };
+  return ((data ?? []) as unknown as SectionRow[]).map((row) => ({
     id: row.id,
     depth: row.depth,
     title: row.title,
     body: row.body,
     status: row.status as SectionStatus,
     targetWords: row.target_words,
+    comments: Array.isArray(row.comments) ? (row.comments as SectionComment[]) : [],
   }));
 }

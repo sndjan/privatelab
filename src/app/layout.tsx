@@ -7,6 +7,7 @@ import { Feedback } from "@/components/feedback";
 import { AllModulesLink, HeaderBrand, HeaderBrandFallback } from "@/components/header-brand";
 import { NavigationProgress } from "@/components/navigation-progress";
 import { ServiceWorker } from "@/components/service-worker";
+import { QueryProvider } from "@/lib/query/provider";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { RememberSession } from "@/components/session-hint";
@@ -53,34 +54,36 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: sessionScript }} />
       </head>
       <body className="flex min-h-full flex-col pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
-        <header className="border-b bg-card print:hidden">
-          <nav className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2">
-            {/* The module name needs the URL, which is only known per request. */}
-            <Suspense fallback={<HeaderBrandFallback />}>
-              <HeaderBrand />
-            </Suspense>
-            <div className="ml-auto flex shrink-0 items-center gap-1">
-              {/* Until the session is checked, shows the signed-in icons if the
-                  browser remembers being signed in (see lib/session-hint). */}
-              <Suspense
-                fallback={
-                  <div className="hidden signed-in:contents">
-                    <SignedInActions />
-                  </div>
-                }
-              >
-                <NavActions />
+        <QueryProvider>
+          <header className="border-b bg-card print:hidden">
+            <nav className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2">
+              {/* The module name needs the URL, which is only known per request. */}
+              <Suspense fallback={<HeaderBrandFallback />}>
+                <HeaderBrand />
               </Suspense>
-            </div>
-          </nav>
-        </header>
-        {/* Uses URL hooks, which aren't known while prerendering. */}
-        <Suspense>
-          <NavigationProgress />
-        </Suspense>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 print:p-0">{children}</main>
-        <Toaster position="bottom-center" />
-        <ServiceWorker />
+              <div className="ml-auto flex shrink-0 items-center gap-1">
+                {/* Until the session is checked, shows the signed-in icons if the
+                    browser remembers being signed in (see lib/session-hint). */}
+                <Suspense
+                  fallback={
+                    <div className="hidden signed-in:contents">
+                      <SignedInActions />
+                    </div>
+                  }
+                >
+                  <NavActions />
+                </Suspense>
+              </div>
+            </nav>
+          </header>
+          {/* Uses URL hooks, which aren't known while prerendering. */}
+          <Suspense>
+            <NavigationProgress />
+          </Suspense>
+          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 print:p-0">{children}</main>
+          <Toaster position="bottom-center" />
+          <ServiceWorker />
+        </QueryProvider>
       </body>
     </html>
   );

@@ -15,7 +15,7 @@ import {
   UsersIcon,
   XIcon,
 } from "lucide-react";
-import Link from "next/link";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -35,18 +35,19 @@ import {
   formatSessionDate,
   generatePlan,
   holidayOn,
+  nextTrainingDate,
   phaseName,
   playersLabel,
   phases,
   pickExercise,
   timeline,
   todayInGermany,
-  trainingDates,
   type Exercise,
   type Group,
   type Holiday,
   type Phase,
   type PlanItem,
+  type StandIn,
 } from "./data";
 import { Chip } from "./exercise-form";
 
@@ -74,6 +75,7 @@ export function Planner({
   players,
   absent,
   holidays,
+  standIns,
   initial,
 }: {
   sessionId: string | null;
@@ -87,6 +89,7 @@ export function Planner({
   players: Record<string, number>;
   absent: number;
   holidays: Holiday[];
+  standIns: StandIn[];
   initial: PlannerValues;
 }) {
   const [values, setValues] = useState(initial);
@@ -222,8 +225,8 @@ export function Planner({
                     {
                       groupId: group?.id ?? null,
                       ...(group && !sessionId && { startTime: group.startTime, minutes: group.minutes }),
-                      ...(group?.weekday &&
-                        !sessionId && { date: trainingDates(group.weekday, todayInGermany(), holidays)[0] ?? values.date }),
+                      ...(group &&
+                        !sessionId && { date: nextTrainingDate(group, todayInGermany(), holidays, standIns) ?? values.date }),
                     },
                     !sessionId,
                   );

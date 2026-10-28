@@ -1,0 +1,23 @@
+import type { CurrentUser } from "@/lib/auth";
+import { fireLoaders } from "@/modules/fire/loaders";
+import { packingLoaders } from "@/modules/packing/loaders";
+import { tennisLoaders } from "@/modules/tennis/loaders";
+import { thesisLoaders } from "@/modules/thesis/loaders";
+import { wishlistLoaders } from "@/modules/wishlist/loaders";
+import { worktimeLoaders } from "@/modules/worktime/loaders";
+
+// Server only. Every server loader the browser cache can ask for, by module and name.
+// A loader reads with the user's own Supabase client, so RLS decides what
+// it returns. Params come from the query string; check them in the loader.
+export type Loader = (params: Record<string, string>, user: CurrentUser) => Promise<unknown>;
+
+export const loaders = {
+  fire: fireLoaders,
+  packing: packingLoaders,
+  tennis: tennisLoaders,
+  thesis: thesisLoaders,
+  wishlist: wishlistLoaders,
+  worktime: worktimeLoaders,
+} satisfies Record<string, Record<string, Loader>>;
+
+export type Loaders = typeof loaders;

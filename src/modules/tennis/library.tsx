@@ -1,7 +1,7 @@
 "use client";
 
 import { SearchIcon, StarIcon } from "lucide-react";
-import Link from "next/link";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Court } from "./court";

@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRightIcon, PrinterIcon } from "lucide-react";
-import Link from "next/link";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";

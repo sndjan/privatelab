@@ -8,6 +8,9 @@ export type Settings = {
   company: string;
   startDate: string | null;
   endDate: string | null;
+  // Required length in pages, for the progress estimate.
+  targetPages: number | null;
+  wordsPerPage: number;
 };
 
 export const emptySettings: Settings = {
@@ -18,6 +21,8 @@ export const emptySettings: Settings = {
   company: "",
   startDate: null,
   endDate: null,
+  targetPages: null,
+  wordsPerPage: 300,
 };
 
 export type Phase = { id: string; name: string; startDate: string; endDate: string };

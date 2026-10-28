@@ -1,29 +1,28 @@
-import { ArrowLeftIcon, CalendarClockIcon, PencilIcon, PlusIcon, SearchIcon, UploadIcon } from "lucide-react";
-import Link from "next/link";
-import { notFound } from "next/navigation";
+"use client";
+
+import { ArrowLeftIcon, CalendarClockIcon, PencilIcon, PlusIcon, UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { byPriority, formatDate, formatShortDate, peopleNames, type Person, type Protocol } from "./data";
 import { DocumentList } from "./documents-tab";
+import { NotFoundNote, SearchForm } from "./fields";
 import { ProtocolMarkdown } from "./markdown";
 import { ProtocolForm } from "./protocol-form";
-import { loadDocuments, loadEvent, loadEvents, loadPeople, loadPhases, loadProtocol, loadProtocols, loadTodos } from "./queries";
 import { QuickTodo } from "./quick-todo";
 import { TodoList } from "./todo-list";
+import { useThesis } from "./use-thesis";
 
 const PATH = "/m/thesis";
 
 type Props = { today: string; protocolId?: string; edit: boolean; query?: string; eventId?: string };
 
-export async function ProtocolsTab({ today, protocolId, edit, query, eventId }: Props) {
+export function ProtocolsTab({ today, protocolId, edit, query, eventId }: Props) {
+  const [protocols, people, events] = useThesis("protocols", "people", "events");
   if (protocolId === "new" || (protocolId && edit)) {
-    const [protocol, people, event] = await Promise.all([
-      protocolId === "new" ? null : loadProtocol(protocolId),
-      loadPeople(),
-      protocolId === "new" && eventId ? loadEvent(eventId) : null,
-    ]);
-    if (protocolId !== "new" && !protocol) notFound();
+    const protocol = protocolId === "new" ? null : (protocols.find((entry) => entry.id === protocolId) ?? null);
+    const event = protocolId === "new" && eventId ? (events.find((entry) => entry.id === eventId) ?? null) : null;
+    if (protocolId !== "new" && !protocol) return <NotFoundNote what="Dieses Protokoll" back={`${PATH}?tab=protocols`} />;
     return (
       <Card>
         <CardHeader>
@@ -32,14 +31,13 @@ export async function ProtocolsTab({ today, protocolId, edit, query, eventId }: 
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ProtocolForm protocol={protocol} people={people} event={event} today={today} />
+          <ProtocolForm key={`${protocolId}-${eventId}`} protocol={protocol} people={people} event={event} today={today} />
         </CardContent>
       </Card>
     );
   }
   if (protocolId) return <ProtocolView protocolId={protocolId} today={today} />;
 
-  const [protocols, people] = await Promise.all([loadProtocols(), loadPeople()]);
   const search = query?.trim() ?? "";
   const shown = search ? protocols.filter((protocol) => matches(protocol, people, search)) : protocols;
 
@@ -52,11 +50,13 @@ export async function ProtocolsTab({ today, protocolId, edit, query, eventId }: 
           </Link>
         </Button>
         {protocols.length > 0 && (
-          <form action={PATH} className="relative min-w-48 flex-1 sm:ml-auto sm:max-w-72">
-            <input type="hidden" name="tab" value="protocols" />
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input type="search" name="q" defaultValue={search} placeholder="Protokolle durchsuchen" aria-label="Protokolle durchsuchen" className="pl-8" />
-          </form>
+          <SearchForm
+            query={search}
+            href={(q) => `${PATH}?tab=protocols${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+            placeholder="Protokolle durchsuchen"
+            label="Protokolle durchsuchen"
+            className="relative min-w-48 flex-1 sm:ml-auto sm:max-w-72"
+          />
         )}
       </div>
 
@@ -92,16 +92,20 @@ export async function ProtocolsTab({ today, protocolId, edit, query, eventId }: 
   );
 }
 
-async function ProtocolView({ protocolId, today }: { protocolId: string; today: string }) {
-  const [protocol, phases, todos, documents, people, events] = await Promise.all([
-    loadProtocol(protocolId),
-    loadPhases(),
-    loadTodos(protocolId),
-    loadDocuments({ protocolId }),
-    loadPeople(),
-    loadEvents(protocolId),
-  ]);
-  if (!protocol) notFound();
+function ProtocolView({ protocolId, today }: { protocolId: string; today: string }) {
+  const [protocols, phases, allTodos, allDocuments, people, allEvents] = useThesis(
+    "protocols",
+    "phases",
+    "todos",
+    "documents",
+    "people",
+    "events",
+  );
+  const protocol = protocols.find((entry) => entry.id === protocolId);
+  if (!protocol) return <NotFoundNote what="Dieses Protokoll" back={`${PATH}?tab=protocols`} />;
+  const todos = allTodos.filter((todo) => todo.protocolId === protocolId);
+  const documents = allDocuments.filter((document) => document.protocolId === protocolId);
+  const events = allEvents.filter((event) => event.protocolId === protocolId);
   const open = todos.filter((todo) => !todo.doneOn).sort(byPriority);
   const done = todos.filter((todo) => todo.doneOn);
 

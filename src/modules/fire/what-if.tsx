@@ -9,9 +9,11 @@ import {
   formatMonth,
   formatSignedMoney,
   monthlySavings,
+  expensesByOffset,
   monthsToTarget,
   savingsRate,
   type FireSettings,
+  type PlannedExpense,
 } from "./calc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
@@ -22,16 +24,18 @@ type Props = {
   // projection doesn't depend on the client's clock during rendering.
   startMonth: string;
   settings: FireSettings;
+  expenses: PlannedExpense[];
 };
 
 // "What if" projection with extra monthly savings. Changes here are never saved.
-export function WhatIf({ netWorth, startMonth, settings }: Props) {
+export function WhatIf({ netWorth, startMonth, settings, expenses }: Props) {
   const [extraSavings, setExtraSavings] = useState(0);
 
   const target = fireNumber(settings);
   const savings = monthlySavings(settings) + extraSavings;
-  const months = monthsToTarget(netWorth, savings, settings.expectedReturn, target);
-  const baseMonths = monthsToTarget(netWorth, monthlySavings(settings), settings.expectedReturn, target);
+  const planned = expensesByOffset(expenses, startMonth);
+  const months = monthsToTarget(netWorth, savings, settings.expectedReturn, target, planned);
+  const baseMonths = monthsToTarget(netWorth, monthlySavings(settings), settings.expectedReturn, target, planned);
   const difference = months !== null && baseMonths !== null ? baseMonths - months : null;
 
   let message: string;

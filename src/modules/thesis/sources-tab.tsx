@@ -1,6 +1,15 @@
-import { ArrowLeftIcon, ExternalLinkIcon, FileTextIcon, PaperclipIcon, PencilIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
-import Link from "next/link";
-import { notFound } from "next/navigation";
+"use client";
+
+import {
+  ArrowLeftIcon,
+  ExternalLinkIcon,
+  FileTextIcon,
+  PaperclipIcon,
+  PencilIcon,
+  PlusIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -17,18 +26,20 @@ import {
   type Source,
 } from "./cite";
 import type { ThesisDocument } from "./data";
-import { loadDocuments, loadSource, loadSources } from "./queries";
+import { NotFoundNote, SearchForm } from "./fields";
 import { SourceForm } from "./source-form";
 import { CopyText, DownloadText, StatusSelect } from "./source-tools";
+import { useThesis } from "./use-thesis";
 
 const PATH = "/m/thesis";
 
-type Props = { today: string; sourceId?: string; status?: string };
+type Props = { today: string; sourceId?: string; status?: string; query?: string };
 
-export async function SourcesTab({ today, sourceId, status }: Props) {
+export function SourcesTab({ today, sourceId, status, query }: Props) {
+  const [sources, documents] = useThesis("sources", "documents");
   if (sourceId) {
-    const source = sourceId === "new" ? null : await loadSource(sourceId);
-    if (sourceId !== "new" && !source) notFound();
+    const source = sourceId === "new" ? null : (sources.find((entry) => entry.id === sourceId) ?? null);
+    if (sourceId !== "new" && !source) return <NotFoundNote what="Diese Quelle" back={`${PATH}?tab=sources`} />;
     return (
       <Card>
         <CardHeader>
@@ -43,18 +54,31 @@ export async function SourcesTab({ today, sourceId, status }: Props) {
           <CardDescription>Mit * markierte Felder braucht APA für eine vollständige Angabe.</CardDescription>
         </CardHeader>
         <CardContent>
-          <SourceForm source={source} today={today} />
+          <SourceForm key={sourceId} source={source} today={today} />
         </CardContent>
       </Card>
     );
   }
 
-  const [sources, documents] = await Promise.all([loadSources(), loadDocuments()]);
-  const all = sources.sort((a, b) => sortKey(a).localeCompare(sortKey(b), "de-DE"));
+  const all = [...sources].sort((a, b) => sortKey(a).localeCompare(sortKey(b), "de-DE"));
   const filter = sourceStatuses.find((entry) => entry.value === status)?.value;
-  const shown = filter ? all.filter((source) => source.status === filter) : all;
+  const search = query?.trim().toLowerCase() ?? "";
+  const shown = all.filter(
+    (source) =>
+      (!filter || source.status === filter) &&
+      (!search ||
+        [source.title, source.citationKey, source.summary, source.notes, source.container, ...source.authors]
+          .join(" ")
+          .toLowerCase()
+          .includes(search)),
+  );
   const cited = all.filter((source) => source.status === "cited");
-  const filterHref = (value?: string) => (value ? `${PATH}?tab=sources&status=${value}` : `${PATH}?tab=sources`);
+  const filterHref = (value?: string) => {
+    const params = new URLSearchParams({ tab: "sources" });
+    if (value) params.set("status", value);
+    if (search) params.set("q", query!.trim());
+    return `${PATH}?${params}`;
+  };
 
   return (
     <div className="space-y-4">
@@ -73,6 +97,20 @@ export async function SourcesTab({ today, sourceId, status }: Props) {
           </span>
         )}
       </div>
+
+      {all.length > 0 && (
+        <SearchForm
+          query={query}
+          href={(q) => {
+            const params = new URLSearchParams({ tab: "sources" });
+            if (filter) params.set("status", filter);
+            if (q) params.set("q", q);
+            return `${PATH}?${params}`;
+          }}
+          placeholder="Titel, Autor:in, Schlüssel oder Kurzbeschreibung"
+          label="Quellen durchsuchen"
+        />
+      )}
 
       {all.length > 0 && (
         <nav aria-label="Nach Status filtern" className="flex flex-wrap gap-1.5">
@@ -102,8 +140,9 @@ export async function SourcesTab({ today, sourceId, status }: Props) {
         </Card>
       ) : (
         <ul className="flex flex-col gap-3">
+          {shown.length === 0 && <li className="py-6 text-center text-sm text-muted-foreground">Nichts gefunden.</li>}
           {shown.map((source) => (
-            <li key={source.id}>
+            <li key={source.id} id={`source-${source.id}`} className="scroll-mt-4 rounded-xl target:ring-2 target:ring-brand">
               <SourceCard source={source} documents={documents.filter((document) => document.sourceId === source.id)} />
             </li>
           ))}
@@ -120,6 +159,7 @@ function SourceCard({ source, documents }: { source: Source; documents: ThesisDo
   return (
     <Card className="gap-3 py-4">
       <CardContent className="space-y-3 px-4">
+        {source.summary && <p className="font-medium">{source.summary}</p>}
         <div className="flex items-start gap-3">
           <p className="min-w-0 flex-1 text-sm break-words">
             {apa(source).map((segment, index) =>

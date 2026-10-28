@@ -148,6 +148,7 @@ ${groups
     [
       `- id ${group.id}: ${group.name}`,
       group.weekday ? `trains ${weekdayNames[group.weekday - 1]} ${group.startTime}` : `starts ${group.startTime}`,
+      group.coach ? `usually coached by ${group.coach}, I only stand in on some dates` : null,
       `${group.minutes} min`,
       kids[group.id] ? `${kids[group.id]} kids` : "number of kids unknown",
       favorites[group.id]?.length ? `favorites: ${favorites[group.id].map(name).join(", ")}` : null,
