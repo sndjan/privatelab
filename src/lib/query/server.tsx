@@ -1,5 +1,6 @@
-import { defaultShouldDehydrateQuery, dehydrate, HydrationBoundary, QueryClient } from "@tanstack/react-query";
+import { defaultShouldDehydrateQuery, dehydrate, QueryClient } from "@tanstack/react-query";
 import { getCurrentUser } from "@/lib/auth";
+import { CacheBoundary } from "./boundary";
 import type { DataQueryMeta } from "./data";
 import { loaders, type Loader } from "./loaders";
 
@@ -28,12 +29,13 @@ export function Prefetch({
     void queryClient.prefetchQuery({ queryKey: query.queryKey, queryFn: () => runLoader(query.meta as DataQueryMeta) });
   }
   return (
-    <HydrationBoundary
+    <CacheBoundary
       state={dehydrate(queryClient, {
         shouldDehydrateQuery: (query) => defaultShouldDehydrateQuery(query) || query.state.status === "pending",
       })}
+      modules={[...new Set(queries.map((query) => String(query.queryKey[0])))]}
     >
       {children}
-    </HydrationBoundary>
+    </CacheBoundary>
   );
 }

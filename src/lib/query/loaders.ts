@@ -1,5 +1,6 @@
 import type { CurrentUser } from "@/lib/auth";
 import { fireLoaders } from "@/modules/fire/loaders";
+import { packingLoaders } from "@/modules/packing/loaders";
 import { thesisLoaders } from "@/modules/thesis/loaders";
 
 // Server only. Every server loader the browser cache can ask for, by module and name.
@@ -9,6 +10,7 @@ export type Loader = (params: Record<string, string>, user: CurrentUser) => Prom
 
 export const loaders = {
   fire: fireLoaders,
+  packing: packingLoaders,
   thesis: thesisLoaders,
 } satisfies Record<string, Record<string, Loader>>;
 

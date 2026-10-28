@@ -1,10 +1,11 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { ChevronLeftIcon, PencilIcon } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { dataQuery, type LoaderResult } from "@/lib/query/data";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { resetList, setChipActive, tickItems } from "./actions";
 import { Checklist } from "./checklist";
 import type { Chip, Item, Section } from "./data";
@@ -12,16 +13,18 @@ import { Editor } from "./editor";
 
 const PATH = "/m/packing";
 
+type ListData = LoaderResult<"packing", "list">;
+
 // One list: tick mode by default, edit mode behind the pencil.
 //
-// Ticks and chip switches live here (on top of the server's data) and are
-// saved in the background without re-rendering the page, so tapping through
-// the list never waits for the network. They survive switching to edit mode.
+// Ticks and chip switches go straight into the browser cache and are saved
+// in the background, so tapping through the list never waits for the
+// network. They survive switching to edit mode and leaving the list.
 export function ListScreen({
   list,
   sections,
-  items: savedItems,
-  chips: savedChips,
+  items,
+  chips,
   startInEditMode,
 }: {
   list: { id: string; name: string; starred: boolean };
@@ -31,41 +34,42 @@ export function ListScreen({
   startInEditMode: boolean;
 }) {
   const [editing, setEditing] = useState(startInEditMode);
-  const [done, setDone] = useState<Record<string, boolean>>({});
-  const [active, setActive] = useState<Record<string, boolean>>({});
   const [, startTransition] = useTransition();
-  const router = useRouter();
+  const queryClient = useQueryClient();
+  const listKey = dataQuery("packing", "list", { id: list.id }).queryKey;
 
-  // Saves in the background. If saving fails (e.g. no signal), reload the
-  // list from the server instead of crashing the page.
-  function save(action: () => Promise<unknown>) {
+  // Changes the cached list at once and saves in the background. If saving
+  // fails (e.g. no signal), the list is loaded again from the server.
+  function change(patch: (data: ListData) => Partial<ListData>, action: () => Promise<unknown>) {
+    void queryClient.cancelQueries({ queryKey: listKey });
+    queryClient.setQueryData(listKey, (data) => (data ? { ...data, ...patch(data) } : data));
     startTransition(async () => {
       try {
         await action();
       } catch {
-        setDone({});
-        setActive({});
-        router.refresh();
+        void queryClient.invalidateQueries({ queryKey: listKey });
       }
+      // The overview's progress.
+      void queryClient.invalidateQueries({ queryKey: ["packing", "overview"] });
     });
   }
 
-  const items = savedItems.map((item) => (item.id in done ? { ...item, done: done[item.id] } : item));
-  const chips = savedChips.map((chip) => (chip.id in active ? { ...chip, active: active[chip.id] } : chip));
-
   function tick(ids: string[], value: boolean) {
-    setDone((current) => ({ ...current, ...Object.fromEntries(ids.map((id) => [id, value])) }));
-    save(() => tickItems(ids, value));
+    change(
+      (data) => ({ items: data.items.map((item) => (ids.includes(item.id) ? { ...item, done: value } : item)) }),
+      () => tickItems(ids, value),
+    );
   }
 
   function reset() {
-    setDone((current) => ({ ...current, ...Object.fromEntries(savedItems.map((item) => [item.id, false])) }));
-    save(() => resetList(list.id));
+    change((data) => ({ items: data.items.map((item) => ({ ...item, done: false })) }), () => resetList(list.id));
   }
 
   function toggleChip(chip: Chip) {
-    setActive((current) => ({ ...current, [chip.id]: !chip.active }));
-    save(() => setChipActive(chip.id, !chip.active));
+    change(
+      (data) => ({ chips: data.chips.map((entry) => (entry.id === chip.id ? { ...entry, active: !chip.active } : entry)) }),
+      () => setChipActive(chip.id, !chip.active),
+    );
   }
 
   function toggleMode() {
