@@ -2,6 +2,7 @@ import type { CurrentUser } from "@/lib/auth";
 import { fireLoaders } from "@/modules/fire/loaders";
 import { packingLoaders } from "@/modules/packing/loaders";
 import { thesisLoaders } from "@/modules/thesis/loaders";
+import { worktimeLoaders } from "@/modules/worktime/loaders";
 
 // Server only. Every server loader the browser cache can ask for, by module and name.
 // A loader reads with the user's own Supabase client, so RLS decides what
@@ -12,6 +13,7 @@ export const loaders = {
   fire: fireLoaders,
   packing: packingLoaders,
   thesis: thesisLoaders,
+  worktime: worktimeLoaders,
 } satisfies Record<string, Record<string, Loader>>;
 
 export type Loaders = typeof loaders;
