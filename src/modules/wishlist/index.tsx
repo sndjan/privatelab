@@ -1,6 +1,7 @@
 import { ArchiveIcon, ChevronLeftIcon, ChevronRightIcon, ExternalLinkIcon, PencilIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { FormPending } from "@/components/form-pending";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -104,7 +105,7 @@ async function Overview() {
           </li>
         ))}
         <li>
-          <form action={createList}>
+          <form action={createList} className="relative">
             <Input
               name="name"
               required
@@ -114,6 +115,7 @@ async function Overview() {
               enterKeyHint="enter"
               className="h-12 rounded-none border-0 px-4 shadow-none focus-visible:ring-0"
             />
+            <FormPending />
           </form>
         </li>
       </ul>
@@ -206,7 +208,7 @@ async function ListView({ listId }: { listId: string }) {
                 </div>
                 <form action={unmarkReceived}>
                   <input type="hidden" name="wishId" value={row.id} />
-                  <SubmitButton variant="ghost" size="sm" className="text-muted-foreground">
+                  <SubmitButton variant="ghost" size="sm" className="text-muted-foreground" done="Wieder auf der Liste">
                     Zurück auf die Liste
                   </SubmitButton>
                 </form>
@@ -254,13 +256,13 @@ function OwnerWishCard({ listId, wish }: { listId: string; wish: Wish }) {
           <div className="ml-auto flex flex-wrap gap-1">
             <form action={markReceived}>
               <input type="hidden" name="wishId" value={wish.id} />
-              <SubmitButton variant="outline" size="sm">
+              <SubmitButton variant="outline" size="sm" done="Ins Archiv „Erhalten“ verschoben">
                 Erhalten
               </SubmitButton>
             </form>
             <form action={deleteWish}>
               <input type="hidden" name="wishId" value={wish.id} />
-              <SubmitButton variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive">
+              <SubmitButton variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" done="Wunsch gelöscht">
                 Löschen
               </SubmitButton>
             </form>
@@ -304,12 +306,12 @@ function ListSettings({ list }: { list: List }) {
             <Label htmlFor="list-date">Anlass am</Label>
             <Input id="list-date" name="occasionDate" type="date" defaultValue={list.occasion_date ?? ""} />
           </div>
-          <SubmitButton variant="outline">Speichern</SubmitButton>
+          <SubmitButton variant="outline" done="Liste gespeichert">Speichern</SubmitButton>
         </form>
         <div className="flex flex-wrap gap-2">
           <form action={renewShareLink}>
             <input type="hidden" name="listId" value={list.id} />
-            <SubmitButton variant="outline" size="sm">
+            <SubmitButton variant="outline" size="sm" done="Neuer Link erzeugt, der alte gilt nicht mehr">
               Neuen Link erzeugen
             </SubmitButton>
           </form>

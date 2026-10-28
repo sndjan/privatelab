@@ -1,6 +1,7 @@
 import { BookOpenIcon, CalendarPlusIcon, ChevronLeftIcon, ChevronRightIcon, PencilIcon, StarIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FormPending } from "@/components/form-pending";
 import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -151,7 +152,7 @@ async function Overview() {
               Tipps zum Zurufen. Du kannst alles ändern, löschen und mit KI weitere dazuholen.
             </p>
             <form action={loadStarterExercises}>
-              <SubmitButton size="lg" className="h-12 w-full">
+              <SubmitButton size="lg" className="h-12 w-full" done="Starter-Sammlung geladen">
                 Starter-Sammlung laden
               </SubmitButton>
             </form>
@@ -193,7 +194,7 @@ async function Overview() {
             </li>
           ))}
           <li>
-            <form action={createGroup}>
+            <form action={createGroup} className="relative">
               <Input
                 name="name"
                 required
@@ -203,6 +204,7 @@ async function Overview() {
                 enterKeyHint="enter"
                 className="h-12 rounded-none border-0 px-4 shadow-none focus-visible:ring-0"
               />
+              <FormPending />
             </form>
           </li>
         </ul>
@@ -384,7 +386,7 @@ async function SessionView({ sessionId }: { sessionId: string }) {
               defaultValue={session.notes}
               placeholder="Wie lief's? Wer fehlte, was hat Spaß gemacht, was nächstes Mal?"
             />
-            <SubmitButton variant="outline">Speichern</SubmitButton>
+            <SubmitButton variant="outline" done="Notizen gespeichert">Speichern</SubmitButton>
           </form>
         </CardContent>
       </Card>
@@ -429,7 +431,7 @@ async function LibraryView() {
         <AiImport existing={exercises.map((exercise) => exercise.name)} />
         {exercises.length < starterExercises.length && (
           <form action={loadStarterExercises}>
-            <SubmitButton variant="ghost" className="text-muted-foreground">
+            <SubmitButton variant="ghost" className="text-muted-foreground" done="Starter-Sammlung ergänzt">
               Starter-Sammlung ergänzen
             </SubmitButton>
           </form>
@@ -531,7 +533,7 @@ async function ExerciseView({ exerciseId, edit }: { exerciseId: string; edit: bo
               defaultValue={exercise.notes}
               placeholder="z. B. Mit 8 Kindern lieber zwei Reihen. Kam super an."
             />
-            <SubmitButton variant="outline">Speichern</SubmitButton>
+            <SubmitButton variant="outline" done="Notizen gespeichert">Speichern</SubmitButton>
           </form>
         </CardContent>
       </Card>
@@ -650,7 +652,7 @@ async function GroupView({ groupId }: { groupId: string }) {
                 placeholder="z. B. 6 Kinder, 8–10 Jahre. Lisa und Ben nicht zusammen. Lieben Rundlauf."
               />
             </div>
-            <SubmitButton variant="outline">Speichern</SubmitButton>
+            <SubmitButton variant="outline" done="Gruppe gespeichert">Speichern</SubmitButton>
           </form>
         </CardContent>
       </Card>

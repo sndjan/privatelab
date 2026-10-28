@@ -2,6 +2,7 @@
 
 import { GiftIcon, Loader2Icon } from "lucide-react";
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,13 +29,16 @@ export function GuestButtons({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  function run(action: () => Promise<{ error: string } | undefined>) {
+  function run(action: () => Promise<{ error: string } | undefined>, done: string) {
     setError(null);
     startTransition(async () => {
       try {
         const result = await action();
         if (result?.error) setError(result.error);
-        else setAsking(false);
+        else {
+          setAsking(false);
+          toast.success(done);
+        }
       } catch {
         setError("Das hat nicht geklappt. Bitte versuch es noch einmal.");
       }
@@ -43,7 +47,7 @@ export function GuestButtons({
 
   function confirm(event: React.FormEvent) {
     event.preventDefault();
-    run(() => reserve(token, wishId, name));
+    run(() => reserve(token, wishId, name), "Reserviert. Danke!");
   }
 
   return (
@@ -55,7 +59,7 @@ export function GuestButtons({
             {claim.mine ? "Von dir reserviert" : `Reserviert von ${joinNames(claim.names)}`}
           </span>
           {claim.mine && (
-            <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(() => release(token, claim.id))}>
+            <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(() => release(token, claim.id), "Freigegeben")}>
               Freigeben
             </Button>
           )}
