@@ -7,7 +7,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
-import { amazonAsin, cleanAmazonUrl, isAmazon } from "./amazon";
+import { amazonAsin, cleanAmazonUrl, isAmazon, isAmazonShortLink, withoutAffiliate } from "./amazon";
 import { cleanWish, httpUrl, parsePrice, type WishFields, type WishInput } from "./data";
 
 const MODEL = "claude-haiku-5-5";
@@ -274,6 +274,26 @@ function titleFromUrl(url: string) {
   return words ? words.replace(/[-_+]+/g, " ").trim() : hostname.replace(/^www\./, "");
 }
 
+// Where an Amazon short link leads. amzn.to links from SiteStripe carry the
+// creator's partner tag, so they are expanded (and cleaned) before saving.
+export async function expandShortLink(url: string) {
+  if (!isAmazonShortLink(url)) return url;
+  let current = new URL(url);
+  try {
+    for (let hop = 0; hop < 5 && !isAmazon(current.toString()); hop++) {
+      await assertPublicHost(current);
+      const response = await fetch(current, { redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS) });
+      await response.body?.cancel();
+      const location = response.headers.get("location");
+      if (!location) break;
+      current = new URL(location, current);
+    }
+  } catch {
+    // Unreachable: keep the short link out rather than an unknown tag.
+  }
+  return isAmazon(current.toString()) ? withoutAffiliate(current.toString()) : null;
+}
+
 // Amazon's product photo by ASIN. Amazon answers unknown ones with a tiny
 // placeholder GIF, so only a real JPEG counts.
 async function amazonImage(asin: string) {
@@ -305,6 +325,7 @@ export async function analyzeLink(input: string): Promise<LinkResult> {
   // Where a short link led, even if that page was blocked.
   const landed = page?.facts.url ?? trail[trail.length - 1] ?? url;
   if (isAmazon(landed)) url = cleanAmazonUrl(landed);
+  else if (isAmazonShortLink(url)) url = (await expandShortLink(url)) ?? url;
 
   const asin = amazonAsin(url);
   const images = page?.images ?? [];

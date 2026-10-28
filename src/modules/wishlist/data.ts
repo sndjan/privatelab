@@ -1,4 +1,5 @@
 // Shared types and helpers of the wishlist (no server or client APIs here).
+import { withoutAffiliate } from "./amazon";
 
 export type Wish = {
   id: string;
@@ -79,6 +80,11 @@ export function httpUrl(value: unknown): string | null {
   }
 }
 
+function cleanUrl(value: unknown) {
+  const url = httpUrl(value);
+  return url && withoutAffiliate(url);
+}
+
 export type WishFields = Partial<Record<keyof WishInput, unknown>>;
 
 // Validates whatever comes from a form or the AI into a storable wish.
@@ -90,7 +96,7 @@ export function cleanWish(input: WishFields): WishInput | null {
   const quantity = Math.round(Number(input.quantity ?? 1));
   return {
     title,
-    url: httpUrl(input.url),
+    url: cleanUrl(input.url),
     imageUrl: httpUrl(input.imageUrl),
     price: price !== null && Number.isFinite(price) && price >= 0 && price < 1e8 ? Math.round(price * 100) / 100 : null,
     currency: /^[A-Z]{3}$/.test(currency) ? currency : "EUR",

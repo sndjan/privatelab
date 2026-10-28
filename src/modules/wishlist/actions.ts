@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { claimNames, deleteClaims } from "./claims";
 import { cleanWish, newShareToken, toRow, type WishFields } from "./data";
-import { analyzeLink, type LinkResult } from "./link-import";
+import { analyzeLink, expandShortLink, type LinkResult } from "./link-import";
 import { analyzeScreenshot, SCREENSHOT_TYPES, type ScreenshotResult } from "./screenshot-import";
 
 // Lists and wishes are written with the user's own Supabase client, so RLS
@@ -175,8 +175,9 @@ export async function uploadWishImage(formData: FormData): Promise<{ url: string
 // input comes straight from the form (price as typed, e.g. "29,99").
 // Goes back to the list afterwards.
 export async function saveWish(listId: string, id: string | null, input: WishFields) {
-  const wish = cleanWish(input);
-  if (!wish) throw new Error("Titel fehlt");
+  const cleaned = cleanWish(input);
+  if (!cleaned) throw new Error("Titel fehlt");
+  const wish = { ...cleaned, url: cleaned.url && (await expandShortLink(cleaned.url)) };
   const supabase = await db();
   if (id) {
     const own = await ownWish(supabase, id);

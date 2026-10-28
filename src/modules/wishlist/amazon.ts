@@ -1,6 +1,6 @@
 // Amazon links: product id (ASIN), short links, a clean product URL and the
-// affiliate tag. Wishes store the clean URL; the tag is added when a link is
-// shown, so changing AMAZON_PARTNER_TAG applies to every existing wish.
+// affiliate tag. Wishes store the clean URL, so users can't bring their own
+// tag; only the admin's AMAZON_PARTNER_TAG is added when guests see a link.
 
 const AMAZON_HOST = /(^|\.)amazon\.(de|com|co\.uk|fr|it|es|nl|se|pl|com\.be|at|ca|com\.mx|co\.jp|in|com\.au|com\.tr)$/i;
 // Short links from the app's share button (amzn.eu/d/…, amzn.to/…, a.co/d/…).
@@ -31,6 +31,16 @@ export function cleanAmazonUrl(url: string) {
   const asin = amazonAsin(url);
   if (!parsed || !asin) return url;
   return `https://${parsed.hostname.replace(/^(m|smile)\./, "www.")}/dp/${asin}`;
+}
+
+// Any Amazon link without someone else's partner tag: product links become
+// /dp/<ASIN>, others (e.g. searches) lose the tag parameters.
+export function withoutAffiliate(url: string) {
+  const parsed = parse(url);
+  if (!parsed || !AMAZON_HOST.test(parsed.hostname)) return url;
+  if (amazonAsin(url)) return cleanAmazonUrl(url);
+  for (const key of ["tag", "linkCode", "linkId", "ascsubtag", "creative", "creativeASIN", "camp", "ref_"]) parsed.searchParams.delete(key);
+  return parsed.toString();
 }
 
 // A search on Amazon, for wishes from a screenshot that has no link.
