@@ -1,4 +1,4 @@
-import { BookOpenIcon, CalendarPlusIcon, ChevronLeftIcon, ChevronRightIcon, PencilIcon, StarIcon } from "lucide-react";
+import { BookOpenIcon, CalendarPlusIcon, ChevronLeftIcon, ChevronRightIcon, PalmtreeIcon, PencilIcon, StarIcon, Trash2Icon, UsersIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FormPending } from "@/components/form-pending";
@@ -12,9 +12,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { createClient } from "@/lib/supabase/server";
 import type { ModulePageProps } from "@/modules/registry";
 import {
+  addHoliday,
   createGroup,
   deleteExercise,
   deleteGroup,
+  deleteHoliday,
   deleteSession,
   loadStarterExercises,
   saveExerciseNotes,
@@ -22,26 +24,37 @@ import {
   updateGroup,
 } from "./actions";
 import { AiImport } from "./ai-import";
+import { Attendance } from "./attendance";
 import { Court } from "./court";
 import {
+  addDays,
   emptyDiagram,
   formatClock,
   formatSessionDate,
   generatePlan,
+  holidayOn,
   parseDiagram,
   phaseName,
+  playersLabel,
   timeline,
   todayInGermany,
+  trainingDates,
+  weekdayNames,
+  weekdays,
   type Exercise,
+  type Gender,
   type Group,
+  type Holiday,
   type Phase,
   type PlanItem,
+  type Player,
   type Session,
 } from "./data";
 import { ExerciseForm } from "./exercise-form";
 import { FavoriteToggles } from "./favorite-toggles";
 import { Library } from "./library";
 import { Planner } from "./planner";
+import { Players } from "./players";
 import { LiveBadge, PrintButton, SessionPlan } from "./session-plan";
 import { starterExercises } from "./starter";
 
@@ -53,7 +66,10 @@ export default async function TennisModule({ user, hasAccess, searchParams }: Mo
   const params = await searchParams;
   const param = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : undefined);
 
-  if (param("plan")) return <PlanView sessionId={param("session") ?? null} groupId={param("group") ?? null} />;
+  if (param("plan")) {
+    return <PlanView sessionId={param("session") ?? null} groupId={param("group") ?? null} date={param("date") ?? null} />;
+  }
+  if (param("holidays")) return <HolidaysView />;
   const sessionId = param("session");
   if (sessionId) return <SessionView sessionId={sessionId} />;
   const exerciseId = param("exercise");
@@ -74,16 +90,26 @@ const newExercise = {
   tips: [],
   focus: [],
   diagram: emptyDiagram,
+  playersMin: null,
+  playersMax: null,
 };
 
 // --- Rows ---------------------------------------------------------------------
 
-const exerciseColumns = "id, name, phase, minutes, summary, description, tips, focus, diagram, notes";
-const groupColumns = "id, name, note, start_time, minutes";
-const sessionColumns = "id, group_id, date, start_time, minutes, focus, plan, notes";
+const exerciseColumns = "id, name, phase, minutes, summary, description, tips, focus, diagram, notes, players_min, players_max";
+const groupColumns = "id, name, note, start_time, minutes, weekday";
+const sessionColumns = "id, group_id, date, start_time, minutes, focus, plan, notes, absent";
+const playerColumns = "id, group_id, name, gender";
+const holidayColumns = "id, name, start_date, end_date";
 
-type ExerciseRow = Omit<Exercise, "diagram"> & { diagram: unknown };
-type GroupRow = { id: string; name: string; note: string; start_time: string; minutes: number };
+type ExerciseRow = Omit<Exercise, "diagram" | "playersMin" | "playersMax"> & {
+  diagram: unknown;
+  players_min: number | null;
+  players_max: number | null;
+};
+type GroupRow = { id: string; name: string; note: string; start_time: string; minutes: number; weekday: number | null };
+type PlayerRow = { id: string; group_id: string; name: string; gender: Gender | null };
+type HolidayRow = { id: string; name: string; start_date: string; end_date: string };
 type SessionRow = {
   id: string;
   group_id: string | null;
@@ -93,9 +119,19 @@ type SessionRow = {
   focus: string | null;
   plan: unknown;
   notes: string;
+  absent: string[] | null;
 };
 
-const toExercise = (row: ExerciseRow): Exercise => ({ ...row, diagram: parseDiagram(row.diagram) });
+const toExercise = ({ players_min, players_max, ...row }: ExerciseRow): Exercise => ({
+  ...row,
+  diagram: parseDiagram(row.diagram),
+  playersMin: players_min,
+  playersMax: players_max,
+});
+
+const toPlayer = (row: PlayerRow): Player => ({ id: row.id, groupId: row.group_id, name: row.name, gender: row.gender });
+
+const toHoliday = (row: HolidayRow): Holiday => ({ id: row.id, name: row.name, startDate: row.start_date, endDate: row.end_date });
 
 const toGroup = (row: GroupRow): Group => ({
   id: row.id,
@@ -103,6 +139,7 @@ const toGroup = (row: GroupRow): Group => ({
   note: row.note,
   startTime: row.start_time.slice(0, 5),
   minutes: row.minutes,
+  weekday: row.weekday,
 });
 
 function toSession(row: SessionRow): Session {
@@ -118,6 +155,7 @@ function toSession(row: SessionRow): Session {
     focus: row.focus,
     plan,
     notes: row.notes,
+    absent: row.absent ?? [],
   };
 }
 
@@ -127,17 +165,33 @@ const sessionEnd = (session: Session) => formatClock(timeline(session.startTime,
 
 async function Overview() {
   const supabase = await createClient();
-  const [{ data: groupRows }, { count: exerciseCount }, { data: sessionRows }] = await Promise.all([
-    supabase.from("tennis_groups").select(groupColumns).order("name"),
-    supabase.from("tennis_exercises").select("id", { count: "exact", head: true }),
-    supabase.from("tennis_sessions").select(sessionColumns).order("date", { ascending: false }).order("start_time", { ascending: false }).limit(30),
-  ]);
+  const [{ data: groupRows }, { count: exerciseCount }, { data: sessionRows }, { data: playerRows }, { data: holidayRows }] =
+    await Promise.all([
+      supabase.from("tennis_groups").select(groupColumns).order("name"),
+      supabase.from("tennis_exercises").select("id", { count: "exact", head: true }),
+      supabase.from("tennis_sessions").select(sessionColumns).order("date", { ascending: false }).order("start_time", { ascending: false }).limit(30),
+      supabase.from("tennis_players").select("group_id"),
+      supabase.from("tennis_holidays").select(holidayColumns).gte("end_date", todayInGermany()).order("start_date"),
+    ]);
   const groups = ((groupRows ?? []) as GroupRow[]).map(toGroup);
   const sessions = ((sessionRows ?? []) as SessionRow[]).map(toSession);
+  const holidays = ((holidayRows ?? []) as HolidayRow[]).map(toHoliday);
   const today = todayInGermany();
   const upcoming = sessions.filter((session) => session.date >= today).reverse();
   const past = sessions.filter((session) => session.date < today).slice(0, 5);
   const groupName = (id: string | null) => groups.find((group) => group.id === id)?.name ?? "Ohne Gruppe";
+  const playerCount = (groupId: string) => (playerRows ?? []).filter((row) => row.group_id === groupId).length;
+  const currentHoliday = holidayOn(today, holidays);
+  const nextHoliday = holidays.find((holiday) => holiday.startDate > today);
+
+  // Training days of the next week that have no session yet.
+  const weekEnd = addDays(today, 6);
+  const unplanned = groups
+    .flatMap((group) =>
+      group.weekday ? trainingDates(group.weekday, today, holidays).map((date) => ({ group, date })) : [],
+    )
+    .filter(({ group, date }) => date <= weekEnd && !sessions.some((session) => session.groupId === group.id && session.date === date))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.group.startTime.localeCompare(b.group.startTime));
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -160,21 +214,50 @@ async function Overview() {
         </Card>
       )}
 
+      {currentHoliday && (
+        <p className="flex items-center gap-2 rounded-xl bg-muted px-4 py-3 text-sm">
+          <PalmtreeIcon className="size-4 shrink-0" />
+          {currentHoliday.name || "Ferien"} bis {formatSessionDate(currentHoliday.endDate)}: kein Training.
+        </p>
+      )}
+
       <Button asChild size="lg" className="h-14 w-full text-base">
         <Link href={`${PATH}?plan=1`}>
           <CalendarPlusIcon className="size-5" /> Stunde planen
         </Link>
       </Button>
 
-      {upcoming.length > 0 && (
+      {(upcoming.length > 0 || unplanned.length > 0) && (
         <section aria-label="Nächste Stunden" className="space-y-1.5">
           <h2 className="px-1 text-sm font-medium text-muted-foreground">Nächste Stunden</h2>
           <ul className="divide-y overflow-hidden rounded-xl border bg-card">
-            {upcoming.map((session) => (
-              <li key={session.id}>
-                <SessionLink session={session} title={groupName(session.groupId)} today={today} />
-              </li>
-            ))}
+            {[
+              ...upcoming.map((session) => ({ key: `${session.date} ${session.startTime} ${session.id}`, session, group: null, date: session.date })),
+              ...unplanned.map(({ group, date }) => ({ key: `${date} ${group.startTime} ${group.id}`, session: null, group, date })),
+            ]
+              .sort((a, b) => a.key.localeCompare(b.key))
+              .map(({ key, session, group, date }) =>
+                session ? (
+                  <li key={key}>
+                    <SessionLink session={session} title={groupName(session.groupId)} today={today} />
+                  </li>
+                ) : (
+                  <li key={key}>
+                    <Link
+                      href={`${PATH}?plan=1&group=${group.id}&date=${date}`}
+                      className="flex min-h-12 items-center gap-3 px-4 py-2 text-muted-foreground active:bg-accent"
+                    >
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span>
+                          {date === today ? "Heute" : formatSessionDate(date)}, {group.startTime} · {group.name}
+                        </span>
+                        <span className="text-xs">Noch nicht geplant</span>
+                      </span>
+                      <span className="text-sm font-medium text-brand">Planen</span>
+                    </Link>
+                  </li>
+                ),
+              )}
           </ul>
         </section>
       )}
@@ -186,7 +269,15 @@ async function Overview() {
             <li key={group.id} className="flex items-center">
               <Link href={`${PATH}?group=${group.id}`} className="flex min-h-12 flex-1 flex-col justify-center px-4 py-2 active:bg-accent">
                 <span>{group.name}</span>
-                {group.note && <span className="line-clamp-1 text-xs text-muted-foreground">{group.note}</span>}
+                <span className="line-clamp-1 text-xs text-muted-foreground">
+                  {[
+                    group.weekday && `${weekdays[group.weekday - 1]} ${group.startTime}`,
+                    playerCount(group.id) > 0 && `${playerCount(group.id)} Kinder`,
+                    group.note,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
               </Link>
               <Button asChild variant="ghost" size="sm" className="mr-2 text-brand">
                 <Link href={`${PATH}?plan=1&group=${group.id}`}>Planen</Link>
@@ -210,12 +301,27 @@ async function Overview() {
         </ul>
       </section>
 
-      <Link href={`${PATH}?exercises=1`} className="flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 shadow-xs active:bg-accent">
-        <BookOpenIcon className="size-5 text-muted-foreground" />
-        <span className="flex-1">Übungssammlung</span>
-        <span className="font-mono text-sm text-muted-foreground">{exerciseCount ?? 0}</span>
-        <ChevronRightIcon className="size-4 text-muted-foreground" />
-      </Link>
+      <div className="space-y-2">
+        <Link href={`${PATH}?exercises=1`} className="flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 shadow-xs active:bg-accent">
+          <BookOpenIcon className="size-5 text-muted-foreground" />
+          <span className="flex-1">Übungssammlung</span>
+          <span className="font-mono text-sm text-muted-foreground">{exerciseCount ?? 0}</span>
+          <ChevronRightIcon className="size-4 text-muted-foreground" />
+        </Link>
+        <Link href={`${PATH}?holidays=1`} className="flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 shadow-xs active:bg-accent">
+          <PalmtreeIcon className="size-5 text-muted-foreground" />
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span>Ferien</span>
+            {(currentHoliday ?? nextHoliday) && (
+              <span className="truncate text-xs text-muted-foreground">
+                {currentHoliday ? "Gerade: " : "Nächste: "}
+                {(currentHoliday ?? nextHoliday)!.name || "Ferien"}, {formatRange(currentHoliday ?? nextHoliday!)}
+              </span>
+            )}
+          </span>
+          <ChevronRightIcon className="size-4 text-muted-foreground" />
+        </Link>
+      </div>
 
       {past.length > 0 && (
         <section aria-label="Vergangene Stunden" className="space-y-1.5">
@@ -228,6 +334,91 @@ async function Overview() {
             ))}
           </ul>
         </section>
+      )}
+    </div>
+  );
+}
+
+const formatRange = (holiday: Holiday) =>
+  holiday.startDate === holiday.endDate
+    ? formatSessionDate(holiday.startDate)
+    : `${formatSessionDate(holiday.startDate)} – ${formatSessionDate(holiday.endDate)}`;
+
+// --- Holidays -------------------------------------------------------------------
+
+async function HolidaysView() {
+  const supabase = await createClient();
+  const today = todayInGermany();
+  const { data: rows } = await supabase.from("tennis_holidays").select(holidayColumns).order("start_date", { ascending: false });
+  const holidays = ((rows ?? []) as HolidayRow[]).map(toHoliday);
+  const coming = holidays.filter((holiday) => holiday.endDate >= today).reverse();
+  const over = holidays.filter((holiday) => holiday.endDate < today).slice(0, 10);
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-6">
+      <div className="-ml-2 flex items-center gap-1">
+        <BackLink />
+        <h2 className="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight">Ferien</h2>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        In den Ferien fällt das Training aus: Diese Tage schlägt die Übersicht nicht zum Planen vor, und beim Planen gibt es
+        einen Hinweis.
+      </p>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Ferien eintragen</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form action={addHoliday} className="grid grid-cols-2 gap-3">
+            <div className="col-span-2 space-y-2">
+              <Label htmlFor="holiday-name">Name</Label>
+              <Input id="holiday-name" name="name" maxLength={60} placeholder="z. B. Herbstferien" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="holiday-start">Von</Label>
+              <Input id="holiday-start" name="startDate" type="date" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="holiday-end">Bis</Label>
+              <Input id="holiday-end" name="endDate" type="date" />
+            </div>
+            <div className="col-span-2">
+              <SubmitButton done="Ferien eingetragen">Eintragen</SubmitButton>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      {[
+        { title: "Kommende", list: coming },
+        { title: "Vorbei", list: over },
+      ].map(
+        ({ title, list }) =>
+          list.length > 0 && (
+            <section key={title} aria-label={title} className="space-y-1.5">
+              <h3 className="px-1 text-sm font-medium text-muted-foreground">{title}</h3>
+              <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+                {list.map((holiday) => (
+                  <li key={holiday.id} className="flex items-center gap-3 px-4 py-2">
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span>{holiday.name || "Ferien"}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatRange(holiday)}
+                        {holidayOn(today, [holiday]) && " · gerade"}
+                      </span>
+                    </span>
+                    <form action={deleteHoliday}>
+                      <input type="hidden" name="holidayId" value={holiday.id} />
+                      <SubmitButton variant="ghost" size="icon" className="text-muted-foreground" aria-label="Löschen" done="Ferien gelöscht">
+                        <Trash2Icon />
+                      </SubmitButton>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ),
       )}
     </div>
   );
@@ -250,26 +441,34 @@ function SessionLink({ session, title, today }: { session: Session; title: strin
 
 // --- Planner --------------------------------------------------------------------
 
-async function PlanView({ sessionId, groupId }: { sessionId: string | null; groupId: string | null }) {
+async function PlanView({ sessionId, groupId, date }: { sessionId: string | null; groupId: string | null; date: string | null }) {
   const supabase = await createClient();
-  const [{ data: groupRows }, { data: exerciseRows }, { data: favoriteRows }, { data: sessionRows }] = await Promise.all([
-    supabase.from("tennis_groups").select(groupColumns).order("name"),
-    supabase.from("tennis_exercises").select(exerciseColumns).order("name"),
-    supabase.from("tennis_favorites").select("group_id, exercise_id"),
-    supabase.from("tennis_sessions").select(sessionColumns).order("date", { ascending: false }).limit(60),
-  ]);
+  const today = todayInGermany();
+  const [{ data: groupRows }, { data: exerciseRows }, { data: favoriteRows }, { data: sessionRows }, { data: playerRows }, { data: holidayRows }] =
+    await Promise.all([
+      supabase.from("tennis_groups").select(groupColumns).order("name"),
+      supabase.from("tennis_exercises").select(exerciseColumns).order("name"),
+      supabase.from("tennis_favorites").select("group_id, exercise_id"),
+      supabase.from("tennis_sessions").select(sessionColumns).order("date", { ascending: false }).limit(60),
+      supabase.from("tennis_players").select("id, group_id"),
+      supabase.from("tennis_holidays").select(holidayColumns).gte("end_date", today).order("start_date"),
+    ]);
   const groups = ((groupRows ?? []) as GroupRow[]).map(toGroup);
   const exercises = ((exerciseRows ?? []) as ExerciseRow[]).map(toExercise);
   const favorites = (favoriteRows ?? []).map((row) => `${row.group_id}:${row.exercise_id}`);
   const sessions = ((sessionRows ?? []) as SessionRow[]).map(toSession);
+  const holidays = ((holidayRows ?? []) as HolidayRow[]).map(toHoliday);
 
   // What each group played in its last two sessions comes up less often.
   const recent: Record<string, string[]> = {};
+  // How many kids each group has.
+  const players: Record<string, number> = {};
   for (const group of groups) {
     recent[group.id] = sessions
       .filter((session) => session.groupId === group.id && session.id !== sessionId)
       .slice(0, 2)
       .flatMap((session) => session.plan.map((item) => item.exerciseId));
+    players[group.id] = (playerRows ?? []).filter((row) => row.group_id === group.id).length;
   }
 
   const existing = sessionId ? sessions.find((session) => session.id === sessionId) : undefined;
@@ -288,9 +487,10 @@ async function PlanView({ sessionId, groupId }: { sessionId: string | null; grou
   } else {
     const group = groups.find((entry) => entry.id === groupId) ?? groups[0];
     const minutes = group?.minutes ?? 60;
+    const count = group ? players[group.id] : 0;
     initial = {
       groupId: group?.id ?? null,
-      date: todayInGermany(),
+      date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : group?.weekday ? (trainingDates(group.weekday, today, holidays)[0] ?? today) : today,
       startTime: group?.startTime ?? "16:00",
       minutes,
       focus: null,
@@ -299,18 +499,22 @@ async function PlanView({ sessionId, groupId }: { sessionId: string | null; grou
         favorites: new Set(favorites.filter((key) => group && key.startsWith(`${group.id}:`)).map((key) => key.split(":")[1])),
         recent: new Set(group ? recent[group.id] : []),
         focus: null,
+        players: count > 0 ? count : null,
       }),
     };
   }
 
   return (
     <Planner
-      key={sessionId ?? groupId ?? "new"}
+      key={sessionId ?? `${groupId}-${date}`}
       sessionId={sessionId}
       groups={groups}
       exercises={exercises}
       favorites={favorites}
       recent={recent}
+      players={players}
+      absent={existing?.absent.length ?? 0}
+      holidays={holidays}
       initial={initial}
     />
   );
@@ -323,7 +527,7 @@ async function SessionView({ sessionId }: { sessionId: string }) {
   const { data: row } = await supabase.from("tennis_sessions").select(sessionColumns).eq("id", sessionId).maybeSingle<SessionRow>();
   if (!row) notFound();
   const session = toSession(row);
-  const [{ data: exerciseRows }, { data: group }] = await Promise.all([
+  const [{ data: exerciseRows }, { data: group }, { data: playerRows }] = await Promise.all([
     supabase
       .from("tennis_exercises")
       .select(exerciseColumns)
@@ -331,7 +535,11 @@ async function SessionView({ sessionId }: { sessionId: string }) {
     session.groupId
       ? supabase.from("tennis_groups").select(groupColumns).eq("id", session.groupId).maybeSingle<GroupRow>()
       : Promise.resolve({ data: null }),
+    session.groupId
+      ? supabase.from("tennis_players").select(playerColumns).eq("group_id", session.groupId).order("name")
+      : Promise.resolve({ data: [] }),
   ]);
+  const players = ((playerRows ?? []) as PlayerRow[]).map(toPlayer);
   const exercises = ((exerciseRows ?? []) as ExerciseRow[]).map(toExercise);
   const items = session.plan.flatMap((item) => {
     const exercise = exercises.find((entry) => entry.id === item.exerciseId);
@@ -365,6 +573,18 @@ async function SessionView({ sessionId }: { sessionId: string }) {
           </Button>
         </div>
       </div>
+
+      {group && session.date >= todayInGermany() && (
+        <Attendance
+          sessionId={session.id}
+          groupId={group.id}
+          date={session.date}
+          startTime={session.startTime}
+          players={players}
+          absent={session.absent}
+          items={items}
+        />
+      )}
 
       {items.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">Keine Übungen in dieser Stunde.</p>
@@ -473,6 +693,7 @@ async function ExerciseView({ exerciseId, edit }: { exerciseId: string; edit: bo
       <div className="flex flex-wrap gap-1.5">
         <Badge variant="secondary">{phaseName(exercise.phase)}</Badge>
         <Badge variant="secondary">{exercise.minutes} Min.</Badge>
+        {playersLabel(exercise) && <Badge variant="secondary">{playersLabel(exercise)}</Badge>}
         {exercise.focus.map((tag) => (
           <Badge key={tag} variant="outline">
             {tag}
@@ -552,7 +773,7 @@ async function ExerciseView({ exerciseId, edit }: { exerciseId: string; edit: bo
 
 async function GroupView({ groupId }: { groupId: string }) {
   const supabase = await createClient();
-  const [{ data: row }, { data: favoriteRows }, { data: sessionRows }] = await Promise.all([
+  const [{ data: row }, { data: favoriteRows }, { data: sessionRows }, { data: playerRows }] = await Promise.all([
     supabase.from("tennis_groups").select(groupColumns).eq("id", groupId).maybeSingle<GroupRow>(),
     supabase.from("tennis_favorites").select("exercise_id").eq("group_id", groupId),
     supabase
@@ -562,6 +783,7 @@ async function GroupView({ groupId }: { groupId: string }) {
       .order("date", { ascending: false })
       .order("start_time", { ascending: false })
       .limit(20),
+    supabase.from("tennis_players").select(playerColumns).eq("group_id", groupId).order("name"),
   ]);
   if (!row) notFound();
   const group = toGroup(row);
@@ -585,6 +807,17 @@ async function GroupView({ groupId }: { groupId: string }) {
           <CalendarPlusIcon className="size-5" /> Stunde für {group.name} planen
         </Link>
       </Button>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UsersIcon className="size-4" /> Kinder
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Players groupId={group.id} players={((playerRows ?? []) as PlayerRow[]).map(toPlayer)} />
+        </CardContent>
+      </Card>
 
       <section aria-label="Lieblingsübungen" className="space-y-1.5">
         <h3 className="px-1 text-sm font-medium text-muted-foreground">Lieblingsübungen</h3>
@@ -631,13 +864,29 @@ async function GroupView({ groupId }: { groupId: string }) {
               <Label htmlFor="group-name">Name</Label>
               <Input id="group-name" name="name" required maxLength={60} defaultValue={group.name} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="group-weekday">Tag</Label>
+                <select
+                  id="group-weekday"
+                  name="weekday"
+                  defaultValue={group.weekday ?? ""}
+                  className="h-9 w-full rounded-md border bg-transparent px-2 text-sm shadow-xs dark:bg-input/30"
+                >
+                  <option value="">–</option>
+                  {weekdayNames.map((name, index) => (
+                    <option key={name} value={index + 1}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="group-time">Beginn</Label>
                 <Input id="group-time" name="startTime" type="time" step={300} defaultValue={group.startTime} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="group-minutes">Dauer (Min.)</Label>
+                <Label htmlFor="group-minutes">Minuten</Label>
                 <Input id="group-minutes" name="minutes" type="number" min={15} max={180} step={15} defaultValue={group.minutes} className="font-mono" />
               </div>
             </div>

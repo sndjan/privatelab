@@ -26,6 +26,8 @@ export function ExerciseForm({ id, initial }: { id: string | null; initial: Exer
   const [tips, setTips] = useState(initial.tips.join("\n"));
   const [focus, setFocus] = useState(initial.focus);
   const [diagram, setDiagram] = useState<Diagram>(initial.diagram);
+  const [playersMin, setPlayersMin] = useState(initial.playersMin === null ? "" : String(initial.playersMin));
+  const [playersMax, setPlayersMax] = useState(initial.playersMax === null ? "" : String(initial.playersMax));
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +45,8 @@ export function ExerciseForm({ id, initial }: { id: string | null; initial: Exer
           tips: tips.split("\n"),
           focus,
           diagram,
+          playersMin: playersMin ? Number(playersMin) : null,
+          playersMax: playersMax ? Number(playersMax) : null,
         });
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "Speichern fehlgeschlagen.");
@@ -88,19 +92,50 @@ export function ExerciseForm({ id, initial }: { id: string | null; initial: Exer
             </div>
           </div>
 
-          <div className="w-32 space-y-2">
-            <Label htmlFor="exercise-minutes">Dauer (Min.)</Label>
-            <Input
-              id="exercise-minutes"
-              type="number"
-              min={5}
-              max={60}
-              step={5}
-              value={minutes}
-              onChange={(event) => setMinutes(event.target.value)}
-              className="font-mono"
-            />
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="exercise-minutes">Dauer (Min.)</Label>
+              <Input
+                id="exercise-minutes"
+                type="number"
+                min={5}
+                max={60}
+                step={5}
+                value={minutes}
+                onChange={(event) => setMinutes(event.target.value)}
+                className="font-mono"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="exercise-players-min">Ab Kindern</Label>
+              <Input
+                id="exercise-players-min"
+                type="number"
+                min={1}
+                max={30}
+                value={playersMin}
+                onChange={(event) => setPlayersMin(event.target.value)}
+                placeholder="egal"
+                className="font-mono"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="exercise-players-max">Bis Kinder</Label>
+              <Input
+                id="exercise-players-max"
+                type="number"
+                min={1}
+                max={30}
+                value={playersMax}
+                onChange={(event) => setPlayersMax(event.target.value)}
+                placeholder="egal"
+                className="font-mono"
+              />
+            </div>
           </div>
+          <p className="-mt-2 text-xs text-muted-foreground">
+            Für wie viele Kinder die Übung klappt. Beim Umplanen nach Absagen fliegt raus, was nicht mehr passt.
+          </p>
 
           <div className="space-y-2">
             <Label htmlFor="exercise-summary">In einem Satz</Label>

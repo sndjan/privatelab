@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { cleanExercise, focusTags, type ExerciseInput, type PlanItem } from "./data";
+import { cleanExercise, focusTags, parseDiagram, replan, type Exercise, type ExerciseInput, type PlanItem } from "./data";
 import { starterExercises } from "./starter";
 
 // All writes go through the user's own Supabase client, so RLS enforces
@@ -42,6 +42,8 @@ function toRow(input: ExerciseInput) {
     tips: input.tips,
     focus: input.focus,
     diagram: input.diagram,
+    players_min: input.playersMin,
+    players_max: input.playersMax,
   };
 }
 
@@ -121,11 +123,13 @@ export async function setFavorite(groupId: string, exerciseId: string, favorite:
 function groupValues(formData: FormData) {
   const startTime = text(formData, "startTime", 5);
   const minutes = Math.round(Number(formData.get("minutes")));
+  const weekday = Number(formData.get("weekday"));
   return {
     name: text(formData, "name", 60),
     note: text(formData, "note", 500),
     ...(isTime(startTime) && { start_time: startTime }),
     ...(minutes >= 15 && minutes <= 180 && { minutes }),
+    ...(formData.has("weekday") && { weekday: Number.isInteger(weekday) && weekday >= 1 && weekday <= 7 ? weekday : null }),
   };
 }
 
@@ -151,6 +155,52 @@ export async function deleteGroup(formData: FormData) {
   check(await supabase.from("tennis_groups").delete().eq("id", String(formData.get("groupId"))));
   revalidatePath(PATH);
   redirect(PATH);
+}
+
+// --- Players and holidays ---------------------------------------------------
+
+const gender = (value: FormDataEntryValue | null) => (value === "m" || value === "f" ? value : null);
+
+export async function addPlayer(formData: FormData) {
+  const name = text(formData, "name", 60);
+  const groupId = String(formData.get("groupId"));
+  if (!name || !isId(groupId)) return;
+  const supabase = await db();
+  check(await supabase.from("tennis_players").insert({ group_id: groupId, name, gender: gender(formData.get("gender")) }));
+  revalidatePath(PATH);
+}
+
+export async function setPlayerGender(playerId: string, value: string | null) {
+  const supabase = await db();
+  check(await supabase.from("tennis_players").update({ gender: gender(value) }).eq("id", playerId));
+  revalidatePath(PATH);
+}
+
+export async function deletePlayer(formData: FormData) {
+  const supabase = await db();
+  check(await supabase.from("tennis_players").delete().eq("id", String(formData.get("playerId"))));
+  revalidatePath(PATH);
+}
+
+export async function addHoliday(formData: FormData) {
+  const startDate = text(formData, "startDate", 10);
+  const endDate = text(formData, "endDate", 10) || startDate;
+  if (!isDate(startDate) || !isDate(endDate)) return;
+  const supabase = await db();
+  check(
+    await supabase.from("tennis_holidays").insert({
+      name: text(formData, "name", 60),
+      start_date: startDate <= endDate ? startDate : endDate,
+      end_date: startDate <= endDate ? endDate : startDate,
+    }),
+  );
+  revalidatePath(PATH);
+}
+
+export async function deleteHoliday(formData: FormData) {
+  const supabase = await db();
+  check(await supabase.from("tennis_holidays").delete().eq("id", String(formData.get("holidayId"))));
+  revalidatePath(PATH);
 }
 
 // --- Sessions ---------------------------------------------------------------
@@ -199,4 +249,90 @@ export async function deleteSession(formData: FormData) {
   check(await supabase.from("tennis_sessions").delete().eq("id", String(formData.get("sessionId"))));
   revalidatePath(PATH);
   redirect(PATH);
+}
+
+// Marks a player of the session's group as absent (cancelled) or back.
+export async function setAbsent(sessionId: string, playerId: string, absent: boolean) {
+  if (!isId(playerId)) return;
+  const supabase = await db();
+  const session = check(await supabase.from("tennis_sessions").select("absent").eq("id", sessionId).single());
+  const current = (session.absent ?? []) as string[];
+  const next = absent ? [...new Set([...current, playerId])] : current.filter((id) => id !== playerId);
+  check(await supabase.from("tennis_sessions").update({ absent: next }).eq("id", sessionId));
+  revalidatePath(PATH);
+}
+
+// Re-plans a session for the kids who are there (see replan in data.ts):
+// from item `from` on (earlier ones already happened) it swaps what doesn't
+// work for that many kids, or with `all` everything. Returns the old plan, so
+// the change can be undone.
+export async function replanSession(sessionId: string, { from = 0, all = false }: { from?: number; all?: boolean }) {
+  const supabase = await db();
+  const session = check(
+    await supabase.from("tennis_sessions").select("id, group_id, plan, absent, focus").eq("id", sessionId).single(),
+  );
+  const plan = (Array.isArray(session.plan) ? session.plan : []) as PlanItem[];
+  const absent = new Set((session.absent ?? []) as string[]);
+  const [exerciseRows, players, favorites, recentSessions] = await Promise.all([
+    supabase.from("tennis_exercises").select("id, name, phase, minutes, focus, players_min, players_max"),
+    session.group_id ? supabase.from("tennis_players").select("id").eq("group_id", session.group_id) : Promise.resolve({ data: [], error: null }),
+    session.group_id
+      ? supabase.from("tennis_favorites").select("exercise_id").eq("group_id", session.group_id)
+      : Promise.resolve({ data: [], error: null }),
+    session.group_id
+      ? supabase
+          .from("tennis_sessions")
+          .select("plan")
+          .eq("group_id", session.group_id)
+          .neq("id", sessionId)
+          .order("date", { ascending: false })
+          .limit(2)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  const exercises = check(exerciseRows).map(
+    (row): Exercise => ({
+      id: row.id,
+      name: row.name,
+      phase: row.phase,
+      minutes: row.minutes,
+      focus: row.focus ?? [],
+      playersMin: row.players_min,
+      playersMax: row.players_max,
+      summary: "",
+      description: "",
+      tips: [],
+      diagram: parseDiagram(null),
+      notes: "",
+    }),
+  );
+  const groupPlayers = check(players) as { id: string }[];
+  const present = groupPlayers.length > 0 ? groupPlayers.filter((player) => !absent.has(player.id)).length : null;
+  const result = replan(
+    plan,
+    {
+      exercises,
+      favorites: new Set((check(favorites) as { exercise_id: string }[]).map((row) => row.exercise_id)),
+      recent: new Set(
+        (check(recentSessions) as { plan: unknown }[]).flatMap((row) =>
+          Array.isArray(row.plan) ? (row.plan as PlanItem[]).map((item) => item.exerciseId) : [],
+        ),
+      ),
+      focus: session.focus,
+      players: present,
+    },
+    { from: Math.max(0, Math.round(from)), all },
+  );
+  if (result.changed > 0) check(await supabase.from("tennis_sessions").update({ plan: result.plan }).eq("id", sessionId));
+  revalidatePath(PATH);
+  return { changed: result.changed, previous: plan };
+}
+
+export async function restorePlan(sessionId: string, plan: PlanItem[]) {
+  const clean = plan
+    .filter((item) => isId(item.exerciseId))
+    .slice(0, 20)
+    .map((item) => ({ exerciseId: item.exerciseId, minutes: Math.min(90, Math.max(5, Math.round(item.minutes))) }));
+  const supabase = await db();
+  check(await supabase.from("tennis_sessions").update({ plan: clean }).eq("id", sessionId));
+  revalidatePath(PATH);
 }
