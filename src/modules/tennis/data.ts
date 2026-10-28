@@ -36,6 +36,9 @@ export type Exercise = {
   focus: string[];
   diagram: Diagram;
   notes: string;
+  // How many kids the exercise works for; null = no limit.
+  playersMin: number | null;
+  playersMax: number | null;
 };
 
 export type Group = {
@@ -44,7 +47,18 @@ export type Group = {
   note: string;
   startTime: string; // "16:00"
   minutes: number;
+  // ISO weekday the group trains on: 1 = Monday … 7 = Sunday.
+  weekday: number | null;
 };
+
+export type Gender = "m" | "f";
+
+export type Player = { id: string; groupId: string; name: string; gender: Gender | null };
+
+export const genderName = { m: "Junge", f: "Mädchen" } as const;
+
+// Days without training, e.g. school holidays.
+export type Holiday = { id: string; name: string; startDate: string; endDate: string };
 
 export type PlanItem = { exerciseId: string; minutes: number };
 
@@ -57,6 +71,8 @@ export type Session = {
   focus: string | null;
   plan: PlanItem[];
   notes: string;
+  // Players of the group who cancelled.
+  absent: string[];
 };
 
 // --- Court diagram ------------------------------------------------------------
@@ -150,7 +166,22 @@ export type PickContext = {
   // Played in the group's last sessions: picked less often.
   recent: Set<string>;
   focus: string | null;
+  // Kids who are there; exercises that don't work for that many are skipped.
+  players: number | null;
 };
+
+// Whether an exercise works for this many kids (always, if unknown).
+export function fitsPlayers(exercise: Pick<Exercise, "playersMin" | "playersMax">, players: number | null) {
+  if (players === null) return true;
+  return (exercise.playersMin === null || players >= exercise.playersMin) && (exercise.playersMax === null || players <= exercise.playersMax);
+}
+
+export function playersLabel(exercise: Pick<Exercise, "playersMin" | "playersMax">) {
+  const { playersMin: min, playersMax: max } = exercise;
+  if (min === null && max === null) return null;
+  if (min !== null && max !== null) return min === max ? `${min} Kinder` : `${min}–${max} Kinder`;
+  return min !== null ? `ab ${min} Kindern` : `bis ${max} Kinder`;
+}
 
 // A phase without own exercises borrows from the closest one.
 const fallback: Record<Phase, Phase[]> = {
@@ -169,10 +200,19 @@ function weight(exercise: Exercise, context: PickContext) {
 }
 
 // Picks a random exercise for the phase, weighted by favorites, focus and
-// what the group played lately. Never one of `taken`.
+// what the group played lately. Never one of `taken`. Prefers exercises that
+// work for the number of kids; only if none does, any will do.
 export function pickExercise(phase: Phase, context: PickContext, taken: Set<string>, random = Math.random) {
-  for (const candidatePhase of [phase, ...fallback[phase]]) {
-    const pool = context.exercises.filter((exercise) => exercise.phase === candidatePhase && !taken.has(exercise.id));
+  const candidates = [true, false].flatMap((fitting) =>
+    [phase, ...fallback[phase]].map((candidatePhase) => ({ candidatePhase, fitting })),
+  );
+  for (const { candidatePhase, fitting } of candidates) {
+    const pool = context.exercises.filter(
+      (exercise) =>
+        exercise.phase === candidatePhase &&
+        !taken.has(exercise.id) &&
+        (!fitting || fitsPlayers(exercise, context.players)),
+    );
     if (pool.length === 0) continue;
     const weights = pool.map((exercise) => weight(exercise, context));
     let target = random() * weights.reduce((sum, value) => sum + value, 0);
@@ -195,6 +235,63 @@ export function generatePlan(total: number, context: PickContext, random = Math.
     plan.push({ exerciseId: exercise.id, minutes: slot.minutes });
   }
   return plan;
+}
+
+// Re-plans a session for the kids who are there: from item `from` on (earlier
+// ones already happened), exercises that don't work for that many kids are
+// swapped for one of the same phase, or with `all` every one of them is.
+// Minutes and order stay. Returns the new plan and how many items changed.
+export function replan(
+  plan: PlanItem[],
+  context: PickContext,
+  { from = 0, all = false }: { from?: number; all?: boolean } = {},
+  random = Math.random,
+) {
+  const byId = new Map(context.exercises.map((exercise) => [exercise.id, exercise]));
+  const taken = new Set(plan.map((item) => item.exerciseId));
+  let changed = 0;
+  const next = plan.map((item, index) => {
+    const exercise = byId.get(item.exerciseId);
+    if (index < from || !exercise) return item;
+    if (!all && fitsPlayers(exercise, context.players)) return item;
+    const replacement = pickExercise(exercise.phase, context, taken, random);
+    if (!replacement || (!all && !fitsPlayers(replacement, context.players))) return item;
+    taken.add(replacement.id);
+    changed++;
+    return { ...item, exerciseId: replacement.id };
+  });
+  return { plan: next, changed };
+}
+
+// --- Training days -------------------------------------------------------------
+
+export const weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as const;
+export const weekdayNames = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"] as const;
+
+// ISO weekday (1 = Monday) of "2026-10-28".
+export function isoWeekday(date: string) {
+  const day = new Date(`${date}T12:00:00Z`).getUTCDay();
+  return day === 0 ? 7 : day;
+}
+
+export function addDays(date: string, days: number) {
+  const value = new Date(`${date}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+export const holidayOn = (date: string, holidays: Holiday[]) =>
+  holidays.find((holiday) => holiday.startDate <= date && date <= holiday.endDate) ?? null;
+
+// The group's training days from `from` on (that day included), skipping
+// holidays, up to `count` of them within the next half year.
+export function trainingDates(weekday: number, from: string, holidays: Holiday[], count = 1) {
+  const dates: string[] = [];
+  let date = addDays(from, (weekday - isoWeekday(from) + 7) % 7);
+  for (let week = 0; week < 26 && dates.length < count; week++, date = addDays(date, 7)) {
+    if (!holidayOn(date, holidays)) dates.push(date);
+  }
+  return dates;
 }
 
 // --- Times -------------------------------------------------------------------
@@ -278,6 +375,8 @@ export function cleanExercise(value: Record<string, unknown>): ExerciseInput | n
   const focus = (Array.isArray(value.focus) ? value.focus : []).filter((tag): tag is string =>
     (focusTags as readonly unknown[]).includes(tag),
   );
+  const playersMin = players(value.playersMin ?? value.players_min);
+  const playersMax = players(value.playersMax ?? value.players_max);
   return {
     name,
     phase,
@@ -287,7 +386,14 @@ export function cleanExercise(value: Record<string, unknown>): ExerciseInput | n
     tips,
     focus,
     diagram: parseDiagram(value.diagram),
+    playersMin,
+    playersMax: playersMin !== null && playersMax !== null && playersMax < playersMin ? null : playersMax,
   };
+}
+
+function players(value: unknown) {
+  const number = Math.round(Number(value));
+  return value !== null && value !== undefined && value !== "" && number >= 1 && number <= 30 ? number : null;
 }
 
 // Accepts one exercise, a list of them or { "exercises": [...] }, also inside
@@ -332,11 +438,14 @@ ${existing.length > 0 ? `Diese Übungen habe ich schon, bitte nichts Gleiches:\n
     "description": "Ablauf in 2–5 Sätzen: Aufbau, Regeln, Punkte, Wechsel.",
     "tips": ["Kurzer Zuruf für die Kinder", "Noch einer"],
     "focus": ["Vorhand"],
+    "playersMin": 2,
+    "playersMax": null,
     "diagram": { "items": [ ... ] }
   }
 ]
 
 "focus" nur aus: ${focusTags.join(", ")}.
+"playersMin"/"playersMax": für wie viele Kinder die Übung mindestens/höchstens funktioniert (z. B. 4 für Teams 2 gegen 2), null wenn egal.
 
 Das Diagramm zeigt den Platz von oben, Koordinaten in Metern ab der Netzmitte:
 - x quer zum Platz: Doppel-Seitenlinien bei -5.49 und 5.49, Einzel-Seitenlinien bei -4.12 und 4.12, Mittellinie bei 0. Erlaubt: -8 bis 8.

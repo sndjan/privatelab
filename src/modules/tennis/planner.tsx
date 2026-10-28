@@ -7,9 +7,11 @@ import {
   DicesIcon,
   Loader2Icon,
   MinusIcon,
+  PalmtreeIcon,
   PlusIcon,
   SearchIcon,
   StarIcon,
+  UsersIcon,
   XIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -25,15 +27,22 @@ import { cn } from "@/lib/utils";
 import { saveSession, setFavorite } from "./actions";
 import { Court } from "./court";
 import {
+  fitsPlayers,
   focusTags,
   formatClock,
+  formatSessionDate,
   generatePlan,
+  holidayOn,
   phaseName,
+  playersLabel,
   phases,
   pickExercise,
   timeline,
+  todayInGermany,
+  trainingDates,
   type Exercise,
   type Group,
+  type Holiday,
   type Phase,
   type PlanItem,
 } from "./data";
@@ -60,6 +69,9 @@ export function Planner({
   exercises,
   favorites: savedFavorites,
   recent,
+  players,
+  absent,
+  holidays,
   initial,
 }: {
   sessionId: string | null;
@@ -69,6 +81,10 @@ export function Planner({
   favorites: string[];
   // Exercise ids of each group's last sessions.
   recent: Record<string, string[]>;
+  // Kids per group, and how many of the session's group cancelled.
+  players: Record<string, number>;
+  absent: number;
+  holidays: Holiday[];
   initial: PlannerValues;
 }) {
   const [values, setValues] = useState(initial);
@@ -83,6 +99,15 @@ export function Planner({
   const ranges = timeline(values.startTime, plan);
   const total = plan.reduce((sum, item) => sum + item.minutes, 0);
   const isFavorite = (exerciseId: string) => values.groupId !== null && favorites.has(`${values.groupId}:${exerciseId}`);
+  const holiday = holidayOn(values.date, holidays);
+
+  // The kids who come: the group's players minus those who cancelled. Null
+  // (any exercise fits) when the group has no players entered.
+  function kids(groupId = values.groupId) {
+    if (!groupId || !players[groupId]) return null;
+    return Math.max(0, players[groupId] - (sessionId && groupId === initial.groupId ? absent : 0));
+  }
+  const kidCount = kids();
 
   function context(groupId = values.groupId, focus = values.focus) {
     return {
@@ -90,6 +115,7 @@ export function Planner({
       favorites: new Set(exercises.filter((exercise) => groupId && favorites.has(`${groupId}:${exercise.id}`)).map((exercise) => exercise.id)),
       recent: new Set(groupId ? recent[groupId] ?? [] : []),
       focus,
+      players: kids(groupId),
     };
   }
 
@@ -184,6 +210,8 @@ export function Planner({
                     {
                       groupId: group?.id ?? null,
                       ...(group && !sessionId && { startTime: group.startTime, minutes: group.minutes }),
+                      ...(group?.weekday &&
+                        !sessionId && { date: trainingDates(group.weekday, todayInGermany(), holidays)[0] ?? values.date }),
                     },
                     !sessionId,
                   );
@@ -224,6 +252,19 @@ export function Planner({
               />
             </div>
           </div>
+          {holiday && (
+            <p className="flex items-center gap-2 text-sm text-debt">
+              <PalmtreeIcon className="size-4 shrink-0" />
+              {formatSessionDate(values.date)}: {holiday.name || "Ferien"}, eigentlich kein Training.
+            </p>
+          )}
+          {kidCount !== null && (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <UsersIcon className="size-4 shrink-0" />
+              Geplant für {kidCount} {kidCount === 1 ? "Kind" : "Kinder"}
+              {sessionId && absent > 0 && ` (${absent} abgesagt)`}
+            </p>
+          )}
 
           <div className="space-y-2">
             <span className="text-sm font-medium">Dauer</span>
@@ -304,6 +345,9 @@ export function Planner({
                     {exercise.name}
                   </button>
                   <p className="line-clamp-2 text-sm text-muted-foreground">{exercise.summary}</p>
+                  {!fitsPlayers(exercise, kidCount) && (
+                    <p className="text-xs text-debt">Passt nicht für {kidCount} Kinder ({playersLabel(exercise)})</p>
+                  )}
                 </div>
               </div>
               <div className="mt-2 flex items-center gap-0.5">
@@ -366,6 +410,7 @@ export function Planner({
         exercises={exercises}
         initialPhase={picking?.phase ?? "game"}
         isFavorite={isFavorite}
+        kids={kidCount}
         onPick={pick}
       />
     </div>
@@ -378,6 +423,7 @@ function ExercisePicker({
   exercises,
   initialPhase,
   isFavorite,
+  kids,
   onPick,
 }: {
   open: boolean;
@@ -385,6 +431,7 @@ function ExercisePicker({
   exercises: Exercise[];
   initialPhase: Phase;
   isFavorite: (id: string) => boolean;
+  kids: number | null;
   onPick: (exercise: Exercise) => void;
 }) {
   const [phase, setPhase] = useState<Phase | null>(initialPhase);
@@ -402,7 +449,12 @@ function ExercisePicker({
   const search = query.trim().toLowerCase();
   const shown = exercises
     .filter((exercise) => (search ? `${exercise.name} ${exercise.summary}`.toLowerCase().includes(search) : !phase || exercise.phase === phase))
-    .sort((a, b) => Number(isFavorite(b.id)) - Number(isFavorite(a.id)) || a.name.localeCompare(b.name, "de"));
+    .sort(
+      (a, b) =>
+        Number(fitsPlayers(b, kids)) - Number(fitsPlayers(a, kids)) ||
+        Number(isFavorite(b.id)) - Number(isFavorite(a.id)) ||
+        a.name.localeCompare(b.name, "de"),
+    );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -429,7 +481,10 @@ function ExercisePicker({
               <button
                 type="button"
                 onClick={() => onPick(exercise)}
-                className="flex w-full cursor-pointer gap-3 rounded-lg p-2 text-left hover:bg-accent"
+                className={cn(
+                  "flex w-full cursor-pointer gap-3 rounded-lg p-2 text-left hover:bg-accent",
+                  !fitsPlayers(exercise, kids) && "opacity-50",
+                )}
               >
                 <Court diagram={exercise.diagram} className="w-10 shrink-0" />
                 <span className="min-w-0 space-y-0.5">
@@ -438,6 +493,7 @@ function ExercisePicker({
                     {exercise.name}
                   </span>
                   <span className="line-clamp-2 block text-sm text-muted-foreground">{exercise.summary}</span>
+                  {playersLabel(exercise) && <span className="block text-xs text-muted-foreground">{playersLabel(exercise)}</span>}
                 </span>
               </button>
             </li>

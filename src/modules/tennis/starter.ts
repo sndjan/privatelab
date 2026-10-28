@@ -18,7 +18,7 @@ const feeding = [coach(0.5, -8.5), basket(1.6, -8.5)];
 const queue = (x: number, y: number, count = 3) =>
   Array.from({ length: count }, (_, index) => kid(x, y + index * 1.3, String(index + 2)));
 
-export const starterExercises: ExerciseInput[] = [
+const exercises: Omit<ExerciseInput, "playersMin" | "playersMax">[] = [
   // --- Aufwärmen --------------------------------------------------------------
   {
     name: "Linien-Alarm",
@@ -464,3 +464,53 @@ export const starterExercises: ExerciseInput[] = [
     diagram: { items: [coach(0, 2.5), kid(-2, 2.5, "1"), kid(2, 2.5, "2"), kid(-1.4, 4.2, "3"), kid(1.4, 4.2, "4"), kid(0, 5, "5")] },
   },
 ];
+
+// For how many kids each exercise works: [min, max], null = no limit. Also in
+// the migration 20261108000000_tennis_players.sql for already loaded exercises.
+export const starterPlayers: Record<string, [number | null, number | null]> = {
+  "Linien-Alarm": [2, null],
+  "Eierlauf-Staffel": [4, null],
+  "Ball-Tippen-Challenge": [null, null],
+  "Partner-Werfen übers Netz": [2, null],
+  Linienfangen: [3, null],
+  Spiegelbild: [2, null],
+  "Hütchen umdrehen": [4, null],
+  "Mini-Tennis einspielen": [2, null],
+  "Vorhand-Zielschießen": [null, null],
+  "Rückhand-Zielschießen": [null, null],
+  "Pendel: Vorhand – Rückhand": [null, 6],
+  "Volley-Fangen": [null, null],
+  "Volley-Reihe": [2, 8],
+  "Aufschlag-Bowling": [null, null],
+  "Aufschlag-Wurf": [null, null],
+  "Rein, Schlag, Volley, Raus": [null, 6],
+  "Hinter die T-Linie": [2, null],
+  "Stationen-Zirkel": [3, null],
+  "Cross-Duell": [4, null],
+  "Lob über den Trainer": [null, null],
+  "Schmetterball-Fangen": [null, null],
+  "Hütchen-Sprint mit Schlag": [null, 8],
+  "Kurz – Lang": [null, null],
+  "Return-Schlange": [null, 8],
+  Rundlauf: [3, null],
+  "König des Platzes": [3, null],
+  "Ziel-Bingo": [4, null],
+  "Dosen abräumen": [4, null],
+  "Trainer-Doppel": [4, null],
+  "Bälle sammeln": [4, null],
+  "Volley-Duell": [4, null],
+  "Ballwechsel-Rekord": [2, null],
+  "Auf- und Absteiger": [4, null],
+  "Burg verteidigen": [2, null],
+  "Ampel-Tennis": [null, null],
+  "Ballsammel-Rennen": [4, null],
+  Korbfangen: [null, null],
+  "Letzter Aufschlag": [null, null],
+  "Abschlussrunde mit Abklatschen": [null, null],
+};
+
+export const starterExercises: ExerciseInput[] = exercises.map((exercise) => ({
+  ...exercise,
+  playersMin: starterPlayers[exercise.name]?.[0] ?? null,
+  playersMax: starterPlayers[exercise.name]?.[1] ?? null,
+}));
