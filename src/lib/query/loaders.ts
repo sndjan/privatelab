@@ -1,6 +1,7 @@
 import type { CurrentUser } from "@/lib/auth";
 import { fireLoaders } from "@/modules/fire/loaders";
 import { packingLoaders } from "@/modules/packing/loaders";
+import { tennisLoaders } from "@/modules/tennis/loaders";
 import { thesisLoaders } from "@/modules/thesis/loaders";
 import { worktimeLoaders } from "@/modules/worktime/loaders";
 
@@ -12,6 +13,7 @@ export type Loader = (params: Record<string, string>, user: CurrentUser) => Prom
 export const loaders = {
   fire: fireLoaders,
   packing: packingLoaders,
+  tennis: tennisLoaders,
   thesis: thesisLoaders,
   worktime: worktimeLoaders,
 } satisfies Record<string, Record<string, Loader>>;

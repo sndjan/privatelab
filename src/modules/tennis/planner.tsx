@@ -15,7 +15,7 @@ import {
   UsersIcon,
   XIcon,
 } from "lucide-react";
-import Link from "next/link";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";

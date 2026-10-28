@@ -1,7 +1,7 @@
 "use client";
 
 import { DicesIcon, Loader2Icon, RefreshCwIcon, UsersIcon } from "lucide-react";
-import Link from "next/link";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";

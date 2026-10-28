@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeftIcon } from "lucide-react";
-import Link from "next/link";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
