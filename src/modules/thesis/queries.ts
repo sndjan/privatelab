@@ -4,6 +4,7 @@ import type { Section, SectionComment, SectionStatus } from "./writing";
 import {
   DOCUMENT_BUCKET,
   emptySettings,
+  normalizeOverviewLayout,
   type DocumentCategory,
   type EventKind,
   type Info,
@@ -34,6 +35,8 @@ export async function loadSettings(userId: string): Promise<Settings> {
     endDate: data.end_date,
     targetPages: data.target_pages ?? null,
     wordsPerPage: data.words_per_page ?? 300,
+    // Before the migration 20261114000000_thesis_overview_layout.sql there is no column.
+    overviewLayout: data.overview_layout ? normalizeOverviewLayout(data.overview_layout) : null,
   };
 }
 

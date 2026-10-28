@@ -71,6 +71,68 @@ export function formatWords(count: number) {
 
 export const figurePattern = /!\[([^\]]*)\]\(doc:([^)]*)\)/g;
 
+// The text of a section in pieces for the editor: text, then an image on a
+// line of its own, then text again, and so on (always starting and ending
+// with text). lead and trail are the line breaks around an image, kept apart
+// so the text fields don't start or end with empty lines; joinBody puts
+// everything back exactly as it was.
+export type BodyPart =
+  | { kind: "text"; text: string; lead: string; trail: string }
+  | { kind: "image"; line: string; caption: string; id: string };
+
+const figureLine = /^!\[([^\]]*)\]\(doc:([^)]*)\)[ \t]*$/gm;
+
+export function splitBody(body: string): BodyPart[] {
+  const parts: BodyPart[] = [];
+  let last = 0;
+  const pushText = (raw: string, afterImage: boolean, beforeImage: boolean) => {
+    const lead = afterImage ? /^\n*/.exec(raw)![0] : "";
+    const rest = raw.slice(lead.length);
+    const trail = beforeImage ? /\n*$/.exec(rest)![0] : "";
+    parts.push({ kind: "text", text: rest.slice(0, rest.length - trail.length), lead, trail });
+  };
+  for (const match of body.matchAll(figureLine)) {
+    pushText(body.slice(last, match.index), parts.length > 0, true);
+    parts.push({ kind: "image", line: match[0], caption: match[1], id: match[2] });
+    last = match.index + match[0].length;
+  }
+  pushText(body.slice(last), parts.length > 0, false);
+  return parts;
+}
+
+export function joinBody(parts: BodyPart[]) {
+  return parts.map((part, index) => (part.kind === "image" ? part.line : composeText(parts, index))).join("");
+}
+
+// Where the text of part `index` starts in the joined body.
+export function partOffset(parts: BodyPart[], index: number) {
+  let offset = 0;
+  for (let at = 0; at < index; at++) {
+    const part = parts[at];
+    offset += part.kind === "image" ? part.line.length : composeText(parts, at).length;
+  }
+  const part = parts[index];
+  return offset + (part.kind === "text" ? leadOf(parts, index).length : 0);
+}
+
+// An image line needs line breaks around it, also after text was typed into
+// an empty piece between two images.
+function leadOf(parts: BodyPart[], index: number) {
+  const part = parts[index] as Extract<BodyPart, { kind: "text" }>;
+  if (index === 0 || part.lead.includes("\n")) return part.lead;
+  return part.text || index < parts.length - 1 ? "\n\n" : part.lead;
+}
+
+function composeText(parts: BodyPart[], index: number) {
+  const part = parts[index] as Extract<BodyPart, { kind: "text" }>;
+  const lead = leadOf(parts, index);
+  const beforeImage = index < parts.length - 1;
+  const trail = beforeImage && part.text && !part.trail.includes("\n") ? "\n\n" : part.trail;
+  return lead + part.text + trail;
+}
+
+export const figureMarkup = (caption: string, id: string) => `![${caption.replace(/[\]\n]/g, "")}](doc:${id})`;
+
 // A rough page count: words over words per page, plus half a page per figure.
 export function estimatePages(sections: Pick<Section, "body">[], wordsPerPage: number) {
   const words = sections.reduce((sum, section) => sum + countWords(section.body), 0);

@@ -10,9 +10,11 @@ import {
   documentCategories,
   isDate,
   maxDocumentBytes,
+  normalizeOverviewLayout,
   parseDecimal,
   parseQuickTodo,
   todayInGermany,
+  type OverviewLayout,
   type Person,
 } from "./data";
 import type { SectionComment } from "./writing";
@@ -92,6 +94,17 @@ export async function saveSettings(formData: FormData) {
     }),
   );
   revalidatePath(PATH);
+}
+
+// How the Überblick is arranged; null goes back to the default.
+export async function saveOverviewLayout(layout: OverviewLayout | null) {
+  const { supabase, userId } = await db();
+  check(
+    await supabase
+      .from("thesis_settings")
+      .update({ overview_layout: layout ? normalizeOverviewLayout(layout) : null, updated_at: new Date().toISOString() })
+      .eq("user_id", userId),
+  );
 }
 
 // --- Phases -----------------------------------------------------------------

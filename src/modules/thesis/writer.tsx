@@ -38,7 +38,9 @@ import {
   Loader2Icon,
   MessageSquareIcon,
   PlusIcon,
+  Redo2Icon,
   Trash2Icon,
+  Undo2Icon,
   XIcon,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -68,17 +70,22 @@ import {
   canIndent,
   countWords,
   estimatePages,
+  figureMarkup,
   figurePattern,
   formatWords,
+  joinBody,
   MAX_DEPTH,
   normalizeDepths,
   numbering,
+  partOffset,
   sectionStatuses,
+  splitBody,
   subtreeEnd,
   toLatex,
   toLatexDocument,
   toMarkdown,
   toOutline,
+  type BodyPart,
   type ExportImage,
   type Section,
   type SectionComment,
@@ -97,6 +104,14 @@ const template = ["Einleitung", "Grundlagen", "Methodik", "Ergebnisse", "Diskuss
 // Where the text cursor of each section's textarea was, for inserting
 // citations and images from the dialogs.
 type Cursor = { id: string; start: number; end: number };
+
+// Undo and redo: the whole outline before each change. Typing in one field
+// counts as one step until a pause.
+const HISTORY_SIZE = 200;
+const TYPING_PAUSE_MS = 1000;
+// Outside the component: only called from event handlers.
+const clock = () => Date.now();
+type FocusRequest = { id: string; field: "title" | "body"; offset: number; nonce: number };
 
 // The thesis as an outline: numbered sections with text, folded in and out,
 // moved by dragging (with everything below them), indented with Tab. Every
@@ -148,6 +163,12 @@ export function Writer({
     latest.current = sections;
   });
   const orderQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const undoStack = useRef<Section[][]>([]);
+  const redoStack = useRef<Section[][]>([]);
+  const typing = useRef<{ key: string; at: number } | null>(null);
+  const [history, setHistory] = useState({ undo: 0, redo: 0 });
+  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
+  const root = useRef<HTMLDivElement>(null);
   // The cache follows the outline, so coming back to this tab shows the text
   // as typed, saved or not.
   const queryClient = useQueryClient();
@@ -182,13 +203,145 @@ export function Writer({
     void persist(() => saveSection(id, patch));
   }
 
-  // Changes text right away and saves it a moment after the last keystroke.
-  function edit(id: string, patch: Partial<Section>, delay = SAVE_DELAY_MS) {
-    setSections((current) => current.map((section) => (section.id === id ? { ...section, ...patch } : section)));
+  function schedule(id: string, patch: Partial<Section>, delay: number) {
     pending.current.set(id, { ...pending.current.get(id), ...patch });
     clearTimeout(timers.current.get(id));
     timers.current.set(id, setTimeout(() => flush(id), delay));
   }
+
+  // Changes text right away and saves it a moment after the last keystroke.
+  // typed: keystrokes in a title or text, which are undone together.
+  function edit(id: string, patch: Partial<Section>, delay = SAVE_DELAY_MS, typed = false) {
+    record(typed ? `${id}:${Object.keys(patch).join()}` : null);
+    setSections((current) => current.map((section) => (section.id === id ? { ...section, ...patch } : section)));
+    schedule(id, patch, delay);
+  }
+
+  // --- Undo and redo -------------------------------------------------------------
+
+  function syncHistory() {
+    setHistory({ undo: undoStack.current.length, redo: redoStack.current.length });
+  }
+
+  // Remembers the outline before a change. Keystrokes in the same field
+  // without a pause belong to the step of the first one.
+  function record(typingKey: string | null) {
+    const now = clock();
+    if (typingKey && typing.current?.key === typingKey && now - typing.current.at < TYPING_PAUSE_MS) {
+      typing.current.at = now;
+      return;
+    }
+    typing.current = typingKey ? { key: typingKey, at: now } : null;
+    undoStack.current.push(sections);
+    if (undoStack.current.length > HISTORY_SIZE) undoStack.current.shift();
+    redoStack.current = [];
+    syncHistory();
+  }
+
+  // A section got its real id (or a new one when it was restored).
+  function renameInHistory(from: string, to: string) {
+    const rename = (list: Section[]) => list.map((section) => (section.id === from ? { ...section, id: to } : section));
+    undoStack.current = undoStack.current.map(rename);
+    redoStack.current = redoStack.current.map(rename);
+  }
+
+  function step(from: Section[][], to: Section[][]) {
+    const target = from.pop();
+    if (!target) return;
+    to.push(sections);
+    typing.current = null;
+    restore(target);
+    syncHistory();
+  }
+
+  const undo = () => step(undoStack.current, redoStack.current);
+  const redo = () => step(redoStack.current, undoStack.current);
+
+  // Brings the outline back to an earlier state and saves the difference:
+  // changed texts, the order, deleted sections and ones that come back.
+  function restore(target: Section[]) {
+    const current = sections;
+    const ids = new Set(target.map((section) => section.id));
+    for (const section of current) {
+      if (ids.has(section.id)) continue;
+      clearTimeout(timers.current.get(section.id));
+      pending.current.delete(section.id);
+      if (!section.id.startsWith("tmp-")) void persist(() => deleteSection(section.id));
+    }
+    const restored = target.map((section) => {
+      const now = current.find((entry) => entry.id === section.id);
+      if (!now) return recreate(section);
+      const patch = changes(now, section);
+      if (patch) schedule(section.id, patch, 0);
+      return section;
+    });
+    setOutline(restored);
+    focusChange(current, restored);
+  }
+
+  // A deleted section comes back under a new id.
+  function recreate(section: Section): Section {
+    const temp = `tmp-${++tempCount.current}`;
+    renameInHistory(section.id, temp);
+    const { body, status, targetWords, comments } = section;
+    pending.current.set(temp, { body, status, targetWords, comments });
+    createOnServer(temp, section.title, section.depth);
+    return { ...section, id: temp };
+  }
+
+  // Puts the cursor where undo or redo changed something.
+  function focusChange(from: Section[], to: Section[]) {
+    for (const section of to) {
+      const before = from.find((entry) => entry.id === section.id);
+      if (!before) continue;
+      for (const field of ["body", "title"] as const) {
+        const [old, now] = [before[field], section[field]];
+        if (old === now) continue;
+        let common = 0;
+        while (common < old.length && common < now.length && old[common] === now[common]) common++;
+        setFocusRequest({ id: section.id, field, offset: common + Math.max(0, now.length - old.length), nonce: ++tempCount.current });
+        return;
+      }
+    }
+  }
+
+  // Strg+Z, Strg+Umschalt+Z and Strg+Y in titles and texts of the writer, or
+  // when nothing else has the focus. Other fields keep the browser's undo.
+  const shortcuts = useRef<{ undo: () => void; redo: () => void } | null>(null);
+  useEffect(() => {
+    shortcuts.current = { undo, redo };
+  });
+  useEffect(() => {
+    const ours = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      if (target.closest("[role=dialog]")) return false;
+      const field = target.closest("input, textarea, select, [contenteditable=true]");
+      if (field) return field.hasAttribute("data-writer-field");
+      return target === document.body || root.current?.contains(target) === true;
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || !ours(event.target)) return;
+      const key = event.key.toLowerCase();
+      const isRedo = (key === "z" && event.shiftKey) || (key === "y" && !event.shiftKey);
+      if (key !== "z" && !isRedo) return;
+      event.preventDefault();
+      if (isRedo) shortcuts.current?.redo();
+      else shortcuts.current?.undo();
+    };
+    // Undo from the browser's menu or a shake on the phone.
+    const onBeforeInput = (event: InputEvent) => {
+      if ((event.inputType !== "historyUndo" && event.inputType !== "historyRedo") || !ours(event.target)) return;
+      event.preventDefault();
+      if (event.inputType === "historyRedo") shortcuts.current?.redo();
+      else shortcuts.current?.undo();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("beforeinput", onBeforeInput);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("beforeinput", onBeforeInput);
+    };
+  }, []);
 
   useEffect(() => {
     const timersNow = timers.current;
@@ -222,6 +375,7 @@ export function Writer({
   // --- Structure ---------------------------------------------------------------
 
   function add(index: number | null, depth: number, title = "") {
+    record(null);
     const temp = `tmp-${++tempCount.current}`;
     const at = index === null ? sections.length : subtreeEnd(sections, index);
     const section: Section = { id: temp, depth, title, body: "", status: "open", targetWords: null, comments: [] };
@@ -229,9 +383,20 @@ export function Writer({
     latest.current = next;
     setSections(next);
     setFocusTitle(temp);
+    createOnServer(temp, title, next[at].depth);
+  }
+
+  function createOnServer(temp: string, title: string, depth: number) {
     void persist(async () => {
-      const id = await addSection({ title, depth: next[at].depth });
-      setKeys((current) => ({ ...current, [id]: temp }));
+      const id = await addSection({ title, depth });
+      // Undone while it was being created.
+      if (!latest.current.some((entry) => entry.id === temp)) {
+        pending.current.delete(temp);
+        await deleteSection(id);
+        return;
+      }
+      setKeys((current) => ({ ...current, [id]: current[temp] ?? temp }));
+      renameInHistory(temp, id);
       // Moved or indented meanwhile: the current outline counts.
       const now = latest.current.map((entry) => (entry.id === temp ? { ...entry, id } : entry));
       latest.current = now;
@@ -273,6 +438,7 @@ export function Writer({
       if (end >= sections.length || sections[end].depth < depth) return;
       at = subtreeEnd(sections, end) - block.length;
     }
+    record(null);
     setOutline([...rest.slice(0, at), ...block, ...rest.slice(at)]);
   }
 
@@ -281,6 +447,7 @@ export function Writer({
     const depth = sections[index].depth + by;
     if (depth < 0 || depth > MAX_DEPTH) return;
     if (by === 1 && !canIndent(sections, index)) return;
+    record(null);
     setOutline(sections.map((section, at) => (at >= index && at < end ? { ...section, depth: section.depth + by } : section)));
   }
 
@@ -292,6 +459,7 @@ export function Writer({
       description: `${words ? `Der Text (${formatWords(words)}) geht verloren. ` : ""}Unterabschnitte bleiben erhalten.`,
     });
     if (!ok) return;
+    record(null);
     clearTimeout(timers.current.get(section.id));
     pending.current.delete(section.id);
     setOutline(sections.filter((_, at) => at !== index));
@@ -339,6 +507,7 @@ export function Writer({
     const before = rest[at - 1];
     const depth = Math.min(block[0].depth, before ? before.depth + 1 : 0);
     const moved = block.map((section) => ({ ...section, depth: Math.min(MAX_DEPTH, section.depth - block[0].depth + depth) }));
+    record(null);
     setOutline([...rest.slice(0, at), ...moved, ...rest.slice(at)]);
   }
 
@@ -401,7 +570,7 @@ export function Writer({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
+    <div ref={root} className="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
       <aside className="hidden lg:block">
         <nav aria-label="Gliederung" className="sticky top-4 max-h-[calc(100dvh-2rem)] space-y-0.5 overflow-y-auto text-sm">
           {sections.map((section, index) => (
@@ -449,6 +618,26 @@ export function Writer({
               </>
             )}
           </span>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={undo}
+            disabled={history.undo === 0}
+            aria-label="Rückgängig"
+            title="Rückgängig (Strg+Z)"
+          >
+            <Undo2Icon />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={redo}
+            disabled={history.redo === 0}
+            aria-label="Wiederherstellen"
+            title="Wiederherstellen (Strg+Umschalt+Z)"
+          >
+            <Redo2Icon />
+          </Button>
           <WritingSession sections={sections} phases={phases} today={today} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -571,6 +760,7 @@ export function Writer({
                     showImages={showImages}
                     toolsOpen={toolsId === section.id}
                     autoFocusTitle={focusTitle === section.id}
+                    focusRequest={focusRequest?.id === section.id ? focusRequest : null}
                     sources={sources}
                     images={images}
                     onTitleFocused={() => {
@@ -584,6 +774,7 @@ export function Writer({
                     }}
                     onTools={() => setToolsId(toolsId === section.id ? null : section.id)}
                     onEdit={(patch, delay) => edit(section.id, patch, delay)}
+                    onType={(patch) => edit(section.id, patch, SAVE_DELAY_MS, true)}
                     onBlur={() => flush(section.id)}
                     onCursor={(start, end) => (cursor.current = { id: section.id, start, end })}
                     onAddAfter={() => add(index, section.depth)}
@@ -613,7 +804,7 @@ export function Writer({
         <p className="text-xs text-muted-foreground">
           Im Titel: Enter = neuer Abschnitt, Tab / Umschalt+Tab = ein- / ausrücken, Alt+↑/↓ = verschieben. Im Text: Leerzeile =
           neuer Absatz, **fett** (Strg+B), *kursiv* (Strg+I), „- “ für Listen, [@schlüssel] zitiert eine Quelle. Rechtsklick auf
-          markierten Text zeigt alle Funktionen.
+          markierten Text zeigt alle Funktionen. Strg+Z / Strg+Umschalt+Z macht rückgängig und stellt wieder her.
         </p>
       </div>
 
@@ -627,7 +818,7 @@ export function Writer({
         open={picker === "image"}
         onOpenChange={(open) => !open && setPicker(null)}
         images={images}
-        onPick={(image) => insert(`![${image.title}](doc:${image.id})`, true)}
+        onPick={(image) => insert(figureMarkup(image.title, image.id), true)}
       />
     </div>
   );
@@ -643,12 +834,14 @@ function SectionCard({
   showImages,
   toolsOpen,
   autoFocusTitle,
+  focusRequest,
   sources,
   images,
   onTitleFocused,
   onToggle,
   onTools,
   onEdit,
+  onType,
   onBlur,
   onCursor,
   onAddAfter,
@@ -668,12 +861,14 @@ function SectionCard({
   showImages: boolean;
   toolsOpen: boolean;
   autoFocusTitle: boolean;
+  focusRequest: FocusRequest | null;
   sources: CitableSource[];
   images: WriterImage[];
   onTitleFocused: () => void;
   onToggle: () => void;
   onTools: () => void;
   onEdit: (patch: Partial<Section>, delay?: number) => void;
+  onType: (patch: Partial<Section>) => void;
   onBlur: () => void;
   onCursor: (start: number, end: number) => void;
   onAddAfter: () => void;
@@ -691,19 +886,37 @@ function SectionCard({
   const words = countWords(section.body);
   const status = sectionStatuses.find((entry) => entry.value === section.status)!;
   const showBody = !collapsed && !outlineOnly;
-  const [citeQuery, setCiteQuery] = useState<{ start: number; query: string } | null>(null);
+  // citeQuery.start is in the whole text; part is the text field it's typed in.
+  const [citeQuery, setCiteQuery] = useState<{ part: number; start: number; query: string } | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  // The selection the context menu or a comment works on. It stays marked
+  // while the field doesn't have the focus (for this text only).
+  const [held, setHeld] = useState<{ body: string; start: number; end: number } | null>(null);
+  const keepHeld = useRef(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [draftComment, setDraftComment] = useState("");
   const commentInput = useRef<HTMLInputElement>(null);
-  const textarea = useRef<HTMLTextAreaElement>(null);
+  const titleInput = useRef<HTMLInputElement>(null);
+  // The text fields between the images, and the one last focused.
+  const fields = useRef<(HTMLTextAreaElement | null)[]>([]);
+  const activePart = useRef(0);
+  const partsOf = (body: string): BodyPart[] =>
+    showImages ? splitBody(body) : [{ kind: "text", text: body, lead: "", trail: "" }];
+  const parts = partsOf(section.body);
+  const marked = held && held.body === section.body ? held : null;
   const citeOptions = citeQuery
     ? sources.filter((source) => matches(source, citeQuery.query)).slice(0, 6)
     : [];
-  const figures = [...section.body.matchAll(figurePattern)].map((match) => ({
-    caption: match[1],
-    image: images.find((image) => image.id === match[2]),
-  }));
+  // Images inside a line (not on their own) and all of them while images are
+  // hidden show up as chips below the text.
+  const chipFigures = parts.flatMap((part) =>
+    part.kind === "text"
+      ? [...part.text.matchAll(figurePattern)].map((match) => ({
+          caption: match[1],
+          image: images.find((image) => image.id === match[2]),
+        }))
+      : [],
+  );
   const citedKeys = [
     ...new Set(
       [...section.body.matchAll(/\[@([^\],]+)(?:,[^\]]*)?\]/g)].flatMap((match) =>
@@ -713,76 +926,137 @@ function SectionCard({
   ];
   const openComments = section.comments.filter((comment) => !comment.resolved).length;
 
+  // The selection in the whole text: the marked one, or the one of the text
+  // field last used.
+  function selection() {
+    if (marked) return { start: marked.start, end: marked.end };
+    const index = activePart.current;
+    const field = fields.current[index];
+    if (!field || parts[index]?.kind !== "text") return null;
+    const base = partOffset(parts, index);
+    return { start: base + field.selectionStart, end: base + field.selectionEnd };
+  }
+
+  // Selects a range of the whole text in the field that shows it, once the
+  // new text is on screen.
+  function selectInBody(body: string, start: number, end = start) {
+    requestAnimationFrame(() => {
+      const now = partsOf(body);
+      let index = now.length - 1;
+      for (let at = 0; at < now.length; at++) {
+        const part = now[at];
+        if (part.kind === "text" && start <= partOffset(now, at) + part.text.length) {
+          index = at;
+          break;
+        }
+      }
+      const field = fields.current[index];
+      const part = now[index];
+      if (!field || part.kind !== "text") return;
+      const base = partOffset(now, index);
+      const clamp = (value: number) => Math.max(0, Math.min(part.text.length, value - base));
+      field.focus();
+      field.setSelectionRange(clamp(start), clamp(end));
+      onCursor(base + clamp(start), base + clamp(end));
+    });
+  }
+
+  // Undo and redo put the cursor where they changed something.
+  useEffect(() => {
+    if (!focusRequest) return;
+    if (focusRequest.field === "title") {
+      titleInput.current?.focus();
+      titleInput.current?.setSelectionRange(focusRequest.offset, focusRequest.offset);
+    } else if (showBody) {
+      selectInBody(section.body, focusRequest.offset);
+    }
+    // Only for a new request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest]);
+
   function cycleStatus() {
     const order: SectionStatus[] = ["open", "draft", "done"];
     onEdit({ status: order[(order.indexOf(section.status) + 1) % order.length] }, 0);
   }
 
+  // Typing in the text field `index` (between images).
+  function typeInPart(index: number, field: HTMLTextAreaElement) {
+    const next = parts.map((part, at) => (at === index && part.kind === "text" ? { ...part, text: field.value } : part));
+    const body = joinBody(next);
+    onType({ body });
+    const base = partOffset(next, index);
+    onCursor(base + field.selectionStart, base + field.selectionEnd);
+    const match = /\[@([^\]\s]*)$/.exec(field.value.slice(0, field.selectionStart));
+    setCiteQuery(
+      match && sources.length > 0 ? { part: index, start: base + field.selectionStart - match[0].length, query: match[1] } : null,
+    );
+    // An image typed or pasted on a line of its own becomes a picture.
+    if (partsOf(body).length !== parts.length) selectInBody(body, base + field.selectionStart);
+  }
+
   function completeCitation(key: string) {
-    if (!citeQuery || !textarea.current) return;
-    const caret = textarea.current.selectionStart;
-    const body = `${section.body.slice(0, citeQuery.start)}[@${key}]${section.body.slice(caret).replace(/^\]/, "")}`;
+    const range = selection();
+    if (!citeQuery || !range) return;
+    const body = `${section.body.slice(0, citeQuery.start)}[@${key}]${section.body.slice(range.start).replace(/^\]/, "")}`;
     onEdit({ body });
     setCiteQuery(null);
-    const position = citeQuery.start + key.length + 3;
-    requestAnimationFrame(() => {
-      textarea.current?.setSelectionRange(position, position);
-      onCursor(position, position);
-    });
+    selectInBody(body, citeQuery.start + key.length + 3);
   }
 
   // Replaces the selected text and selects the result again.
   function replaceSelection(transform: (selected: string) => string) {
-    const field = textarea.current;
-    if (!field) return;
-    const { selectionStart: start, selectionEnd: end } = field;
-    const replaced = transform(section.body.slice(start, end));
-    onEdit({ body: section.body.slice(0, start) + replaced + section.body.slice(end) });
-    requestAnimationFrame(() => {
-      field.focus();
-      field.setSelectionRange(start, start + replaced.length);
-      onCursor(start, start + replaced.length);
-    });
+    const range = selection();
+    if (!range) return;
+    const replaced = transform(section.body.slice(range.start, range.end));
+    const body = section.body.slice(0, range.start) + replaced + section.body.slice(range.end);
+    onEdit({ body });
+    selectInBody(body, range.start, range.start + replaced.length);
   }
 
   // **fett** or *kursiv* around the selection, or off again if it has it.
   function toggleMark(mark: "**" | "*") {
-    const field = textarea.current;
-    if (!field) return;
-    const { selectionStart: start, selectionEnd: end } = field;
+    const range = selection();
+    if (!range) return;
+    const { start, end } = range;
     const before = section.body.slice(0, start);
     const after = section.body.slice(end);
     const selected = section.body.slice(start, end);
     // Italics inside bold ("***") count as bold plus italics.
     const wrapped = before.endsWith(mark) && after.startsWith(mark) && !(mark === "*" && before.endsWith("**") && !before.endsWith("***"));
     if (wrapped) {
-      onEdit({ body: before.slice(0, -mark.length) + selected + after.slice(mark.length) });
-      requestAnimationFrame(() => {
-        field.focus();
-        field.setSelectionRange(start - mark.length, end - mark.length);
-      });
+      const body = before.slice(0, -mark.length) + selected + after.slice(mark.length);
+      onEdit({ body });
+      selectInBody(body, start - mark.length, end - mark.length);
     } else if (selected.startsWith(mark) && selected.endsWith(mark) && selected.length > mark.length * 2) {
       replaceSelection((text) => text.slice(mark.length, -mark.length));
     } else {
-      onEdit({ body: before + mark + selected + mark + after });
-      requestAnimationFrame(() => {
-        field.focus();
-        field.setSelectionRange(start + mark.length, end + mark.length);
-      });
+      const body = before + mark + selected + mark + after;
+      onEdit({ body });
+      selectInBody(body, start + mark.length, end + mark.length);
     }
   }
 
   function commentOnSelection() {
-    const field = textarea.current;
-    const selected = field ? section.body.slice(field.selectionStart, field.selectionEnd).trim() : "";
+    const range = selection();
+    const selected = range ? section.body.slice(range.start, range.end).trim() : "";
+    // The commented text stays marked while the comment is typed.
+    if (selected && range) {
+      keepHeld.current = true;
+      setHeld({ body: section.body, ...range });
+    }
     setCommentsOpen(true);
     setDraftComment(selected ? `„${selected.length > 80 ? `${selected.slice(0, 80)}…` : selected}“: ` : "");
     requestAnimationFrame(() => commentInput.current?.focus());
   }
 
+  function closeComments() {
+    setCommentsOpen(false);
+    setHeld(null);
+  }
+
   // Citations and images go behind the selected text instead of replacing it.
   function pickAfterSelection(kind: "cite" | "image") {
-    const end = textarea.current?.selectionEnd ?? section.body.length;
+    const end = selection()?.end ?? section.body.length;
     onCursor(end, end);
     onPick(kind);
   }
@@ -796,6 +1070,24 @@ function SectionCard({
     if (!text) return;
     setComments([...section.comments, { id: crypto.randomUUID(), text, createdAt: new Date().toISOString(), resolved: false }]);
     setDraftComment("");
+    setHeld(null);
+  }
+
+  function setCaption(index: number, caption: string) {
+    const part = parts[index];
+    if (part.kind !== "image") return;
+    onType({ body: joinBody(parts.map((entry, at) => (at === index ? { ...part, caption, line: figureMarkup(caption, part.id) } : entry))) });
+  }
+
+  // Takes an image out; the text before and after it joins up.
+  function removeImage(index: number) {
+    const before = parts[index - 1];
+    const after = parts[index + 1];
+    if (before?.kind !== "text" || after?.kind !== "text") return;
+    const text = before.text && after.text ? `${before.text}\n\n${after.text}` : before.text || after.text;
+    const body = joinBody([...parts.slice(0, index - 1), { kind: "text", text, lead: before.lead, trail: after.trail }, ...parts.slice(index + 2)]);
+    onEdit({ body });
+    selectInBody(body, partOffset(parts, index - 1) + before.text.length);
   }
 
   return (
@@ -827,10 +1119,12 @@ function SectionCard({
         </button>
         <span className="shrink-0 font-mono text-sm text-muted-foreground">{number}</span>
         <input
+          ref={titleInput}
+          data-writer-field
           value={section.title}
           autoFocus={autoFocusTitle}
           onFocus={onTitleFocused}
-          onChange={(event) => onEdit({ title: event.target.value })}
+          onChange={(event) => onType({ title: event.target.value })}
           onBlur={onBlur}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -853,20 +1147,21 @@ function SectionCard({
           )}
         />
         {(collapsed || outlineOnly) && hasChildren && collapsed && <span className="text-xs text-muted-foreground">…</span>}
-        {section.comments.length > 0 && (
+        {(section.comments.length > 0 || commentsOpen) && (
           <button
             type="button"
-            onClick={() => setCommentsOpen(!commentsOpen)}
+            onClick={() => (commentsOpen ? closeComments() : setCommentsOpen(true))}
             aria-expanded={commentsOpen}
             aria-label={`Kommentare (${openComments} offen)`}
-            title="Kommentare"
+            title={commentsOpen ? "Kommentare ausblenden" : "Kommentare"}
             className={cn(
               "inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-full px-2 text-xs hover:bg-accent",
               openComments > 0 ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground",
+              commentsOpen && "bg-accent",
             )}
           >
             <MessageSquareIcon className="size-3.5" />
-            {openComments > 0 ? openComments : <CheckIcon className="size-3" />}
+            {openComments > 0 ? openComments : section.comments.length > 0 ? <CheckIcon className="size-3" /> : null}
           </button>
         )}
         <button
@@ -914,8 +1209,8 @@ function SectionCard({
           <Button variant="ghost" size="sm" onClick={onFocus}>
             <CrosshairIcon /> Fokus
           </Button>
-          <Button variant="ghost" size="sm" onClick={commentOnSelection}>
-            <MessageSquareIcon /> Kommentar
+          <Button variant="ghost" size="sm" onClick={() => (commentsOpen ? closeComments() : commentOnSelection())}>
+            <MessageSquareIcon /> {commentsOpen ? "Kommentare ausblenden" : "Kommentar"}
           </Button>
           <label className="flex items-center gap-1 px-2 text-sm text-muted-foreground">
             Ziel
@@ -925,7 +1220,10 @@ function SectionCard({
               max={100000}
               step={50}
               defaultValue={section.targetWords ?? ""}
-              onBlur={(event) => onEdit({ targetWords: event.target.value ? Number(event.target.value) : null }, 0)}
+              onBlur={(event) => {
+                const targetWords = event.target.value ? Number(event.target.value) : null;
+                if (targetWords !== section.targetWords) onEdit({ targetWords }, 0);
+              }}
               className="h-8 w-20 font-mono"
             />
             Wörter
@@ -983,7 +1281,7 @@ function SectionCard({
               value={draftComment}
               onChange={(event) => setDraftComment(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Escape") setCommentsOpen(false);
+                if (event.key === "Escape") closeComments();
               }}
               maxLength={2000}
               placeholder="Kommentar, z. B. „Zahl noch belegen“"
@@ -993,131 +1291,207 @@ function SectionCard({
             <Button type="submit" size="sm" variant="outline" disabled={!draftComment.trim()}>
               Hinzufügen
             </Button>
+            <Button type="button" size="icon-sm" variant="ghost" onClick={closeComments} aria-label="Kommentare ausblenden" title="Ausblenden (Esc)">
+              <XIcon />
+            </Button>
           </form>
         </div>
       )}
 
       {showBody && (
         <div className="space-y-1.5 border-t px-3 pt-2 pb-2">
-          <div className="relative">
-            <textarea
-              ref={textarea}
-              value={section.body}
-              spellCheck={false}
-              autoCorrect="off"
-              autoCapitalize="sentences"
-              onChange={(event) => {
-                onEdit({ body: event.target.value });
-                const caret = event.target.selectionStart;
-                onCursor(caret, event.target.selectionEnd);
-                const match = /\[@([^\]\s]*)$/.exec(event.target.value.slice(0, caret));
-                setCiteQuery(match && sources.length > 0 ? { start: caret - match[0].length, query: match[1] } : null);
-              }}
-              onSelect={(event) => onCursor(event.currentTarget.selectionStart, event.currentTarget.selectionEnd)}
-              onBlur={() => {
-                onBlur();
-                setTimeout(() => setCiteQuery(null), 150);
-              }}
-              onContextMenu={(event) => {
-                // With text selected, the own menu; otherwise the browser's.
-                if (event.currentTarget.selectionStart === event.currentTarget.selectionEnd) return;
-                event.preventDefault();
-                onCursor(event.currentTarget.selectionStart, event.currentTarget.selectionEnd);
-                setMenu({ x: event.clientX, y: event.clientY });
-              }}
-              onKeyDown={(event) => {
-                if (citeQuery && citeOptions.length > 0 && (event.key === "Tab" || event.key === "Enter")) {
-                  event.preventDefault();
-                  completeCitation(citeOptions[0].key);
-                } else if (event.key === "Escape") setCiteQuery(null);
-                else if ((event.ctrlKey || event.metaKey) && !event.altKey && (event.key === "b" || event.key === "i")) {
-                  event.preventDefault();
-                  toggleMark(event.key === "b" ? "**" : "*");
-                }
-              }}
-              placeholder="Schreib los … Leerzeile = neuer Absatz, [@ zitiert eine Quelle"
-              aria-label={`Text von ${number}`}
-              className="field-sizing-content block min-h-14 w-full resize-none bg-transparent font-serif text-[15px] leading-7 outline-none placeholder:font-sans placeholder:text-sm placeholder:text-muted-foreground"
-            />
-            {citeQuery && citeOptions.length > 0 && (
-              <ul className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-md border bg-popover text-sm shadow-md">
-                {citeOptions.map((source, index) => (
-                  <li
-                    key={source.key}
-                    className={cn("cursor-pointer px-3 py-1.5 hover:bg-accent", index === 0 && "bg-accent")}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      completeCitation(source.key);
-                    }}
-                  >
-                    <span className="font-mono">@{source.key}</span>{" "}
-                    <span className="text-muted-foreground">{source.label}</span>
-                    {source.summary && <span className="block truncate text-xs text-muted-foreground">{source.summary}</span>}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <DropdownMenu open={menu !== null} onOpenChange={(open) => !open && setMenu(null)} modal={false}>
-              <DropdownMenuTrigger asChild>
-                <span aria-hidden className="pointer-events-none fixed size-0" style={{ left: menu?.x ?? 0, top: menu?.y ?? 0 }} />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" sideOffset={2} onCloseAutoFocus={(event) => event.preventDefault()}>
-                <DropdownMenuItem onSelect={() => toggleMark("**")}>
-                  <BoldIcon /> Fett <DropdownMenuShortcut>Strg+B</DropdownMenuShortcut>
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => toggleMark("*")}>
-                  <ItalicIcon /> Kursiv <DropdownMenuShortcut>Strg+I</DropdownMenuShortcut>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() =>
-                    replaceSelection((text) =>
-                      text
-                        .split("\n")
-                        .map((line) => (line.trim() && !/^\s*- /.test(line) ? `- ${line}` : line))
-                        .join("\n"),
-                    )
-                  }
-                >
-                  <ListIcon /> Als Liste
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => pickAfterSelection("cite")}>
-                  <BookMarkedIcon /> Quelle zitieren …
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => pickAfterSelection("image")}>
-                  <ImageIcon /> Bild einfügen …
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={commentOnSelection}>
-                  <MessageSquareIcon /> Kommentieren
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={() => {
-                    const field = textarea.current;
-                    if (field) void navigator.clipboard.writeText(section.body.slice(field.selectionStart, field.selectionEnd)).catch(() => {});
+          {parts.map((part, index) => {
+            if (part.kind === "image") {
+              const image = images.find((entry) => entry.id === part.id);
+              return (
+                <figure key={index} className="group/figure relative space-y-1 py-1">
+                  {image?.url ? (
+                    // Signed storage links; next/image would need the bucket host configured.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={image.url} alt={part.caption || image.title} className="max-h-80 max-w-full rounded-md border object-contain" />
+                  ) : (
+                    <div className={cn("flex h-20 items-center justify-center gap-2 rounded-md border border-dashed text-sm text-muted-foreground", !image && "text-destructive")}>
+                      <ImageIcon className="size-4" /> {image ? image.title : "Dokument fehlt"}
+                    </div>
+                  )}
+                  <figcaption className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <span className="shrink-0">Abb.:</span>
+                    <input
+                      data-writer-field
+                      value={part.caption}
+                      onChange={(event) => setCaption(index, event.target.value)}
+                      onBlur={onBlur}
+                      placeholder={image?.title ?? "Beschriftung"}
+                      aria-label="Beschriftung des Bildes"
+                      className="h-6 min-w-0 flex-1 rounded bg-transparent px-1 outline-none focus-visible:bg-accent/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(index)}
+                      aria-label="Bild aus dem Text nehmen"
+                      title="Aus dem Text nehmen"
+                      className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded opacity-60 hover:bg-accent hover:opacity-100"
+                    >
+                      <XIcon className="size-3.5" />
+                    </button>
+                  </figcaption>
+                </figure>
+              );
+            }
+            const base = partOffset(parts, index);
+            const highlight = marked
+              ? [Math.max(0, marked.start - base), Math.min(part.text.length, marked.end - base)]
+              : null;
+            const only = parts.length === 1;
+            const last = index === parts.length - 1;
+            return (
+              <div key={index} className="relative">
+                {highlight && highlight[0] < highlight[1] && (
+                  // The marked text behind the field, at the same place as in it.
+                  <div aria-hidden className={cn(textClass, "pointer-events-none absolute inset-0 text-transparent")}>
+                    {part.text.slice(0, highlight[0])}
+                    <mark className="rounded-sm bg-brand/25 text-transparent">{part.text.slice(highlight[0], highlight[1])}</mark>
+                    {part.text.slice(highlight[1])}
+                  </div>
+                )}
+                <textarea
+                  ref={(element) => {
+                    fields.current[index] = element;
                   }}
-                >
-                  <CopyIcon /> Kopieren <DropdownMenuShortcut>Strg+C</DropdownMenuShortcut>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          {showImages && figures.some((figure) => figure.image?.url) && (
-            <div className="flex flex-wrap gap-3">
-              {figures.map(
-                (figure, index) =>
-                  figure.image?.url && (
-                    <figure key={index} className="max-w-full space-y-1">
-                      {/* Signed storage links; next/image would need the bucket host configured. */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={figure.image.url} alt={figure.caption || figure.image.title} className="max-h-56 max-w-full rounded-md border object-contain" />
-                      <figcaption className="text-xs text-muted-foreground">{figure.caption || figure.image.title}</figcaption>
-                    </figure>
-                  ),
-              )}
-            </div>
-          )}
-          {(citedKeys.length > 0 || figures.some((figure) => !showImages || !figure.image?.url)) && (
+                  data-writer-field
+                  value={part.text}
+                  spellCheck={false}
+                  autoCorrect="off"
+                  autoCapitalize="sentences"
+                  onFocus={() => {
+                    activePart.current = index;
+                    setHeld(null);
+                  }}
+                  onChange={(event) => typeInPart(index, event.currentTarget)}
+                  onSelect={(event) =>
+                    onCursor(base + event.currentTarget.selectionStart, base + event.currentTarget.selectionEnd)
+                  }
+                  onBlur={() => {
+                    onBlur();
+                    setTimeout(() => setCiteQuery(null), 150);
+                  }}
+                  onContextMenu={(event) => {
+                    // With text selected, the own menu; otherwise the browser's.
+                    const field = event.currentTarget;
+                    if (field.selectionStart === field.selectionEnd) return;
+                    event.preventDefault();
+                    activePart.current = index;
+                    const range = { start: base + field.selectionStart, end: base + field.selectionEnd };
+                    onCursor(range.start, range.end);
+                    setHeld({ body: section.body, ...range });
+                    setMenu({ x: event.clientX, y: event.clientY });
+                  }}
+                  onKeyDown={(event) => {
+                    const field = event.currentTarget;
+                    if (citeQuery && citeOptions.length > 0 && (event.key === "Tab" || event.key === "Enter")) {
+                      event.preventDefault();
+                      completeCitation(citeOptions[0].key);
+                    } else if (event.key === "Escape") setCiteQuery(null);
+                    else if ((event.ctrlKey || event.metaKey) && !event.altKey && (event.key === "b" || event.key === "i")) {
+                      event.preventDefault();
+                      toggleMark(event.key === "b" ? "**" : "*");
+                    } else if (
+                      // Arrow keys go on into the text after or before an image.
+                      !event.shiftKey &&
+                      !event.altKey &&
+                      ((event.key === "ArrowDown" && field.selectionEnd === field.value.length && !last) ||
+                        (event.key === "ArrowUp" && field.selectionStart === 0 && index > 0))
+                    ) {
+                      event.preventDefault();
+                      const next = fields.current[index + (event.key === "ArrowDown" ? 2 : -2)];
+                      next?.focus();
+                      const at = event.key === "ArrowDown" ? 0 : (next?.value.length ?? 0);
+                      next?.setSelectionRange(at, at);
+                    }
+                  }}
+                  placeholder={only ? "Schreib los … Leerzeile = neuer Absatz, [@ zitiert eine Quelle" : undefined}
+                  aria-label={only ? `Text von ${number}` : `Text von ${number}, Teil ${index / 2 + 1}`}
+                  className={cn(
+                    textClass,
+                    "relative block w-full resize-none bg-transparent outline-none placeholder:font-sans placeholder:text-sm placeholder:text-muted-foreground",
+                    only ? "min-h-14" : "min-h-7",
+                  )}
+                />
+                {citeQuery?.part === index && citeOptions.length > 0 && (
+                  <ul className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-md border bg-popover text-sm shadow-md">
+                    {citeOptions.map((source, option) => (
+                      <li
+                        key={source.key}
+                        className={cn("cursor-pointer px-3 py-1.5 hover:bg-accent", option === 0 && "bg-accent")}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          completeCitation(source.key);
+                        }}
+                      >
+                        <span className="font-mono">@{source.key}</span>{" "}
+                        <span className="text-muted-foreground">{source.label}</span>
+                        {source.summary && <span className="block truncate text-xs text-muted-foreground">{source.summary}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+          <DropdownMenu
+            open={menu !== null}
+            onOpenChange={(open) => {
+              if (open) return;
+              setMenu(null);
+              if (!keepHeld.current) setHeld(null);
+              keepHeld.current = false;
+            }}
+            modal={false}
+          >
+            <DropdownMenuTrigger asChild>
+              <span aria-hidden className="pointer-events-none fixed size-0" style={{ left: menu?.x ?? 0, top: menu?.y ?? 0 }} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" sideOffset={2} onCloseAutoFocus={(event) => event.preventDefault()}>
+              <DropdownMenuItem onSelect={() => toggleMark("**")}>
+                <BoldIcon /> Fett <DropdownMenuShortcut>Strg+B</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => toggleMark("*")}>
+                <ItalicIcon /> Kursiv <DropdownMenuShortcut>Strg+I</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() =>
+                  replaceSelection((text) =>
+                    text
+                      .split("\n")
+                      .map((line) => (line.trim() && !/^\s*- /.test(line) ? `- ${line}` : line))
+                      .join("\n"),
+                  )
+                }
+              >
+                <ListIcon /> Als Liste
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => pickAfterSelection("cite")}>
+                <BookMarkedIcon /> Quelle zitieren …
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => pickAfterSelection("image")}>
+                <ImageIcon /> Bild einfügen …
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={commentOnSelection}>
+                <MessageSquareIcon /> Kommentieren
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => {
+                  const range = selection();
+                  if (range) void navigator.clipboard.writeText(section.body.slice(range.start, range.end)).catch(() => {});
+                }}
+              >
+                <CopyIcon /> Kopieren <DropdownMenuShortcut>Strg+C</DropdownMenuShortcut>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {(citedKeys.length > 0 || chipFigures.length > 0) && (
             <ul className="flex flex-wrap gap-1.5">
               {citedKeys.map((key) => {
                 const source = sources.find((entry) => entry.key === key);
@@ -1139,21 +1513,18 @@ function SectionCard({
                   </li>
                 );
               })}
-              {figures.map(
-                (figure, index) =>
-                  (!showImages || !figure.image?.url) && (
-                    <li
-                      key={`figure-${index}`}
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs",
-                        !figure.image && "text-destructive",
-                      )}
-                    >
-                      <ImageIcon className="size-3" /> {figure.caption || figure.image?.title || "Bild"}
-                      {!figure.image && " (Dokument fehlt)"}
-                    </li>
-                  ),
-              )}
+              {chipFigures.map((figure, index) => (
+                <li
+                  key={`figure-${index}`}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs",
+                    !figure.image && "text-destructive",
+                  )}
+                >
+                  <ImageIcon className="size-3" /> {figure.caption || figure.image?.title || "Bild"}
+                  {!figure.image && " (Dokument fehlt)"}
+                </li>
+              ))}
             </ul>
           )}
           <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
@@ -1164,8 +1535,14 @@ function SectionCard({
               <ImageIcon /> Bild einfügen
             </Button>
             {section.comments.length === 0 && (
-              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onMouseDown={(event) => event.preventDefault()} onClick={commentOnSelection}>
-                <MessageSquareIcon /> Kommentar
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-muted-foreground"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => (commentsOpen ? closeComments() : commentOnSelection())}
+              >
+                <MessageSquareIcon /> {commentsOpen ? "Kommentar ausblenden" : "Kommentar"}
               </Button>
             )}
             <span className="ml-auto font-mono">
@@ -1182,6 +1559,20 @@ function SectionCard({
       )}
     </li>
   );
+}
+
+// Text field and the marked selection behind it share these, so they line up.
+const textClass = "field-sizing-content font-serif text-[15px] leading-7 whitespace-pre-wrap break-words";
+
+// The saved fields that differ, or null.
+function changes(from: Section, to: Section): Partial<Section> | null {
+  const patch: Partial<Section> = {};
+  if (from.title !== to.title) patch.title = to.title;
+  if (from.body !== to.body) patch.body = to.body;
+  if (from.status !== to.status) patch.status = to.status;
+  if (from.targetWords !== to.targetWords) patch.targetWords = to.targetWords;
+  if (from.comments !== to.comments) patch.comments = to.comments;
+  return Object.keys(patch).length > 0 ? patch : null;
 }
 
 const matches = (source: CitableSource, query: string) =>
