@@ -1,18 +1,20 @@
+"use client";
+
 import { CalendarClockIcon, FlagIcon, MapPinIcon, MessageSquareTextIcon, NotebookPenIcon, UsersIcon } from "lucide-react";
-import Link from "next/link";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { byWhen, formatShortDate, peopleNames, relativeDays, type Person, type Protocol, type ThesisEvent } from "./data";
 import { EventDialog } from "./event-dialog";
-import { loadEvents, loadPeople, loadProtocols } from "./queries";
+import { useThesis } from "./use-thesis";
 
 const PATH = "/m/thesis";
 
 // Appointments and deadlines, apart from the to-dos. After an appointment,
 // "Protokoll schreiben" starts its protocol with date, title and people.
-export async function EventsTab({ today }: { today: string }) {
-  const [events, people, protocols] = await Promise.all([loadEvents(), loadPeople(), loadProtocols()]);
+export function EventsTab({ today }: { today: string }) {
+  const [events, people, protocols] = useThesis("events", "people", "protocols");
   const coming = events.filter((event) => event.date >= today).sort(byWhen);
   const past = events
     .filter((event) => event.date < today)

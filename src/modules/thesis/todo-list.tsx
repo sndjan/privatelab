@@ -1,7 +1,7 @@
 "use client";
 
 import { MessageSquareTextIcon, UserIcon } from "lucide-react";
-import Link from "next/link";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";

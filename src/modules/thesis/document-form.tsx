@@ -1,7 +1,7 @@
 "use client";
 
 import { FileUpIcon } from "lucide-react";
-import Link from "next/link";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { SubmitButton } from "@/components/submit-button";

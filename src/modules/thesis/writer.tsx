@@ -41,7 +41,7 @@ import {
   Trash2Icon,
   XIcon,
 } from "lucide-react";
-import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -57,9 +57,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { cn } from "@/lib/utils";
 import { addSection, createOutline, deleteSection, saveOutline, saveSection } from "./actions";
 import type { Phase } from "./data";
+import { thesisQuery } from "./query";
 import { WritingSession } from "./writing-session";
 import {
   canIndent,
@@ -145,6 +147,12 @@ export function Writer({
     latest.current = sections;
   });
   const orderQueue = useRef<Promise<unknown>>(Promise.resolve());
+  // The cache follows the outline, so coming back to this tab shows the text
+  // as typed, saved or not.
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    queryClient.setQueryData(thesisQuery("sections").queryKey, sections);
+  }, [queryClient, sections]);
 
   const numbers = numbering(sections);
   const totalWords = sections.reduce((sum, section) => sum + countWords(section.body), 0);

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";

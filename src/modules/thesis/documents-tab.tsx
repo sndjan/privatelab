@@ -1,3 +1,6 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeftIcon,
   BookOpenIcon,
@@ -10,10 +13,10 @@ import {
   PencilIcon,
   PlusIcon,
 } from "lucide-react";
-import Link from "next/link";
-import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { dataQuery } from "@/lib/query/data";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import {
   categoryLabel,
   documentCategories,
@@ -24,8 +27,9 @@ import {
   type ThesisDocument,
 } from "./data";
 import { DocumentForm } from "./document-form";
+import { NotFoundNote } from "./fields";
 import { PdfViewer } from "./pdf-viewer-loader";
-import { documentUrls, loadDocument, loadDocuments, loadProtocols, loadSources } from "./queries";
+import { useThesis } from "./use-thesis";
 
 const PATH = "/m/thesis";
 
@@ -39,14 +43,11 @@ type Props = {
   protocolId?: string;
 };
 
-export async function DocumentsTab({ userId, documentId, edit, category, sourceId, protocolId }: Props) {
+export function DocumentsTab({ userId, documentId, edit, category, sourceId, protocolId }: Props) {
+  const [all, sources, protocols] = useThesis("documents", "sources", "protocols");
   if (documentId === "new" || (documentId && edit)) {
-    const [document, sources, protocols] = await Promise.all([
-      documentId === "new" ? null : loadDocument(documentId),
-      loadSources(),
-      loadProtocols(),
-    ]);
-    if (documentId !== "new" && !document) notFound();
+    const document = documentId === "new" ? null : (all.find((entry) => entry.id === documentId) ?? null);
+    if (documentId !== "new" && !document) return <NotFoundNote what="Dieses Dokument" back={`${PATH}?tab=documents`} />;
     return (
       <Card>
         <CardHeader>
@@ -56,6 +57,7 @@ export async function DocumentsTab({ userId, documentId, edit, category, sourceI
         </CardHeader>
         <CardContent>
           <DocumentForm
+            key={documentId}
             document={document}
             userId={userId}
             sources={sources
@@ -69,9 +71,18 @@ export async function DocumentsTab({ userId, documentId, edit, category, sourceI
       </Card>
     );
   }
-  if (documentId) return <DocumentView documentId={documentId} />;
+  if (documentId) {
+    const document = all.find((entry) => entry.id === documentId);
+    if (!document) return <NotFoundNote what="Dieses Dokument" back={`${PATH}?tab=documents`} />;
+    return (
+      <DocumentView
+        document={document}
+        source={sources.find((entry) => entry.id === document.sourceId)}
+        protocol={protocols.find((entry) => entry.id === document.protocolId)}
+      />
+    );
+  }
 
-  const all = await loadDocuments();
   const filter = documentCategories.find((entry) => entry.value === category)?.value;
   const shown = filter ? all.filter((document) => document.category === filter) : all;
 
@@ -144,16 +155,21 @@ export function DocumentList({ documents }: { documents: ThesisDocument[] }) {
   );
 }
 
-async function DocumentView({ documentId }: { documentId: string }) {
-  const document = await loadDocument(documentId);
-  if (!document) notFound();
-  const [{ viewUrl, downloadUrl }, sources, protocols] = await Promise.all([
-    documentUrls(document),
-    document.sourceId ? loadSources() : Promise.resolve([]),
-    document.protocolId ? loadProtocols() : Promise.resolve([]),
-  ]);
-  const source = sources.find((entry) => entry.id === document.sourceId);
-  const protocol = protocols.find((entry) => entry.id === document.protocolId);
+function DocumentView({
+  document,
+  source,
+  protocol,
+}: {
+  document: ThesisDocument;
+  source?: { id: string; title: string };
+  protocol?: { id: string; title: string; date: string };
+}) {
+  // Signed links last an hour; a new version of the file changes the key.
+  const urls = useQuery({
+    ...dataQuery("thesis", "documentUrls", { id: document.id, version: document.fileUpdatedAt }),
+    staleTime: 30 * 60_000,
+  });
+  const { viewUrl, downloadUrl } = urls.data ?? { viewUrl: null, downloadUrl: null };
 
   return (
     <div className="space-y-4">
@@ -216,7 +232,9 @@ async function DocumentView({ documentId }: { documentId: string }) {
         </CardContent>
       </Card>
 
-      {!viewUrl ? (
+      {urls.isPending ? (
+        <div className="h-40 animate-pulse rounded-xl bg-muted" />
+      ) : !viewUrl ? (
         <p className="px-1 text-sm text-destructive">Die Datei konnte nicht gefunden werden.</p>
       ) : isPdf(document) ? (
         <PdfViewer url={viewUrl} />

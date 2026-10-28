@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowLeftIcon,
   ExternalLinkIcon,
@@ -5,14 +7,11 @@ import {
   PaperclipIcon,
   PencilIcon,
   PlusIcon,
-  SearchIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   apa,
   apaHtml,
@@ -27,18 +26,20 @@ import {
   type Source,
 } from "./cite";
 import type { ThesisDocument } from "./data";
-import { loadDocuments, loadSource, loadSources } from "./queries";
+import { NotFoundNote, SearchForm } from "./fields";
 import { SourceForm } from "./source-form";
 import { CopyText, DownloadText, StatusSelect } from "./source-tools";
+import { useThesis } from "./use-thesis";
 
 const PATH = "/m/thesis";
 
 type Props = { today: string; sourceId?: string; status?: string; query?: string };
 
-export async function SourcesTab({ today, sourceId, status, query }: Props) {
+export function SourcesTab({ today, sourceId, status, query }: Props) {
+  const [sources, documents] = useThesis("sources", "documents");
   if (sourceId) {
-    const source = sourceId === "new" ? null : await loadSource(sourceId);
-    if (sourceId !== "new" && !source) notFound();
+    const source = sourceId === "new" ? null : (sources.find((entry) => entry.id === sourceId) ?? null);
+    if (sourceId !== "new" && !source) return <NotFoundNote what="Diese Quelle" back={`${PATH}?tab=sources`} />;
     return (
       <Card>
         <CardHeader>
@@ -53,14 +54,13 @@ export async function SourcesTab({ today, sourceId, status, query }: Props) {
           <CardDescription>Mit * markierte Felder braucht APA für eine vollständige Angabe.</CardDescription>
         </CardHeader>
         <CardContent>
-          <SourceForm source={source} today={today} />
+          <SourceForm key={sourceId} source={source} today={today} />
         </CardContent>
       </Card>
     );
   }
 
-  const [sources, documents] = await Promise.all([loadSources(), loadDocuments()]);
-  const all = sources.sort((a, b) => sortKey(a).localeCompare(sortKey(b), "de-DE"));
+  const all = [...sources].sort((a, b) => sortKey(a).localeCompare(sortKey(b), "de-DE"));
   const filter = sourceStatuses.find((entry) => entry.value === status)?.value;
   const search = query?.trim().toLowerCase() ?? "";
   const shown = all.filter(
@@ -99,19 +99,17 @@ export async function SourcesTab({ today, sourceId, status, query }: Props) {
       </div>
 
       {all.length > 0 && (
-        <form action={PATH} className="relative">
-          <input type="hidden" name="tab" value="sources" />
-          {filter && <input type="hidden" name="status" value={filter} />}
-          <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search"
-            name="q"
-            defaultValue={query ?? ""}
-            placeholder="Titel, Autor:in, Schlüssel oder Kurzbeschreibung"
-            aria-label="Quellen durchsuchen"
-            className="pl-8"
-          />
-        </form>
+        <SearchForm
+          query={query}
+          href={(q) => {
+            const params = new URLSearchParams({ tab: "sources" });
+            if (filter) params.set("status", filter);
+            if (q) params.set("q", q);
+            return `${PATH}?${params}`;
+          }}
+          placeholder="Titel, Autor:in, Schlüssel oder Kurzbeschreibung"
+          label="Quellen durchsuchen"
+        />
       )}
 
       {all.length > 0 && (
