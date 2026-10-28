@@ -2,6 +2,7 @@
 
 import { ViewLink as Link } from "@/lib/query/view-link";
 import { SubmitButton } from "@/components/submit-button";
+import { confirmSubmit } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -79,9 +80,7 @@ export function ProtocolForm({
             variant="ghost"
             formAction={deleteProtocol}
             formNoValidate
-            onClick={(event) => {
-              if (!window.confirm(`Protokoll „${protocol.title}“ löschen? Seine To-dos bleiben erhalten.`)) event.preventDefault();
-            }}
+            onClick={confirmSubmit({ title: `Protokoll „${protocol.title}“ löschen?`, description: "Seine To-dos bleiben erhalten." })}
             className="ml-auto text-destructive hover:text-destructive"
           >
             Löschen

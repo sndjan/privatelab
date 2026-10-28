@@ -5,6 +5,7 @@ import { ArchiveIcon, ChevronLeftIcon, ChevronRightIcon, ExternalLinkIcon, Penci
 import { useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { FormPending } from "@/components/form-pending";
+import { confirmSubmit } from "@/components/confirm-dialog";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -314,7 +315,15 @@ function ListSettings({ list }: { list: List }) {
           </form>
           <form action={deleteList}>
             <input type="hidden" name="listId" value={list.id} />
-            <SubmitButton variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+            <SubmitButton
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={confirmSubmit({
+                title: `„${list.name}“ löschen?`,
+                description: "Mit allen Wünschen; der geteilte Link funktioniert dann nicht mehr.",
+              })}
+            >
               Liste löschen
             </SubmitButton>
           </form>

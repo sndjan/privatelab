@@ -3,6 +3,7 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { ChevronLeftIcon, ChevronRightIcon, Trash2Icon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { confirmSubmit } from "@/components/confirm-dialog";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -250,7 +251,11 @@ function PlaceView({ placeId }: { placeId: string }) {
 
       <form action={deletePlace}>
         <input type="hidden" name="placeId" value={place.id} />
-        <SubmitButton variant="ghost" className="text-destructive hover:text-destructive">
+        <SubmitButton
+          variant="ghost"
+          className="text-destructive hover:text-destructive"
+          onClick={confirmSubmit({ title: `„${place.name}“ löschen?`, description: "Mit dem ganzen Inventar dort." })}
+        >
           Ort löschen
         </SubmitButton>
       </form>

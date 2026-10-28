@@ -22,6 +22,7 @@ import { CheckIcon, GripVerticalIcon, PlusIcon, StarIcon, Trash2Icon, XIcon } fr
 import { useRouter } from "next/navigation";
 import { useId, useOptimistic, useState, useTransition } from "react";
 import { SubmitButton } from "@/components/submit-button";
+import { confirmDialog, confirmSubmit } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -231,8 +232,8 @@ export function Editor({
                 chips={state.chips}
                 canDelete={state.sections.length > 1}
                 onEdit={setEditing}
-                onDelete={(count) => {
-                  if (count === 0 || confirm(`„${section.name}“ mit ${count} Einträgen löschen?`)) {
+                onDelete={async (count) => {
+                  if (count === 0 || (await confirmDialog({ title: `„${section.name}“ mit ${count} Einträgen löschen?` }))) {
                     run({ type: "deleteSection", id: section.id }, () => deleteSection(section.id));
                   }
                 }}
@@ -273,9 +274,7 @@ export function Editor({
         <SubmitButton
           variant="ghost"
           className="-ml-3 text-muted-foreground hover:text-destructive"
-          onClick={(event) => {
-            if (!confirm(`„${list.name}“ löschen?`)) event.preventDefault();
-          }}
+          onClick={confirmSubmit({ title: `„${list.name}“ löschen?`, description: "Mit allen Abschnitten und Einträgen." })}
         >
           <Trash2Icon /> Liste löschen
         </SubmitButton>

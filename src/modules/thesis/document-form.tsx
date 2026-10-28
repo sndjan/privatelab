@@ -5,6 +5,7 @@ import { ViewLink as Link } from "@/lib/query/view-link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
+import { confirmSubmit } from "@/components/confirm-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -201,9 +202,7 @@ export function DocumentForm({ document, userId, sources, protocols, defaultSour
             variant="ghost"
             formAction={deleteDocument}
             formNoValidate
-            onClick={(event) => {
-              if (!window.confirm(`„${document.title}“ mit der Datei löschen?`)) event.preventDefault();
-            }}
+            onClick={confirmSubmit({ title: `„${document.title}“ löschen?`, description: "Die Datei wird mit gelöscht." })}
             className="ml-auto text-destructive hover:text-destructive"
           >
             Löschen

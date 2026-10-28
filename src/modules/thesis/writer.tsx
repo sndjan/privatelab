@@ -44,6 +44,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
+import { confirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -283,10 +284,14 @@ export function Writer({
     setOutline(sections.map((section, at) => (at >= index && at < end ? { ...section, depth: section.depth + by } : section)));
   }
 
-  function remove(index: number) {
+  async function remove(index: number) {
     const section = sections[index];
     const words = countWords(section.body);
-    if (!window.confirm(`„${section.title || "Ohne Titel"}“ löschen${words ? ` (${formatWords(words)})` : ""}? Unterabschnitte bleiben erhalten.`)) return;
+    const ok = await confirmDialog({
+      title: `„${section.title || "Ohne Titel"}“ löschen?`,
+      description: `${words ? `Der Text (${formatWords(words)}) geht verloren. ` : ""}Unterabschnitte bleiben erhalten.`,
+    });
+    if (!ok) return;
     clearTimeout(timers.current.get(section.id));
     pending.current.delete(section.id);
     setOutline(sections.filter((_, at) => at !== index));

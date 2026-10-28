@@ -3,6 +3,7 @@
 import { ViewLink as Link } from "@/lib/query/view-link";
 import { useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
+import { confirmSubmit } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -249,9 +250,7 @@ export function SourceForm({ source, today }: Props) {
             variant="ghost"
             formAction={deleteSource}
             formNoValidate
-            onClick={(event) => {
-              if (!window.confirm(`„${source.title}“ löschen?`)) event.preventDefault();
-            }}
+            onClick={confirmSubmit({ title: `„${source.title}“ löschen?` })}
             className="ml-auto text-destructive hover:text-destructive"
           >
             Löschen
