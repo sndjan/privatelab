@@ -40,7 +40,8 @@ create table public.thesis_infos (
 
 create index thesis_infos_user_id_idx on public.thesis_infos (user_id, created_at);
 
--- Participants as people; the old free text stays for what isn't a person.
+-- Participants as people. The old free text stays as it is and is shown as
+-- "Weitere Teilnehmende" until it is emptied.
 alter table public.thesis_protocols
   add column person_ids uuid[] not null default '{}' check (cardinality(person_ids) <= 30);
 
@@ -91,31 +92,10 @@ create policy "thesis_infos: own rows" on public.thesis_infos
   using ((select auth.uid()) = user_id and (select private.has_module_access('thesis')))
   with check ((select auth.uid()) = user_id and (select private.has_module_access('thesis')));
 
--- To-dos may only point at the user's own person.
-drop policy "thesis_todos: own rows" on public.thesis_todos;
-create policy "thesis_todos: own rows" on public.thesis_todos
+-- To-dos may only point at the user's own person (restrictive: applies on
+-- top of "thesis_todos: own rows").
+create policy "thesis_todos: own person" on public.thesis_todos
+  as restrictive
   for all to authenticated
-  using ((select auth.uid()) = user_id and (select private.has_module_access('thesis')))
-  with check (
-    (select auth.uid()) = user_id
-    and (select private.has_module_access('thesis'))
-    and private.owns_thesis_phase(phase_id)
-    and private.owns_thesis_protocol(protocol_id)
-    and private.owns_thesis_person(person_id)
-  );
-
--- Existing participants ("Sandra, Prof. Weber") become people and chips.
-insert into public.thesis_people (user_id, name)
-select distinct p.user_id, left(trim(part.name), 80)
-from public.thesis_protocols p, regexp_split_to_table(p.participants, '\s*(,|;|\sund\s)\s*') as part (name)
-where trim(part.name) <> ''
-on conflict (user_id, name) do nothing;
-
-update public.thesis_protocols p
-set person_ids = coalesce((
-      select array_agg(distinct person.id)
-      from regexp_split_to_table(p.participants, '\s*(,|;|\sund\s)\s*') as part (name)
-      join public.thesis_people person on person.user_id = p.user_id and person.name = left(trim(part.name), 80)
-    ), '{}'),
-    participants = ''
-where p.participants <> '';
+  using (true)
+  with check (private.owns_thesis_person(person_id));
