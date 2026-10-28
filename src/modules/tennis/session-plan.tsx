@@ -47,7 +47,7 @@ export function SessionPlan({ date, startTime, items }: { date: string; startTim
   return (
     <div className="space-y-3">
       {live && <LiveBanner live={live} items={items} />}
-      <ol className="space-y-3 print:space-y-2">
+      <ol className="space-y-3">
         {items.map(({ exercise, minutes }, index) => {
           const current = live?.kind === "running" && live.index === index;
           const past = (live?.kind === "running" && index < live.index) || live?.kind === "over";
@@ -55,13 +55,13 @@ export function SessionPlan({ date, startTime, items }: { date: string; startTim
             <li
               key={index}
               className={cn(
-                "rounded-xl border bg-card p-4 shadow-xs break-inside-avoid print:rounded-none print:border-0 print:border-b print:p-0 print:pb-2 print:shadow-none",
+                "rounded-xl border bg-card p-4 shadow-xs",
                 current && "border-brand ring-2 ring-brand/40",
-                past && "opacity-60 print:opacity-100",
+                past && "opacity-60",
               )}
             >
               <div className="flex gap-4">
-                <Court diagram={exercise.diagram} className="w-24 shrink-0 sm:w-32 print:w-28" />
+                <Court diagram={exercise.diagram} className="w-24 shrink-0 sm:w-32" />
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <p className="text-sm text-muted-foreground">
                     <span className="font-mono">
@@ -71,35 +71,31 @@ export function SessionPlan({ date, startTime, items }: { date: string; startTim
                   </p>
                   <h3 className="text-lg leading-tight font-semibold">{exercise.name}</h3>
                   {current && live?.kind === "running" && (
-                    <div className="flex items-center gap-2 print:hidden">
+                    <div className="flex items-center gap-2">
                       <Progress value={live.progress * 100} className="h-1.5 flex-1 bg-muted" indicatorClassName="bg-brand" />
                       <span className="font-mono text-sm text-brand">noch {live.minutesLeft} Min.</span>
                     </div>
                   )}
                   {exercise.summary && <p className="text-sm">{exercise.summary}</p>}
                   {exercise.description && (
-                    <>
-                      <details className="group text-sm print:hidden">
-                        <summary className="flex cursor-pointer list-none items-center gap-1 text-muted-foreground [&::-webkit-details-marker]:hidden">
-                          <ChevronRightIcon className="size-4 transition-transform group-open:rotate-90" />
-                          Ablauf
-                        </summary>
-                        <p className="mt-1 whitespace-pre-line">{exercise.description}</p>
-                      </details>
-                      {/* A closed <details> prints nothing, so print gets its own copy. */}
-                      <p className="hidden text-sm whitespace-pre-line print:block">{exercise.description}</p>
-                    </>
+                    <details className="group text-sm">
+                      <summary className="flex cursor-pointer list-none items-center gap-1 text-muted-foreground [&::-webkit-details-marker]:hidden">
+                        <ChevronRightIcon className="size-4 transition-transform group-open:rotate-90" />
+                        Ablauf
+                      </summary>
+                      <p className="mt-1 whitespace-pre-line">{exercise.description}</p>
+                    </details>
                   )}
                   {exercise.tips.length > 0 && (
                     <ul className="flex flex-wrap gap-1.5 pt-0.5">
                       {exercise.tips.map((tip) => (
-                        <li key={tip} className="rounded-full bg-good px-2.5 py-0.5 text-xs text-good-foreground print:border print:bg-transparent">
+                        <li key={tip} className="rounded-full bg-good px-2.5 py-0.5 text-xs text-good-foreground">
                           „{tip}“
                         </li>
                       ))}
                     </ul>
                   )}
-                  <Link href={`${PATH}?exercise=${exercise.id}`} className="inline-block text-sm text-muted-foreground underline-offset-4 hover:underline print:hidden">
+                  <Link href={`${PATH}?exercise=${exercise.id}`} className="inline-block text-sm text-muted-foreground underline-offset-4 hover:underline">
                     Zur Übung
                   </Link>
                 </div>
@@ -115,7 +111,7 @@ export function SessionPlan({ date, startTime, items }: { date: string; startTim
 function LiveBanner({ live, items }: { live: LiveState; items: Item[] }) {
   if (live.kind === "over") {
     return (
-      <p className="rounded-xl bg-muted px-4 py-3 text-sm print:hidden">
+      <p className="rounded-xl bg-muted px-4 py-3 text-sm">
         Die Stunde ist vorbei. Wie lief&apos;s? Unten ist Platz für Notizen.
       </p>
     );
@@ -123,14 +119,14 @@ function LiveBanner({ live, items }: { live: LiveState; items: Item[] }) {
   if (live.kind === "before") {
     const hours = Math.floor(live.minutesUntil / 60);
     return (
-      <p className="rounded-xl bg-muted px-4 py-3 text-sm print:hidden">
+      <p className="rounded-xl bg-muted px-4 py-3 text-sm">
         Beginnt in {hours > 0 ? `${hours} Std. ${live.minutesUntil % 60} Min.` : `${live.minutesUntil} Min.`}
       </p>
     );
   }
   const next = items[live.index + 1];
   return (
-    <div role="status" className="rounded-xl bg-hero px-4 py-3 text-hero-foreground print:hidden">
+    <div role="status" className="rounded-xl bg-hero px-4 py-3 text-hero-foreground">
       <p className="flex items-center gap-2 text-xs tracking-wide text-hero-muted uppercase">
         <span className="size-2 animate-pulse rounded-full bg-hero-bar" /> Läuft gerade
       </p>

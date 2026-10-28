@@ -6,6 +6,7 @@ import {
   ChevronLeftIcon,
   DicesIcon,
   Loader2Icon,
+  SparklesIcon,
   MinusIcon,
   PalmtreeIcon,
   PlusIcon,
@@ -21,10 +22,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { saveSession, setFavorite } from "./actions";
+import { planWithAi, saveSession, setFavorite } from "./actions";
 import { Court } from "./court";
 import {
   fitsPlayers,
@@ -196,6 +198,16 @@ export function Planner({
           {sessionId ? "Stunde bearbeiten" : "Stunde planen"}
         </h2>
       </div>
+
+      <AiPlanner
+        values={values}
+        onPlan={(next) => {
+          const previous = values;
+          setValues(next);
+          return () => setValues(previous);
+        }}
+        groups={groups}
+      />
 
       <Card>
         <CardContent className="space-y-4">
@@ -502,5 +514,92 @@ function ExercisePicker({
         </ul>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// "Mit KI planen": a sentence in, a plan out. Applies the plan to the
+// planner (nothing is saved yet) and offers to undo it.
+function AiPlanner({
+  values,
+  onPlan,
+  groups,
+}: {
+  values: PlannerValues;
+  // Returns a function that restores the plan before.
+  onPlan: (next: PlannerValues) => () => void;
+  groups: Group[];
+}) {
+  const [request, setRequest] = useState("");
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function ask() {
+    if (!request.trim() || pending) return;
+    setError(null);
+    setNote(null);
+    startTransition(async () => {
+      try {
+        const result = await planWithAi(request, values.groupId, values.date);
+        if (result.error !== null) {
+          setError(result.error);
+          return;
+        }
+        const group = groups.find((entry) => entry.id === (result.groupId ?? values.groupId));
+        const minutes = result.plan.reduce((sum, item) => sum + item.minutes, 0);
+        const undo = onPlan({
+          groupId: group?.id ?? values.groupId,
+          date: result.date ?? values.date,
+          startTime: result.startTime ?? (result.groupId && group ? group.startTime : values.startTime),
+          minutes,
+          focus: result.focus,
+          plan: result.plan,
+        });
+        setNote(
+          [result.created.length > 0 && `Neu in der Sammlung: ${result.created.join(", ")}.`, result.note].filter(Boolean).join(" ") ||
+            null,
+        );
+        toast.success("Stunde geplant, schau sie dir an und speichere", { action: { label: "Rückgängig", onClick: undo } });
+      } catch {
+        setError("Die KI ist gerade nicht erreichbar.");
+      }
+    });
+  }
+
+  return (
+    <Card className="gap-3 py-4">
+      <CardContent className="space-y-2 px-4">
+        <label htmlFor="ai-plan" className="flex items-center gap-2 text-sm font-medium">
+          <SparklesIcon className="size-4 text-brand" /> Mit KI planen
+        </label>
+        <Textarea
+          id="ai-plan"
+          rows={2}
+          maxLength={1000}
+          value={request}
+          onChange={(event) => setRequest(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey || !event.shiftKey) && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              ask();
+            }
+          }}
+          placeholder="z. B. Vorhandfokus für die U10, zum Aufwärmen Tic Tac Toe und zwei Spiele"
+          enterKeyHint="send"
+          className="min-h-0 resize-none"
+        />
+        <div className="flex items-center gap-3">
+          <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+            Nimmt Übungen aus deiner Sammlung, legt fehlende neu an. Gespeichert wird erst mit „Stunde speichern“.
+          </p>
+          <Button variant="brand" size="sm" onClick={ask} disabled={pending || !request.trim()}>
+            {pending ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+            {pending ? "Plant …" : "Planen"}
+          </Button>
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        {note && <p className="rounded-lg bg-muted px-3 py-2 text-sm">{note}</p>}
+      </CardContent>
+    </Card>
   );
 }

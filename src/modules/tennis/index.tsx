@@ -55,6 +55,7 @@ import { FavoriteToggles } from "./favorite-toggles";
 import { Library } from "./library";
 import { Planner } from "./planner";
 import { Players } from "./players";
+import { PrintSheet } from "./print-sheet";
 import { LiveBadge, PrintButton, SessionPlan } from "./session-plan";
 import { starterExercises } from "./starter";
 
@@ -547,84 +548,85 @@ async function SessionView({ sessionId }: { sessionId: string }) {
   });
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4 print:max-w-none">
-      <div className="-ml-2 flex items-center gap-1 print:ml-0">
-        <Button asChild variant="ghost" size="icon" className="size-10 text-muted-foreground print:hidden">
-          <Link href={group ? `${PATH}?group=${group.id}` : PATH} aria-label="Zurück">
-            <ChevronLeftIcon className="size-5" />
-          </Link>
-        </Button>
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-xl font-semibold tracking-tight">
-            {group?.name ?? "Training"}
-            <span className="hidden print:inline"> · Tennistraining</span>
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {formatSessionDate(session.date)} · {session.startTime}–{sessionEnd(session)}
-            {session.focus && ` · Schwerpunkt ${session.focus}`}
-          </p>
-        </div>
-        <div className="flex print:hidden">
-          <PrintButton />
-          <Button asChild variant="ghost" size="icon" className="size-10">
-            <Link href={`${PATH}?plan=1&session=${session.id}`} aria-label="Stunde bearbeiten" title="Bearbeiten">
-              <PencilIcon />
+    <>
+      <PrintSheet
+        title={`${group?.name ?? "Training"} · Tennistraining`}
+        subtitle={`${formatSessionDate(session.date)} · ${session.startTime}–${sessionEnd(session)}${session.focus ? ` · ${session.focus}` : ""}`}
+        startTime={session.startTime}
+        items={items}
+        players={players}
+        absent={session.absent}
+        notes={session.notes}
+      />
+      <div className="mx-auto max-w-2xl space-y-4 print:hidden">
+        <div className="-ml-2 flex items-center gap-1">
+          <Button asChild variant="ghost" size="icon" className="size-10 text-muted-foreground">
+            <Link href={group ? `${PATH}?group=${group.id}` : PATH} aria-label="Zurück">
+              <ChevronLeftIcon className="size-5" />
             </Link>
           </Button>
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-xl font-semibold tracking-tight">{group?.name ?? "Training"}</h2>
+            <p className="text-sm text-muted-foreground">
+              {formatSessionDate(session.date)} · {session.startTime}–{sessionEnd(session)}
+              {session.focus && ` · Schwerpunkt ${session.focus}`}
+            </p>
+          </div>
+          <div className="flex">
+            <PrintButton />
+            <Button asChild variant="ghost" size="icon" className="size-10">
+              <Link href={`${PATH}?plan=1&session=${session.id}`} aria-label="Stunde bearbeiten" title="Bearbeiten">
+                <PencilIcon />
+              </Link>
+            </Button>
+          </div>
         </div>
+
+        {group && session.date >= todayInGermany() && (
+          <Attendance
+            sessionId={session.id}
+            groupId={group.id}
+            date={session.date}
+            startTime={session.startTime}
+            players={players}
+            absent={session.absent}
+            items={items}
+          />
+        )}
+
+        {items.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">Keine Übungen in dieser Stunde.</p>
+        ) : (
+          <SessionPlan date={session.date} startTime={session.startTime} items={items} />
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Notizen</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form action={saveSessionNotes} className="space-y-2">
+              <input type="hidden" name="sessionId" value={session.id} />
+              <Textarea
+                name="notes"
+                rows={3}
+                maxLength={2000}
+                defaultValue={session.notes}
+                placeholder="Wie lief's? Wer fehlte, was hat Spaß gemacht, was nächstes Mal?"
+              />
+              <SubmitButton variant="outline" done="Notizen gespeichert">Speichern</SubmitButton>
+            </form>
+          </CardContent>
+        </Card>
+
+        <form action={deleteSession}>
+          <input type="hidden" name="sessionId" value={session.id} />
+          <SubmitButton variant="ghost" className="text-destructive hover:text-destructive">
+            Stunde löschen
+          </SubmitButton>
+        </form>
       </div>
-
-      {group && session.date >= todayInGermany() && (
-        <Attendance
-          sessionId={session.id}
-          groupId={group.id}
-          date={session.date}
-          startTime={session.startTime}
-          players={players}
-          absent={session.absent}
-          items={items}
-        />
-      )}
-
-      {items.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">Keine Übungen in dieser Stunde.</p>
-      ) : (
-        <SessionPlan date={session.date} startTime={session.startTime} items={items} />
-      )}
-
-      <Card className="print:hidden">
-        <CardHeader>
-          <CardTitle>Notizen</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form action={saveSessionNotes} className="space-y-2">
-            <input type="hidden" name="sessionId" value={session.id} />
-            <Textarea
-              name="notes"
-              rows={3}
-              maxLength={2000}
-              defaultValue={session.notes}
-              placeholder="Wie lief's? Wer fehlte, was hat Spaß gemacht, was nächstes Mal?"
-            />
-            <SubmitButton variant="outline" done="Notizen gespeichert">Speichern</SubmitButton>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* Room for handwritten notes on the printed sheet. */}
-      <div className="hidden print:block">
-        <p className="text-sm font-medium">Notizen</p>
-        <p className="whitespace-pre-line">{session.notes}</p>
-        <div className="mt-2 h-24 border-b border-dashed" />
-      </div>
-
-      <form action={deleteSession} className="print:hidden">
-        <input type="hidden" name="sessionId" value={session.id} />
-        <SubmitButton variant="ghost" className="text-destructive hover:text-destructive">
-          Stunde löschen
-        </SubmitButton>
-      </form>
-    </div>
+    </>
   );
 }
 
