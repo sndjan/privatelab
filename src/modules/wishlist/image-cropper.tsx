@@ -32,14 +32,18 @@ async function cropToBlob(src: string, area: Area): Promise<Blob> {
 }
 
 // Square crop of a picked photo: drag to move, pinch or slider to zoom.
+// initialArea (in percent of the photo) starts on a spot, e.g. the product
+// the AI found in a screenshot.
 export function ImageCropper({
   src,
   busy,
+  initialArea,
   onDone,
   onCancel,
 }: {
   src: string;
   busy: boolean;
+  initialArea?: Area;
   onDone: (image: Blob) => void;
   onCancel: () => void;
 }) {
@@ -66,7 +70,8 @@ export function ImageCropper({
           crop={crop}
           zoom={zoom}
           minZoom={0.5}
-          maxZoom={4}
+          maxZoom={10}
+          initialCroppedAreaPercentages={initialArea}
           aspect={1}
           restrictPosition={false}
           showGrid={false}
@@ -81,7 +86,7 @@ export function ImageCropper({
         <Slider
           aria-label="Zoom"
           min={0.5}
-          max={4}
+          max={10}
           step={0.05}
           value={[zoom]}
           onValueChange={([value]) => setZoom(value)}

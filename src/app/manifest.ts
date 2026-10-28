@@ -14,6 +14,12 @@ export default function manifest(): MetadataRoute.Manifest {
     // Same as the page's theme-color meta. A different (dark) color here
     // showed as a thin dark bar at the top while the installed app reloads.
     theme_color: themeColors.light,
+    // Android: "Teilen" in another app (e.g. Amazon) → Private Lab adds a wish.
+    share_target: {
+      action: "/m/wishlist",
+      method: "GET",
+      params: { title: "shared_title", text: "shared_text", url: "shared_url" },
+    },
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png" },

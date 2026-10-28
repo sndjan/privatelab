@@ -1,11 +1,13 @@
 // Server-only: turns a shop link into a prefilled wish. Loads the page, reads
 // what shops publish for link previews (Open Graph, JSON-LD Product), and lets
 // Claude Haiku pick title, price, image and a short note from it. Shops that
-// block servers (Amazon often does) leave only the URL, from which Haiku
-// guesses the title; the owner reviews everything before saving.
+// block servers (Amazon often does) leave only the URL and whatever text was
+// shared with it (the Amazon app shares "<title> https://amzn.eu/d/…"), from
+// which Haiku takes the title; the owner reviews everything before saving.
 import Anthropic from "@anthropic-ai/sdk";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { amazonAsin, cleanAmazonUrl, isAmazon } from "./amazon";
 import { cleanWish, httpUrl, parsePrice, type WishFields, type WishInput } from "./data";
 
 const MODEL = "claude-haiku-5-5";
@@ -37,12 +39,15 @@ async function assertPublicHost(url: URL) {
   if (addresses.length === 0 || addresses.some(({ address }) => privateAddress(address))) throw new Error("blocked host");
 }
 
-async function fetchPage(start: string) {
+// trail collects every URL on the way, so a short link that redirects to a
+// blocked page still tells us where it led.
+async function fetchPage(start: string, trail: string[]) {
   let url = new URL(start);
   const signal = AbortSignal.timeout(TIMEOUT_MS);
   // Redirects are followed by hand so every hop is checked.
   for (let hop = 0; hop < 5; hop++) {
     await assertPublicHost(url);
+    trail.push(url.toString());
     const response = await fetch(url, {
       redirect: "manual",
       signal,
@@ -72,7 +77,10 @@ async function fetchPage(start: string) {
       size += value.length;
     }
     await reader.cancel().catch(() => {});
-    return { html: new TextDecoder().decode(Buffer.concat(chunks)), url: url.toString() };
+    const html = new TextDecoder().decode(Buffer.concat(chunks));
+    // Amazon answers servers with a captcha page (status 200).
+    if (isAmazon(url.toString()) && /validateCaptcha|api-services-support@amazon/i.test(html)) throw new Error("captcha");
+    return { html, url: url.toString() };
   }
   throw new Error("too many redirects");
 }
@@ -177,8 +185,12 @@ function readPage(html: string, pageUrl: string) {
       return null;
     }
   };
+  // Amazon has no JSON-LD; its main image and title have fixed ids.
+  const landing = html.match(/<img\b[^>]*id\s*=\s*["']landingImage["'][^>]*>/i)?.[0];
+  const amazonTitle = html.match(/id\s*=\s*["']productTitle["'][^>]*>([\s\S]*?)</i)?.[1];
   const images = [
     ...(product?.images ?? []),
+    landing ? attribute(landing, "data-old-hires") || attribute(landing, "src") : null,
     meta.get("og:image:secure_url"),
     meta.get("og:image"),
     meta.get("twitter:image"),
@@ -191,6 +203,7 @@ function readPage(html: string, pageUrl: string) {
     facts: {
       url: pageUrl,
       pageTitle: title || null,
+      productTitle: amazonTitle ? decodeEntities(amazonTitle).replace(/\s+/g, " ").trim() || null : null,
       ogTitle: meta.get("og:title") ?? null,
       ogDescription: meta.get("og:description") ?? meta.get("description") ?? null,
       metaPrice: meta.get("product:price:amount") ?? meta.get("og:price:amount") ?? meta.get("price") ?? null,
@@ -228,7 +241,7 @@ async function askClaude(input: string): Promise<Answer | null> {
     system:
       "You fill in one entry of a personal wishlist from a shop page. Use only facts from the page data. " +
       "Never invent a price or an image: use null when the data doesn't show it. " +
-      "If only the URL is available, derive the product name from the URL path and leave price and image null.",
+      "If only the URL is available, derive the product name from the shared text or the URL path and leave price and image null.",
     messages: [{ role: "user", content: input }],
   });
   if (response.stop_reason !== "end_turn") return null;
@@ -244,7 +257,7 @@ async function askClaude(input: string): Promise<Answer | null> {
 // The page's own data, for when no API key is set or the AI fails.
 function fromFacts(facts: ReturnType<typeof readPage>["facts"], images: string[]): WishFields {
   return {
-    title: facts.product?.name ?? facts.ogTitle ?? facts.pageTitle ?? "",
+    title: facts.product?.name ?? facts.productTitle ?? facts.ogTitle ?? facts.pageTitle ?? "",
     price: parsePrice(facts.product?.price ?? facts.metaPrice ?? ""),
     currency: facts.product?.currency ?? facts.metaCurrency ?? "EUR",
     imageUrl: images[0] ?? null,
@@ -261,24 +274,52 @@ function titleFromUrl(url: string) {
   return words ? words.replace(/[-_+]+/g, " ").trim() : hostname.replace(/^www\./, "");
 }
 
-export async function analyzeLink(rawUrl: string): Promise<LinkResult> {
-  const url = httpUrl(rawUrl);
+// Amazon's product photo by ASIN. Amazon answers unknown ones with a tiny
+// placeholder GIF, so only a real JPEG counts.
+async function amazonImage(asin: string) {
+  const url = `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SCLZZZZZZZ_.jpg`;
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (!response.ok || !(response.headers.get("content-type") ?? "").includes("jpeg")) return null;
+    return (await response.arrayBuffer()).byteLength > 1000 ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+// input is a link or a whole shared text ("Schau dir das an: … https://…").
+export async function analyzeLink(input: string): Promise<LinkResult> {
+  const found = input.match(/https?:\/\/[^\s<>"]+/i)?.[0].replace(/[.,;:!?)\]]+$/, "");
+  let url = httpUrl(found ?? input);
   if (!url) throw new Error("Das ist kein gültiger Link.");
+  const shared = found ? input.replace(found, " ").replace(/\s+/g, " ").replace(/[\s.,;:]+$/, "").trim().slice(0, 500) : "";
 
   let page: ReturnType<typeof readPage> | null = null;
+  const trail: string[] = [];
   try {
-    const { html, url: finalUrl } = await fetchPage(url);
+    const { html, url: finalUrl } = await fetchPage(url, trail);
     page = readPage(html, finalUrl);
   } catch {
     page = null;
+  }
+  // Where a short link led, even if that page was blocked.
+  const landed = page?.facts.url ?? trail[trail.length - 1] ?? url;
+  if (isAmazon(landed)) url = cleanAmazonUrl(landed);
+
+  const asin = amazonAsin(url);
+  const images = page?.images ?? [];
+  if (asin && images.length === 0) {
+    const image = await amazonImage(asin);
+    if (image) images.push(image);
   }
 
   const hasKey = Boolean(process.env.ANTHROPIC_API_KEY);
   let answer: Answer | null = null;
   if (hasKey) {
+    const sharedText = shared ? `\n\nText shared together with the link:\n${shared}` : "";
     const input = page
-      ? `Page data:\n${JSON.stringify(page.facts, null, 1)}\n\nCandidate images:\n${page.images.join("\n") || "(none)"}\n\nPage text (start):\n${page.text}`
-      : `The shop could not be loaded. Only the URL is known:\n${url}`;
+      ? `Page data:\n${JSON.stringify(page.facts, null, 1)}\n\nCandidate images:\n${images.join("\n") || "(none)"}${sharedText}\n\nPage text (start):\n${page.text}`
+      : `The shop could not be loaded. Only the URL is known:\n${url}${sharedText}`;
     try {
       answer = await askClaude(input);
     } catch (error) {
@@ -286,8 +327,7 @@ export async function analyzeLink(rawUrl: string): Promise<LinkResult> {
     }
   }
 
-  const images = page?.images ?? [];
-  const base = page ? fromFacts(page.facts, images) : { title: titleFromUrl(url) };
+  const base = page ? fromFacts(page.facts, images) : { title: shared || titleFromUrl(url), imageUrl: images[0] ?? null };
   // The AI may only pick an image the page really had.
   const aiImage = answer?.image_url && images.includes(answer.image_url) ? answer.image_url : null;
   const wish = cleanWish({
@@ -302,8 +342,11 @@ export async function analyzeLink(rawUrl: string): Promise<LinkResult> {
     url,
   }) ?? cleanWish({ title: titleFromUrl(url), url })!;
 
+  const missing = wish.imageUrl ? "den Preis" : "Preis und Bild";
   const warning = !page
-    ? "Der Shop hat die Seite nicht herausgegeben. Bitte Preis und Bild selbst ergänzen."
+    ? asin
+      ? `Amazon gibt die Seite nicht an Server heraus. Bitte ${missing} ergänzen, am einfachsten mit einem Screenshot aus der Amazon-App.`
+      : `Der Shop hat die Seite nicht herausgegeben. Bitte ${missing} selbst ergänzen.`
     : !hasKey
       ? "Kein ANTHROPIC_API_KEY gesetzt: nur die Vorschau-Daten der Seite übernommen."
       : !answer

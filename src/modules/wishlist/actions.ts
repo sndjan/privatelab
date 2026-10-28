@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { claimNames, deleteClaims } from "./claims";
 import { cleanWish, newShareToken, toRow, type WishFields } from "./data";
 import { analyzeLink, type LinkResult } from "./link-import";
+import { analyzeScreenshot, SCREENSHOT_TYPES, type ScreenshotResult } from "./screenshot-import";
 
 // Lists and wishes are written with the user's own Supabase client, so RLS
 // enforces ownership and access to the 'wishlist' module. Reservations need
@@ -99,22 +100,40 @@ export async function deleteList(formData: FormData) {
 
 // --- Wishes ---------------------------------------------------------------------
 
-// Fills in a wish from a shop link, for the owner to check before saving.
 // The AI costs money, so it is only for users with access to the module.
-export async function prefillFromLink(url: string): Promise<LinkResult | { error: string }> {
+async function assertModuleAccess() {
   const user = await getCurrentUser();
   if (!user) throw new Error("Not signed in");
-  if (!user.isAdmin) {
-    const supabase = await createClient();
-    const access = check(
-      await supabase.from("module_access").select("module_id").eq("user_id", user.id).eq("module_id", "wishlist").maybeSingle(),
-    );
-    if (!access) throw new Error("No access");
-  }
+  if (user.isAdmin) return;
+  const supabase = await createClient();
+  const access = check(
+    await supabase.from("module_access").select("module_id").eq("user_id", user.id).eq("module_id", "wishlist").maybeSingle(),
+  );
+  if (!access) throw new Error("No access");
+}
+
+// Fills in a wish from a shop link (or text shared with one), for the owner
+// to check before saving.
+export async function prefillFromLink(input: string): Promise<LinkResult | { error: string }> {
+  await assertModuleAccess();
   try {
-    return await analyzeLink(url);
+    return await analyzeLink(input.slice(0, 3000));
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Der Link konnte nicht gelesen werden." };
+  }
+}
+
+// Same from a screenshot, which the browser has already scaled down.
+export async function prefillFromScreenshot(formData: FormData): Promise<ScreenshotResult | { error: string }> {
+  await assertModuleAccess();
+  const file = formData.get("screenshot");
+  if (!(file instanceof File) || !(SCREENSHOT_TYPES as readonly string[]).includes(file.type) || file.size > 4_000_000) {
+    return { error: "Der Screenshot konnte nicht verarbeitet werden." };
+  }
+  try {
+    return await analyzeScreenshot(file);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Der Screenshot konnte nicht gelesen werden." };
   }
 }
 

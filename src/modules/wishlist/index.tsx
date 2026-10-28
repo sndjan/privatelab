@@ -1,6 +1,6 @@
 import { ArchiveIcon, ChevronLeftIcon, ChevronRightIcon, ExternalLinkIcon, PencilIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,11 +31,47 @@ export default async function WishlistModule({ user, hasAccess, searchParams }: 
   if (!user || !hasAccess) notFound();
 
   const params = await searchParams;
-  const listId = typeof params.list === "string" ? params.list : undefined;
-  const wishId = typeof params.wish === "string" ? params.wish : undefined;
-  if (listId && wishId) return <WishView listId={listId} wishId={wishId} />;
+  const param = (key: string) => (typeof params[key] === "string" ? params[key] : undefined);
+  const listId = param("list");
+  const wishId = param("wish");
+  // From the share target in manifest.ts (Android: "Teilen" in the Amazon app
+  // → Private Lab). Apps put the link in url or text, the title in title or text.
+  const shared = param("shared") ?? ([param("shared_title"), param("shared_text"), param("shared_url")].filter(Boolean).join(" ") || undefined);
+  if (listId && wishId) return <WishView listId={listId} wishId={wishId} sharedText={shared?.slice(0, 3000)} />;
   if (listId) return <ListView listId={listId} />;
+  if (shared) return <PickList shared={shared.slice(0, 3000)} />;
   return <Overview />;
+}
+
+// Something was shared into the app: which list should it go on?
+async function PickList({ shared }: { shared: string }) {
+  const supabase = await createClient();
+  const { data } = await supabase.from("wishlist_lists").select("id, name").order("created_at");
+  const lists = (data ?? []) as Pick<List, "id" | "name">[];
+  const newWish = (id: string) => `${PATH}?list=${id}&wish=new&shared=${encodeURIComponent(shared)}`;
+  if (lists.length === 1) redirect(newWish(lists[0].id));
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-1.5">
+      <h2 className="px-1 text-sm font-medium text-muted-foreground">Auf welche Liste?</h2>
+      {lists.length === 0 ? (
+        <p className="px-1 text-sm">
+          Du hast noch keine Wunschliste. <Link href={PATH} className="underline">Erst eine anlegen</Link> und dann noch einmal teilen.
+        </p>
+      ) : (
+        <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+          {lists.map((list) => (
+            <li key={list.id}>
+              <Link href={newWish(list.id)} className="flex min-h-14 items-center gap-3 px-4 py-2 active:bg-accent">
+                <span className="min-w-0 flex-1 truncate">{list.name}</span>
+                <ChevronRightIcon className="size-4 text-muted-foreground" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 // --- Overview -----------------------------------------------------------------
@@ -237,11 +273,11 @@ function OwnerWishCard({ listId, wish }: { listId: string; wish: Wish }) {
 
 // --- Add or edit a wish -------------------------------------------------------
 
-async function WishView({ listId, wishId }: { listId: string; wishId: string }) {
+async function WishView({ listId, wishId, sharedText }: { listId: string; wishId: string; sharedText?: string }) {
   const supabase = await createClient();
   const { data: list } = await supabase.from("wishlist_lists").select("id").eq("id", listId).maybeSingle();
   if (!list) notFound();
-  if (wishId === "new") return <WishEditor listId={listId} />;
+  if (wishId === "new") return <WishEditor listId={listId} sharedText={sharedText} />;
 
   const { data: row } = await supabase
     .from("wishlist_items")

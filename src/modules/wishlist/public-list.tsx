@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { deviceHash, guestClaims, guestName } from "./claims";
+import { hasAffiliateLinks, shopLink } from "./amazon";
 import { formatDate, formatPrice, isShareToken, sortWishes, toWish, wishColumns, type GuestClaim, type Wish, type WishRow } from "./data";
 import { FavoriteBadge } from "./favorite-badge";
 import { GuestButtons } from "./guest-buttons";
@@ -73,7 +74,7 @@ export async function PublicList({ token }: { token: string }) {
               <span>{isOwner ? `${wish.quantity}×` : left === 0 ? `alle ${wish.quantity} vergeben` : `noch ${left} von ${wish.quantity}`}</span>
             )}
             {wish.url && (
-              <a href={wish.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline-offset-2 hover:text-foreground hover:underline">
+              <a href={isOwner ? wish.url : shopLink(wish.url)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline-offset-2 hover:text-foreground hover:underline">
                 <ExternalLinkIcon className="size-3.5" /> Zum Shop
               </a>
             )}
@@ -131,6 +132,11 @@ export async function PublicList({ token }: { token: string }) {
           )}
           <ul className="space-y-3">{others.map(card)}</ul>
         </section>
+      )}
+
+      {/* Required by the Amazon partner program wherever tagged links appear. */}
+      {hasAffiliateLinks(wishes.map((wish) => wish.url)) && (
+        <p className="text-center text-xs text-muted-foreground">Als Amazon-Partner verdiene ich an qualifizierten Verkäufen.</p>
       )}
     </div>
   );
