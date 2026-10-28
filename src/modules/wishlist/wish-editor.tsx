@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeftIcon, CropIcon, HeartIcon, ImagePlusIcon, Loader2Icon, ScanIcon, SparklesIcon, XIcon } from "lucide-react";
-import Link from "next/link";
+import { ViewLink as Link } from "@/lib/query/view-link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { Area } from "react-easy-crop";
 import { Button } from "@/components/ui/button";
