@@ -1,20 +1,42 @@
-import { isImage } from "./data";
-import { loadDocuments, loadSections, loadSources } from "./queries";
+import { createClient } from "@/lib/supabase/server";
+import { DOCUMENT_BUCKET, isImage } from "./data";
+import { loadDocuments, loadSections, loadSettings, loadSources } from "./queries";
 import { Writer } from "./writer";
 
 // Writing the thesis itself: an outline with text, exported to LaTeX.
-export async function WritingTab() {
-  const [sections, sources, documents] = await Promise.all([loadSections(), loadSources(), loadDocuments()]);
+export async function WritingTab({ userId }: { userId: string }) {
+  const [sections, sources, documents, settings] = await Promise.all([
+    loadSections(),
+    loadSources(),
+    loadDocuments(),
+    loadSettings(userId),
+  ]);
+  const images = documents.filter(isImage);
+  // Previews of the images in the text; the links last a few hours.
+  const supabase = await createClient();
+  const { data: signed } = images.length
+    ? await supabase.storage.from(DOCUMENT_BUCKET).createSignedUrls(images.map((image) => image.storagePath), 6 * 60 * 60)
+    : { data: [] };
   return (
     <Writer
       initial={sections}
+      title={settings.title}
+      targetPages={settings.targetPages}
+      wordsPerPage={settings.wordsPerPage}
       sources={sources
         .map((source) => ({
+          id: source.id,
           key: source.citationKey,
           label: [source.authors[0]?.split(",")[0], source.year && `(${source.year})`, source.title].filter(Boolean).join(" "),
+          summary: source.summary,
         }))
         .sort((a, b) => a.key.localeCompare(b.key))}
-      images={documents.filter(isImage).map((document) => ({ id: document.id, title: document.title, fileName: document.fileName }))}
+      images={images.map((document) => ({
+        id: document.id,
+        title: document.title,
+        fileName: document.fileName,
+        url: signed?.find((entry) => entry.path === document.storagePath)?.signedUrl ?? null,
+      }))}
     />
   );
 }

@@ -15,6 +15,7 @@ import {
   todayInGermany,
   type Person,
 } from "./data";
+import type { SectionComment } from "./writing";
 
 // All writes go through the user's own Supabase client, so RLS enforces
 // ownership and access to the 'thesis' module.
@@ -85,6 +86,8 @@ export async function saveSettings(formData: FormData) {
       company: text(formData, "company", 200),
       start_date: startDate,
       end_date: endDate,
+      target_pages: optionalInt(formData, "targetPages", 1, 1000),
+      words_per_page: optionalInt(formData, "wordsPerPage", 50, 1000) ?? 300,
       updated_at: new Date().toISOString(),
     }),
   );
@@ -250,6 +253,7 @@ export async function saveSource(formData: FormData) {
     doi: value("doi", 200),
     url: value("url", 2000),
     accessed: has("accessed") ? optionalDate(formData, "accessed") : null,
+    summary: text(formData, "summary", 300),
     notes: longText(formData, "notes", 5000),
   };
   if (!row.title) throw new Error("Title missing");
@@ -433,7 +437,7 @@ export async function createOutline(titles: string[]) {
 
 export async function saveSection(
   id: string,
-  patch: { title?: string; body?: string; status?: string; targetWords?: number | null },
+  patch: { title?: string; body?: string; status?: string; targetWords?: number | null; comments?: SectionComment[] },
 ) {
   const { supabase } = await db();
   check(
@@ -446,10 +450,23 @@ export async function saveSection(
         ...(patch.targetWords !== undefined && {
           target_words: patch.targetWords && patch.targetWords > 0 ? Math.min(100000, Math.round(patch.targetWords)) : null,
         }),
+        ...(patch.comments !== undefined && { comments: cleanComments(patch.comments) }),
         updated_at: new Date().toISOString(),
       })
       .eq("id", id),
   );
+}
+
+function cleanComments(comments: SectionComment[]) {
+  return (Array.isArray(comments) ? comments : [])
+    .slice(0, 200)
+    .map((comment) => ({
+      id: String(comment.id).slice(0, 40),
+      text: String(comment.text ?? "").trim().slice(0, 2000),
+      createdAt: String(comment.createdAt).slice(0, 40),
+      resolved: comment.resolved === true,
+    }))
+    .filter((comment) => comment.text);
 }
 
 // Order and depth of every section after moving, indenting or deleting.

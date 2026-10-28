@@ -370,10 +370,10 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
         </CardHeader>
         <CardContent>
           <form action={saveSettings} className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] items-end gap-4">
-            <SettingField label="Monatliches Nettoeinkommen (€)" name="monthlyIncome" value={settings.monthlyIncome} step="1" />
-            <SettingField label="Monatliche Ausgaben (€)" name="monthlyExpenses" value={settings.monthlyExpenses} step="1" />
-            <SettingField label="Entnahmerate (%)" name="withdrawalRate" value={settings.withdrawalRate} step="0.01" />
-            <SettingField label="Erwartete reale Rendite (%)" name="expectedReturn" value={settings.expectedReturn} step="0.01" />
+            <SettingField label="Nettoeinkommen pro Monat" unit="€" name="monthlyIncome" value={settings.monthlyIncome} step="1" />
+            <SettingField label="Ausgaben pro Monat" unit="€" name="monthlyExpenses" value={settings.monthlyExpenses} step="1" />
+            <SettingField label="Entnahmerate" unit="%" name="withdrawalRate" value={settings.withdrawalRate} step="0.01" />
+            <SettingField label="Reale Rendite (erwartet)" unit="%" name="expectedReturn" value={settings.expectedReturn} step="0.01" />
             <div className="col-span-full">
               <SubmitButton variant="brand" size="lg">
                 Einstellungen speichern
@@ -399,21 +399,25 @@ function Tile({ label, value, note, action }: { label: string; value: string; no
   );
 }
 
-function SettingField({ label, name, value, step }: { label: string; name: string; value: number; step: string }) {
+// The unit sits inside the field, so a long label can't push it onto its own line.
+function SettingField({ label, unit, name, value, step }: { label: string; unit: string; name: string; value: number; step: string }) {
   return (
     <div className="space-y-2">
       <Label htmlFor={`setting-${name}`} className="font-normal text-muted-foreground">
         {label}
       </Label>
-      <Input
-        id={`setting-${name}`}
-        type="number"
-        name={name}
-        step={step}
-        defaultValue={value}
-        required
-        className="h-11 font-mono"
-      />
+      <div className="relative">
+        <Input
+          id={`setting-${name}`}
+          type="number"
+          name={name}
+          step={step}
+          defaultValue={value}
+          required
+          className="h-11 pr-8 font-mono"
+        />
+        <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-muted-foreground">{unit}</span>
+      </div>
     </div>
   );
 }

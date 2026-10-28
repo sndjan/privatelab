@@ -23,7 +23,11 @@ export type Section = {
   body: string;
   status: SectionStatus;
   targetWords: number | null;
+  comments: SectionComment[];
 };
+
+// A note on a section ("Quelle für die Zahl fehlt"), not part of the text.
+export type SectionComment = { id: string; text: string; createdAt: string; resolved: boolean };
 
 export const MAX_DEPTH = 3;
 
@@ -63,6 +67,23 @@ export function countWords(text: string) {
 
 export function formatWords(count: number) {
   return `${count.toLocaleString("de-DE")} ${count === 1 ? "Wort" : "Wörter"}`;
+}
+
+export const figurePattern = /!\[([^\]]*)\]\(doc:([^)]*)\)/g;
+
+// A rough page count: words over words per page, plus half a page per figure.
+export function estimatePages(sections: Pick<Section, "body">[], wordsPerPage: number) {
+  const words = sections.reduce((sum, section) => sum + countWords(section.body), 0);
+  const figures = sections.reduce((sum, section) => sum + [...section.body.matchAll(figurePattern)].length, 0);
+  return words / wordsPerPage + figures * 0.5;
+}
+
+// Whether the section can be indented: it needs a section before it on its
+// own level (or deeper) to become part of.
+export function canIndent(sections: Pick<Section, "depth">[], index: number) {
+  if (index === 0 || sections[index - 1].depth < sections[index].depth) return false;
+  const end = subtreeEnd(sections, index);
+  return sections.slice(index, end).every((section) => section.depth < MAX_DEPTH);
 }
 
 // --- Export -------------------------------------------------------------------
@@ -122,17 +143,24 @@ const label = (title: string, number: string) =>
 // citations, graphicx and csquotes). Images point at the file name of the
 // document; copy the files next to the .tex file.
 export function toLatex(sections: Section[], images: ExportImage[]) {
+  return `% Aus Private Lab exportiert. Einbinden mit \\input{arbeit} in eine Vorlage mit \\chapter (z. B. report,\n% scrreprt); braucht biblatex, graphicx und csquotes.\n\n${latexSections(sections, images)}\n`;
+}
+
+function latexSections(sections: Section[], images: ExportImage[]) {
   const numbers = numbering(sections);
-  const parts = sections.map((section, index) => {
-    const heading = `\\${commands[section.depth]}{${latexInline(section.title || "Ohne Titel")}}\\label{${label(section.title, numbers[index])}}`;
-    return [heading, latexBody(section.body, images)].filter(Boolean).join("\n\n");
-  });
-  return `% Aus Private Lab exportiert. Einbinden mit \\input{arbeit}; braucht biblatex, graphicx und csquotes.\n\n${parts.join("\n\n")}\n`;
+  return sections
+    .map((section, index) => {
+      const heading = `\\${commands[section.depth]}{${latexInline(section.title || "Ohne Titel")}}\\label{${label(section.title, numbers[index])}}`;
+      return [heading, latexBody(section.body, images)].filter(Boolean).join("\n\n");
+    })
+    .join("\n\n");
 }
 
 function latexBody(body: string, images: ExportImage[]) {
   return body
     .replace(/\r\n/g, "\n")
+    // An image on its own line inside a paragraph still becomes a figure.
+    .replace(/^[ \t]*(!\[[^\]]*\]\(doc:[^)]*\))[ \t]*$/gm, "\n$1\n")
     .split(/\n\s*\n/)
     .map((block) => block.trim())
     .filter(Boolean)
@@ -155,6 +183,50 @@ function latexBody(body: string, images: ExportImage[]) {
       return lines.map((line) => latexInline(line.trim())).join("\n");
     })
     .join("\n\n");
+}
+
+// A complete document that compiles as it is, e.g. as main.tex in a new
+// Overleaf project: report class (for \chapter), biblatex-apa with
+// literatur.bib from the Quellen tab, the images uploaded next to it.
+export function toLatexDocument(sections: Section[], images: ExportImage[], title: string) {
+  const plain = (text: string) => escapeLatex(text.replace(/\s+/g, " ").trim());
+  return [
+    "% Aus Private Lab exportiert. In Overleaf: neues leeres Projekt, diese Datei als main.tex,",
+    "% dazu literatur.bib (Tab Quellen) und die Bilder aus den Dokumenten hochladen.",
+    "\\documentclass[12pt,a4paper]{report}",
+    "\\usepackage[T1]{fontenc}",
+    "\\usepackage[ngerman]{babel}",
+    "\\usepackage{csquotes}",
+    "\\usepackage{graphicx}",
+    "\\usepackage[style=apa,backend=biber]{biblatex}",
+    "\\addbibresource{literatur.bib}",
+    "",
+    `\\title{${plain(title) || "Bachelorarbeit"}}`,
+    "\\author{}",
+    "\\date{\\today}",
+    "",
+    "\\begin{document}",
+    "\\maketitle",
+    "\\tableofcontents",
+    "",
+    latexSections(sections, images),
+    "",
+    "\\printbibliography",
+    "\\end{document}",
+    "",
+  ].join("\n");
+}
+
+// The outline only, numbered and indented, for talking it through.
+export function toOutline(sections: Section[], { withWords = false } = {}) {
+  const numbers = numbering(sections);
+  return `${sections
+    .map((section, index) => {
+      const words = countWords(section.body);
+      const detail = withWords && words > 0 ? ` (${formatWords(words)})` : "";
+      return `${"  ".repeat(section.depth)}${numbers[index]} ${section.title || "Ohne Titel"}${detail}`;
+    })
+    .join("\n")}\n`;
 }
 
 export function toMarkdown(sections: Section[]) {

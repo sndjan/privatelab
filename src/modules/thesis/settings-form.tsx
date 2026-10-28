@@ -47,6 +47,33 @@ function SettingsFields({ settings }: { settings: Settings }) {
           <Input id="settings-end" type="date" name="endDate" required defaultValue={settings.endDate ?? ""} />
         </Field>
       </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field id="settings-pages" label="Umfang (Seiten)" hint="Vorgabe ohne Verzeichnisse und Anhang, für die Fortschrittsschätzung.">
+          <Input
+            id="settings-pages"
+            type="number"
+            name="targetPages"
+            min={1}
+            max={1000}
+            inputMode="numeric"
+            defaultValue={settings.targetPages ?? ""}
+            placeholder="z. B. 50"
+            className="font-mono"
+          />
+        </Field>
+        <Field id="settings-words-per-page" label="Wörter pro Seite" hint="Etwa 300 bei 12 pt und 1,5-zeilig; Bilder zählen als halbe Seite.">
+          <Input
+            id="settings-words-per-page"
+            type="number"
+            name="wordsPerPage"
+            min={50}
+            max={1000}
+            inputMode="numeric"
+            defaultValue={settings.wordsPerPage}
+            className="font-mono"
+          />
+        </Field>
+      </div>
     </>
   );
 }

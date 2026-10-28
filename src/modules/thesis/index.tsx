@@ -29,6 +29,7 @@ import {
   loadPeople,
   loadPhases,
   loadProtocols,
+  loadSections,
   loadSettings,
   loadSources,
   loadTodos,
@@ -37,6 +38,7 @@ import { QuickTodo } from "./quick-todo";
 import { SettingsDialog, SettingsForm } from "./settings-form";
 import { SourcesTab } from "./sources-tab";
 import { TodoList } from "./todo-list";
+import { countWords, estimatePages, formatWords } from "./writing";
 import { WritingTab } from "./writing-tab";
 
 const PATH = "/m/thesis";
@@ -54,7 +56,7 @@ export default async function ThesisModule({ user, hasAccess, searchParams }: Mo
   const today = todayInGermany();
 
   return (
-    <div className={`mx-auto space-y-6 ${tab === "writing" ? "max-w-5xl" : "max-w-3xl"}`}>
+    <div className="mx-auto max-w-5xl space-y-6">
       <nav aria-label="Bereiche" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         <ul className="flex w-max gap-1 rounded-lg bg-muted p-1 sm:w-full">
           {tabs.map((entry) => (
@@ -76,11 +78,11 @@ export default async function ThesisModule({ user, hasAccess, searchParams }: Mo
       </nav>
 
       {tab === "overview" && <Overview userId={user.id} today={today} />}
-      {tab === "writing" && <WritingTab />}
+      {tab === "writing" && <WritingTab userId={user.id} />}
       {tab === "todos" && <TodosTab today={today} />}
       {tab === "events" && <EventsTab today={today} />}
       {tab === "log" && <LogTab today={today} />}
-      {tab === "sources" && <SourcesTab today={today} sourceId={param("source")} status={param("status")} />}
+      {tab === "sources" && <SourcesTab today={today} sourceId={param("source")} status={param("status")} query={param("q")} />}
       {tab === "protocols" && (
         <ProtocolsTab
           today={today}
@@ -107,7 +109,7 @@ export default async function ThesisModule({ user, hasAccess, searchParams }: Mo
 // --- Überblick -----------------------------------------------------------------
 
 async function Overview({ userId, today }: { userId: string; today: string }) {
-  const [settings, phases, todos, log, sources, protocols, people, events, infos] = await Promise.all([
+  const [settings, phases, todos, log, sources, protocols, people, events, infos, sections] = await Promise.all([
     loadSettings(userId),
     loadPhases(),
     loadTodos(),
@@ -117,6 +119,7 @@ async function Overview({ userId, today }: { userId: string; today: string }) {
     loadPeople(),
     loadEvents(),
     loadInfos(),
+    loadSections(),
   ]);
 
   if (!settings.startDate || !settings.endDate) {
@@ -143,139 +146,158 @@ async function Overview({ userId, today }: { userId: string; today: string }) {
   const monday = mondayOf(today);
   const weekHours = log.filter((entry) => entry.day >= monday && entry.day <= today).reduce((sum, entry) => sum + entry.hours, 0);
   const cited = sources.filter((source) => source.status === "cited").length;
+  const words = sections.reduce((sum, section) => sum + countWords(section.body), 0);
+  const pages = Math.round(estimatePages(sections, settings.wordsPerPage));
   const phaseHours = (id: string) => log.filter((entry) => entry.phaseId === id).reduce((sum, entry) => sum + entry.hours, 0);
 
   return (
     <div className="space-y-6">
       <TimeFrame settings={settings as Settings & { startDate: string; endDate: string }} today={today} />
 
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Stat label="Aktuelle Phase" value={currentPhase?.name ?? "–"} />
+        <Stat
+          label="Geschrieben"
+          value={settings.targetPages ? `≈ ${pages} / ${settings.targetPages} S.` : `≈ ${pages} S.`}
+          detail={words > 0 ? formatWords(words) : settings.targetPages ? undefined : "Umfang beim Thema eintragen"}
+          progress={settings.targetPages ? Math.min(1, pages / settings.targetPages) : undefined}
+          mono
+        />
         <Stat label="Diese Woche" value={formatHours(weekHours)} mono />
         <Stat label="Stunden gesamt" value={formatHours(totalHours)} mono />
         <Stat label="Quellen" value={`${sources.length}`} detail={cited > 0 ? `${cited} zitiert` : undefined} mono />
       </dl>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            <h2>Nächste Schritte</h2>
-          </CardTitle>
-          <CardDescription>
-            {open.length === 0
-              ? "Keine offenen To-dos."
-              : `${open.length} offen${overdue > 0 ? ` · ${overdue} überfällig` : ""}`}
-          </CardDescription>
-          <CardAction>
-            <Button asChild variant="ghost" size="sm" className="text-brand">
-              <Link href={`${PATH}?tab=todos`}>Alle</Link>
-            </Button>
-          </CardAction>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <QuickTodo people={people} phases={phases} today={today} />
-          {open.length > 0 && <TodoList todos={open.slice(0, 5)} phases={phases} people={people} protocols={protocols} today={today} />}
-        </CardContent>
-      </Card>
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">
+                <h2>Nächste Schritte</h2>
+              </CardTitle>
+              <CardDescription>
+                {open.length === 0
+                  ? "Keine offenen To-dos."
+                  : `${open.length} offen${overdue > 0 ? ` · ${overdue} überfällig` : ""}`}
+              </CardDescription>
+              <CardAction>
+                <Button asChild variant="ghost" size="sm" className="text-brand">
+                  <Link href={`${PATH}?tab=todos`}>Alle</Link>
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <QuickTodo people={people} phases={phases} today={today} />
+              {open.length > 0 && <TodoList todos={open.slice(0, 5)} phases={phases} people={people} protocols={protocols} today={today} />}
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            <h2>Termine &amp; Deadlines</h2>
-          </CardTitle>
-          {coming.length === 0 && <CardDescription>Nichts eingetragen.</CardDescription>}
-          <CardAction>
-            <Button asChild variant="ghost" size="sm" className="text-brand">
-              <Link href={`${PATH}?tab=events`}>{coming.length === 0 ? "Eintragen" : "Alle"}</Link>
-            </Button>
-          </CardAction>
-        </CardHeader>
-        {coming.length > 0 && (
-          <CardContent>
-            <EventList events={coming} people={people} protocols={protocols} today={today} compact />
-          </CardContent>
-        )}
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">
+                <h2>Termine &amp; Deadlines</h2>
+              </CardTitle>
+              {coming.length === 0 && <CardDescription>Nichts eingetragen.</CardDescription>}
+              <CardAction>
+                <Button asChild variant="ghost" size="sm" className="text-brand">
+                  <Link href={`${PATH}?tab=events`}>{coming.length === 0 ? "Eintragen" : "Alle"}</Link>
+                </Button>
+              </CardAction>
+            </CardHeader>
+            {coming.length > 0 && (
+              <CardContent>
+                <EventList events={coming} people={people} protocols={protocols} today={today} compact />
+              </CardContent>
+            )}
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            <h2>Allgemeine Infos</h2>
-          </CardTitle>
-          {infos.length === 0 && <CardDescription>Regeln und Fakten, die du immer parat haben willst.</CardDescription>}
-        </CardHeader>
-        <CardContent>
-          <Infos infos={infos} />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">
+                <h2>Allgemeine Infos</h2>
+              </CardTitle>
+              {infos.length === 0 && <CardDescription>Regeln und Fakten, die du immer parat haben willst.</CardDescription>}
+            </CardHeader>
+            <CardContent>
+              <Infos infos={infos} />
+            </CardContent>
+          </Card>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            <h2>Thema</h2>
-          </CardTitle>
-          <CardAction>
-            <SettingsDialog settings={settings} />
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid gap-4 text-sm sm:grid-cols-2">
-            <TopicItem label="Arbeitstitel" value={settings.title} wide />
-            <TopicItem label="Forschungsfrage(n)" value={settings.researchQuestion} wide />
-            <TopicItem label="Betreuer:innen" value={settings.supervisors} />
-            <TopicItem label="Hochschule" value={settings.university} />
-            {settings.company && <TopicItem label="Firma" value={settings.company} />}
-            <TopicItem label="Zeitraum" value={`${formatDate(settings.startDate)} – ${formatDate(settings.endDate)}`} />
-          </dl>
-        </CardContent>
-      </Card>
+        <div className="space-y-6">
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            <h2>Personen</h2>
-          </CardTitle>
-          <CardDescription>Für Protokolle, Termine und To-dos (@Name).</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <PeopleList people={people} />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">
+                <h2>Thema</h2>
+              </CardTitle>
+              <CardAction>
+                <SettingsDialog settings={settings} />
+              </CardAction>
+            </CardHeader>
+            <CardContent>
+              <dl className="grid gap-4 text-sm sm:grid-cols-2">
+                <TopicItem label="Arbeitstitel" value={settings.title} wide />
+                <TopicItem label="Forschungsfrage(n)" value={settings.researchQuestion} wide />
+                <TopicItem label="Betreuer:innen" value={settings.supervisors} />
+                <TopicItem label="Hochschule" value={settings.university} />
+                {settings.company && <TopicItem label="Firma" value={settings.company} />}
+                <TopicItem label="Zeitraum" value={`${formatDate(settings.startDate)} – ${formatDate(settings.endDate)}`} />
+                {settings.targetPages && (
+                  <TopicItem label="Umfang" value={`${settings.targetPages} Seiten (${settings.wordsPerPage} Wörter pro Seite)`} />
+                )}
+              </dl>
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            <h2>Phasen</h2>
-          </CardTitle>
-          {phases.length === 0 && (
-            <CardDescription>Eigene Abschnitte mit Zeitraum, denen du To-dos und Arbeitszeit zuordnen kannst.</CardDescription>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {phases.length > 0 && (
-            <ul className="flex flex-col divide-y">
-              {phases.map((phase) => {
-                const state = phase.endDate < today ? "past" : phase.startDate > today ? "future" : "current";
-                return (
-                  <li key={phase.id} className={`flex items-center gap-3 py-2.5 ${state === "past" ? "text-muted-foreground" : ""}`}>
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate font-medium">
-                        {phase.name}
-                        {phase.id === currentPhase?.id && <span className="font-normal text-muted-foreground"> · aktuell</span>}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDate(phase.startDate)} – {formatDate(phase.endDate)} · {formatHours(phaseHours(phase.id))}
-                      </span>
-                    </span>
-                    <PhaseDialog key={JSON.stringify(phase)} phase={phase} defaultStart={phase.startDate} />
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <PhaseDialog defaultStart={phases.at(-1)?.endDate ?? settings.startDate} />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">
+                <h2>Personen</h2>
+              </CardTitle>
+              <CardDescription>Für Protokolle, Termine und To-dos (@Name).</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PeopleList people={people} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">
+                <h2>Phasen</h2>
+              </CardTitle>
+              {phases.length === 0 && (
+                <CardDescription>Eigene Abschnitte mit Zeitraum, denen du To-dos und Arbeitszeit zuordnen kannst.</CardDescription>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {phases.length > 0 && (
+                <ul className="flex flex-col divide-y">
+                  {phases.map((phase) => {
+                    const state = phase.endDate < today ? "past" : phase.startDate > today ? "future" : "current";
+                    return (
+                      <li key={phase.id} className={`flex items-center gap-3 py-2.5 ${state === "past" ? "text-muted-foreground" : ""}`}>
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate font-medium">
+                            {phase.name}
+                            {phase.id === currentPhase?.id && <span className="font-normal text-muted-foreground"> · aktuell</span>}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDate(phase.startDate)} – {formatDate(phase.endDate)} · {formatHours(phaseHours(phase.id))}
+                          </span>
+                        </span>
+                        <PhaseDialog key={JSON.stringify(phase)} phase={phase} defaultStart={phase.startDate} />
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <PhaseDialog defaultStart={phases.at(-1)?.endDate ?? settings.startDate} />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
@@ -320,11 +342,28 @@ function TimeFrame({ settings, today }: { settings: Settings & { startDate: stri
   );
 }
 
-function Stat({ label, value, detail, mono }: { label: string; value: string; detail?: string; mono?: boolean }) {
+function Stat({
+  label,
+  value,
+  detail,
+  progress,
+  mono,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+  progress?: number;
+  mono?: boolean;
+}) {
   return (
     <div className="min-w-0 rounded-xl border bg-card px-4 py-3">
       <dt className="truncate text-xs text-muted-foreground">{label}</dt>
       <dd className={`truncate text-lg font-medium ${mono ? "font-mono" : ""}`}>{value}</dd>
+      {progress !== undefined && (
+        <dd className="mt-1 h-1 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-brand" style={{ width: `${progress * 100}%` }} />
+        </dd>
+      )}
       {detail && <dd className="text-xs text-muted-foreground">{detail}</dd>}
     </div>
   );
