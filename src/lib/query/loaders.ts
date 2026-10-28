@@ -1,4 +1,5 @@
 import type { CurrentUser } from "@/lib/auth";
+import { fireLoaders } from "@/modules/fire/loaders";
 import { thesisLoaders } from "@/modules/thesis/loaders";
 
 // Server only. Every server loader the browser cache can ask for, by module and name.
@@ -7,6 +8,7 @@ import { thesisLoaders } from "@/modules/thesis/loaders";
 export type Loader = (params: Record<string, string>, user: CurrentUser) => Promise<unknown>;
 
 export const loaders = {
+  fire: fireLoaders,
   thesis: thesisLoaders,
 } satisfies Record<string, Record<string, Loader>>;
 
