@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ModulePageProps } from "@/modules/registry";
 import {
-  byDeadline,
+  byPriority,
+  byWhen,
   daysBetween,
   formatDate,
   formatHours,
@@ -16,13 +17,25 @@ import {
   type TabId,
 } from "./data";
 import { DocumentsTab } from "./documents-tab";
+import { EventList, EventsTab } from "./events-tab";
+import { Infos, PeopleList } from "./infos";
 import { LogTab } from "./log-tab";
 import { PhaseDialog } from "./phase-dialog";
 import { ProtocolsTab } from "./protocols-tab";
-import { loadLog, loadPhases, loadProtocols, loadSettings, loadSources, loadTodos } from "./queries";
+import {
+  loadEvents,
+  loadInfos,
+  loadLog,
+  loadPeople,
+  loadPhases,
+  loadProtocols,
+  loadSettings,
+  loadSources,
+  loadTodos,
+} from "./queries";
+import { QuickTodo } from "./quick-todo";
 import { SettingsDialog, SettingsForm } from "./settings-form";
 import { SourcesTab } from "./sources-tab";
-import { TodoDialog } from "./todo-dialog";
 import { TodoList } from "./todo-list";
 
 const PATH = "/m/thesis";
@@ -63,10 +76,17 @@ export default async function ThesisModule({ user, hasAccess, searchParams }: Mo
 
       {tab === "overview" && <Overview userId={user.id} today={today} />}
       {tab === "todos" && <TodosTab today={today} />}
+      {tab === "events" && <EventsTab today={today} />}
       {tab === "log" && <LogTab today={today} />}
       {tab === "sources" && <SourcesTab today={today} sourceId={param("source")} status={param("status")} />}
       {tab === "protocols" && (
-        <ProtocolsTab today={today} protocolId={param("protocol")} edit={param("edit") === "1"} query={param("q")} />
+        <ProtocolsTab
+          today={today}
+          protocolId={param("protocol")}
+          edit={param("edit") === "1"}
+          query={param("q")}
+          eventId={param("event")}
+        />
       )}
       {tab === "documents" && (
         <DocumentsTab
@@ -85,13 +105,16 @@ export default async function ThesisModule({ user, hasAccess, searchParams }: Mo
 // --- Überblick -----------------------------------------------------------------
 
 async function Overview({ userId, today }: { userId: string; today: string }) {
-  const [settings, phases, todos, log, sources, protocols] = await Promise.all([
+  const [settings, phases, todos, log, sources, protocols, people, events, infos] = await Promise.all([
     loadSettings(userId),
     loadPhases(),
     loadTodos(),
     loadLog(),
     loadSources(),
     loadProtocols(),
+    loadPeople(),
+    loadEvents(),
+    loadInfos(),
   ]);
 
   if (!settings.startDate || !settings.endDate) {
@@ -111,8 +134,9 @@ async function Overview({ userId, today }: { userId: string; today: string }) {
   }
 
   const currentPhase = phaseOn(phases, today);
-  const open = todos.filter((todo) => !todo.doneOn).sort(byDeadline);
+  const open = todos.filter((todo) => !todo.doneOn).sort(byPriority);
   const overdue = open.filter((todo) => todo.deadline !== null && todo.deadline < today).length;
+  const coming = events.filter((event) => event.date >= today).sort(byWhen).slice(0, 4);
   const totalHours = log.reduce((sum, entry) => sum + entry.hours, 0);
   const monday = mondayOf(today);
   const weekHours = log.filter((entry) => entry.day >= monday && entry.day <= today).reduce((sum, entry) => sum + entry.hours, 0);
@@ -147,8 +171,39 @@ async function Overview({ userId, today }: { userId: string; today: string }) {
           </CardAction>
         </CardHeader>
         <CardContent className="space-y-3">
-          {open.length > 0 && <TodoList todos={open.slice(0, 5)} phases={phases} protocols={protocols} today={today} />}
-          <TodoDialog phases={phases} defaultPhaseId={currentPhase?.id ?? null} />
+          <QuickTodo people={people} phases={phases} today={today} />
+          {open.length > 0 && <TodoList todos={open.slice(0, 5)} phases={phases} people={people} protocols={protocols} today={today} />}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">
+            <h2>Termine &amp; Deadlines</h2>
+          </CardTitle>
+          {coming.length === 0 && <CardDescription>Nichts eingetragen.</CardDescription>}
+          <CardAction>
+            <Button asChild variant="ghost" size="sm" className="text-brand">
+              <Link href={`${PATH}?tab=events`}>{coming.length === 0 ? "Eintragen" : "Alle"}</Link>
+            </Button>
+          </CardAction>
+        </CardHeader>
+        {coming.length > 0 && (
+          <CardContent>
+            <EventList events={coming} people={people} protocols={protocols} today={today} compact />
+          </CardContent>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">
+            <h2>Allgemeine Infos</h2>
+          </CardTitle>
+          {infos.length === 0 && <CardDescription>Regeln und Fakten, die du immer parat haben willst.</CardDescription>}
+        </CardHeader>
+        <CardContent>
+          <Infos infos={infos} />
         </CardContent>
       </Card>
 
@@ -170,6 +225,18 @@ async function Overview({ userId, today }: { userId: string; today: string }) {
             {settings.company && <TopicItem label="Firma" value={settings.company} />}
             <TopicItem label="Zeitraum" value={`${formatDate(settings.startDate)} – ${formatDate(settings.endDate)}`} />
           </dl>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">
+            <h2>Personen</h2>
+          </CardTitle>
+          <CardDescription>Für Protokolle, Termine und To-dos (@Name).</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PeopleList people={people} />
         </CardContent>
       </Card>
 
@@ -273,26 +340,29 @@ function TopicItem({ label, value, wide }: { label: string; value: string; wide?
 // --- To-dos --------------------------------------------------------------------
 
 async function TodosTab({ today }: { today: string }) {
-  const [phases, todos, protocols] = await Promise.all([loadPhases(), loadTodos(), loadProtocols()]);
-  const open = todos.filter((todo) => !todo.doneOn).sort(byDeadline);
+  const [phases, todos, protocols, people] = await Promise.all([loadPhases(), loadTodos(), loadProtocols(), loadPeople()]);
+  const open = todos.filter((todo) => !todo.doneOn).sort(byPriority);
   const done = todos
     .filter((todo) => todo.doneOn)
     .sort((a, b) => (a.doneOn! < b.doneOn! ? 1 : a.doneOn! > b.doneOn! ? -1 : 0));
-  const currentPhase = phaseOn(phases, today);
 
   return (
     <div className="space-y-6">
+      <QuickTodo people={people} phases={phases} today={today} autoFocus />
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">
             <h2>Offen</h2>
           </CardTitle>
-          <CardDescription>{open.length === 0 ? "Nichts offen." : `${open.length} To-dos, nach Deadline sortiert`}</CardDescription>
+          <CardDescription>
+            {open.length === 0 ? "Nichts offen." : `${open.length} To-dos, nach Priorität und Deadline sortiert`}
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {open.length > 0 && <TodoList todos={open} phases={phases} protocols={protocols} today={today} showNotes />}
-          <TodoDialog phases={phases} defaultPhaseId={currentPhase?.id ?? null} />
-        </CardContent>
+        {open.length > 0 && (
+          <CardContent>
+            <TodoList todos={open} phases={phases} people={people} protocols={protocols} today={today} showNotes />
+          </CardContent>
+        )}
       </Card>
 
       {done.length > 0 && (
@@ -304,7 +374,7 @@ async function TodosTab({ today }: { today: string }) {
             <CardDescription>{done.length} To-dos</CardDescription>
           </CardHeader>
           <CardContent>
-            <TodoList todos={done} phases={phases} protocols={protocols} today={today} />
+            <TodoList todos={done} phases={phases} people={people} protocols={protocols} today={today} />
           </CardContent>
         </Card>
       )}

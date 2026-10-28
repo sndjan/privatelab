@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2Icon, MessageSquareIcon, XIcon } from "lucide-react";
-import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { toast } from "sonner";
 import { sendFeedback } from "@/app/feedback/actions";
 import { Button } from "@/components/ui/button";
@@ -172,6 +172,14 @@ function FeedbackForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const suggestion = dismissed ? null : partialTag(message, caret);
+  // Where the cursor goes after a completion, set right after the render so
+  // the next keystroke lands behind the completed tag.
+  const caretAfterRender = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (caretAfterRender.current === null) return;
+    textarea.current?.setSelectionRange(caretAfterRender.current, caretAfterRender.current);
+    caretAfterRender.current = null;
+  });
 
   useEffect(() => {
     textarea.current?.focus();
@@ -194,7 +202,7 @@ function FeedbackForm({
     const cursor = suggestion.start + insert.length;
     change(text, cursor);
     setKind(option.value);
-    requestAnimationFrame(() => textarea.current?.setSelectionRange(cursor, cursor));
+    caretAfterRender.current = cursor;
   }
 
   function send() {

@@ -6,20 +6,34 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { deleteProtocol, saveProtocol } from "./actions";
-import type { Protocol } from "./data";
+import type { Person, Protocol, ThesisEvent } from "./data";
 import { Field } from "./fields";
+import { PeoplePicker } from "./people-picker";
 
 const PATH = "/m/thesis";
 
-export function ProtocolForm({ protocol, today }: { protocol: Protocol | null; today: string }) {
-  const back = protocol ? `${PATH}?tab=protocols&protocol=${protocol.id}` : `${PATH}?tab=protocols`;
+// A new protocol can start from an appointment: its date, title and people
+// are filled in, and the appointment is linked to the protocol.
+export function ProtocolForm({
+  protocol,
+  people,
+  event,
+  today,
+}: {
+  protocol: Protocol | null;
+  people: Person[];
+  event?: ThesisEvent | null;
+  today: string;
+}) {
+  const back = protocol ? `${PATH}?tab=protocols&protocol=${protocol.id}` : event ? `${PATH}?tab=events` : `${PATH}?tab=protocols`;
 
   return (
     <form action={saveProtocol} className="space-y-4">
       {protocol && <input type="hidden" name="protocolId" value={protocol.id} />}
+      {!protocol && event && <input type="hidden" name="eventId" value={event.id} />}
       <div className="grid gap-4 sm:grid-cols-[10rem_minmax(0,1fr)]">
         <Field id="protocol-date" label="Datum">
-          <Input id="protocol-date" type="date" name="date" required defaultValue={protocol?.date ?? today} />
+          <Input id="protocol-date" type="date" name="date" required defaultValue={protocol?.date ?? event?.date ?? today} />
         </Field>
         <Field id="protocol-title" label="Titel">
           <Input
@@ -27,14 +41,20 @@ export function ProtocolForm({ protocol, today }: { protocol: Protocol | null; t
             name="title"
             required
             maxLength={120}
-            defaultValue={protocol?.title ?? ""}
+            defaultValue={protocol?.title ?? event?.title ?? ""}
             placeholder="z. B. Kick-off mit Betreuer"
           />
         </Field>
       </div>
-      <Field id="protocol-participants" label="Teilnehmende">
-        <Input id="protocol-participants" name="participants" maxLength={300} defaultValue={protocol?.participants ?? ""} />
+      <Field id="protocol-people" label="Teilnehmende">
+        <PeoplePicker id="protocol-people" people={people} defaultIds={protocol?.personIds ?? event?.personIds ?? []} />
       </Field>
+      {/* Free text from before people existed; shown until it is emptied. */}
+      {protocol?.participants && (
+        <Field id="protocol-participants" label="Weitere Teilnehmende (Text)">
+          <Input id="protocol-participants" name="participants" maxLength={300} defaultValue={protocol.participants} />
+        </Field>
+      )}
       <Field
         id="protocol-body"
         label="Protokoll"

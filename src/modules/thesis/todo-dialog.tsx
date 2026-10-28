@@ -17,12 +17,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { deleteTodo, saveTodo } from "./actions";
-import type { Phase, Todo } from "./data";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { Person, Phase, Todo } from "./data";
 import { closingAfter, Field, PhaseSelect } from "./fields";
 
 type Props = {
   todo?: Todo;
   phases: Phase[];
+  people: Person[];
   // Preselected phase of a new to-do: the current one.
   defaultPhaseId: string | null;
   // A new to-do from a meeting protocol.
@@ -31,7 +33,7 @@ type Props = {
 };
 
 // Adds a to-do, or edits / deletes one when `todo` is given.
-export function TodoDialog({ todo, phases, defaultPhaseId, protocolId, triggerLabel = "Neues To-do" }: Props) {
+export function TodoDialog({ todo, phases, people, defaultPhaseId, protocolId, triggerLabel = "Neues To-do" }: Props) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
 
@@ -65,6 +67,36 @@ export function TodoDialog({ todo, phases, defaultPhaseId, protocolId, triggerLa
             </Field>
             <Field id="todo-phase" label="Phase">
               <PhaseSelect id="todo-phase" phases={phases} defaultValue={todo ? todo.phaseId : defaultPhaseId} />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field id="todo-priority" label="Priorität">
+              <Select name="priority" defaultValue={todo?.priority ? String(todo.priority) : "none"}>
+                <SelectTrigger id="todo-priority" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Keine</SelectItem>
+                  <SelectItem value="1">!1 Hoch</SelectItem>
+                  <SelectItem value="2">!2 Mittel</SelectItem>
+                  <SelectItem value="3">!3 Niedrig</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field id="todo-person" label="Person">
+              <Select name="personId" defaultValue={todo?.personId ?? "none"}>
+                <SelectTrigger id="todo-person" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Niemand</SelectItem>
+                  {people.map((person) => (
+                    <SelectItem key={person.id} value={person.id}>
+                      {person.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
           </div>
           <Field id="todo-note" label="Notiz">
