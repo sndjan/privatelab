@@ -112,6 +112,7 @@ export const isImage = (document: Pick<ThesisDocument, "mimeType">) =>
 
 export const tabs = [
   { id: "overview", label: "Überblick" },
+  { id: "writing", label: "Schreiben" },
   { id: "todos", label: "To-dos" },
   { id: "events", label: "Termine" },
   { id: "log", label: "Arbeitslog" },

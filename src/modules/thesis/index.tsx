@@ -37,6 +37,7 @@ import { QuickTodo } from "./quick-todo";
 import { SettingsDialog, SettingsForm } from "./settings-form";
 import { SourcesTab } from "./sources-tab";
 import { TodoList } from "./todo-list";
+import { WritingTab } from "./writing-tab";
 
 const PATH = "/m/thesis";
 
@@ -53,7 +54,7 @@ export default async function ThesisModule({ user, hasAccess, searchParams }: Mo
   const today = todayInGermany();
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className={`mx-auto space-y-6 ${tab === "writing" ? "max-w-5xl" : "max-w-3xl"}`}>
       <nav aria-label="Bereiche" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         <ul className="flex w-max gap-1 rounded-lg bg-muted p-1 sm:w-full">
           {tabs.map((entry) => (
@@ -75,6 +76,7 @@ export default async function ThesisModule({ user, hasAccess, searchParams }: Mo
       </nav>
 
       {tab === "overview" && <Overview userId={user.id} today={today} />}
+      {tab === "writing" && <WritingTab />}
       {tab === "todos" && <TodosTab today={today} />}
       {tab === "events" && <EventsTab today={today} />}
       {tab === "log" && <LogTab today={today} />}

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Source, SourceKind, SourceStatus } from "./cite";
+import type { Section, SectionStatus } from "./writing";
 import {
   DOCUMENT_BUCKET,
   emptySettings,
@@ -287,4 +288,21 @@ export async function documentUrls(document: ThesisDocument) {
     bucket.createSignedUrl(document.storagePath, 60 * 60, { download: document.fileName }),
   ]);
   return { viewUrl: view.data?.signedUrl ?? null, downloadUrl: download.data?.signedUrl ?? null };
+}
+
+export async function loadSections(): Promise<Section[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("thesis_sections")
+    .select("id, depth, title, body, status, target_words")
+    .order("position")
+    .order("created_at");
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    depth: row.depth,
+    title: row.title,
+    body: row.body,
+    status: row.status as SectionStatus,
+    targetWords: row.target_words,
+  }));
 }

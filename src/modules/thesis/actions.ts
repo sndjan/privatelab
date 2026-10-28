@@ -398,6 +398,82 @@ export async function deleteEvent(formData: FormData) {
   revalidatePath(PATH);
 }
 
+// --- Writing ----------------------------------------------------------------
+//
+// The client keeps the outline and saves each change in the background; the
+// page isn't re-rendered for that (revalidatePath would only cost time).
+
+const sectionStatus = (value: unknown) => (value === "draft" || value === "done" ? value : "open");
+const clampDepth = (value: unknown) => Math.max(0, Math.min(3, Math.round(Number(value) || 0)));
+
+// Adds a section at the end; the client stores the order right after.
+export async function addSection(input: { title: string; depth: number }) {
+  const { supabase } = await db();
+  const created = check(
+    await supabase
+      .from("thesis_sections")
+      .insert({ title: input.title.trim().slice(0, 300), depth: clampDepth(input.depth), position: 100000 })
+      .select("id")
+      .single(),
+  );
+  return created.id as string;
+}
+
+// The first outline at once, e.g. the usual chapters.
+export async function createOutline(titles: string[]) {
+  const { supabase } = await db();
+  const rows = check(
+    await supabase
+      .from("thesis_sections")
+      .insert(titles.slice(0, 30).map((title, position) => ({ title: title.slice(0, 300), depth: 0, position })))
+      .select("id, title"),
+  ) as { id: string; title: string }[];
+  return titles.slice(0, 30).map((title) => rows.find((row) => row.title === title.slice(0, 300))!.id);
+}
+
+export async function saveSection(
+  id: string,
+  patch: { title?: string; body?: string; status?: string; targetWords?: number | null },
+) {
+  const { supabase } = await db();
+  check(
+    await supabase
+      .from("thesis_sections")
+      .update({
+        ...(patch.title !== undefined && { title: patch.title.slice(0, 300) }),
+        ...(patch.body !== undefined && { body: patch.body.replace(/\r\n/g, "\n").slice(0, 200000) }),
+        ...(patch.status !== undefined && { status: sectionStatus(patch.status) }),
+        ...(patch.targetWords !== undefined && {
+          target_words: patch.targetWords && patch.targetWords > 0 ? Math.min(100000, Math.round(patch.targetWords)) : null,
+        }),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id),
+  );
+}
+
+// Order and depth of every section after moving, indenting or deleting.
+export async function saveOutline(order: { id: string; depth: number }[]) {
+  const { supabase } = await db();
+  await writeOrder(supabase, order);
+}
+
+async function writeOrder(supabase: Awaited<ReturnType<typeof db>>["supabase"], order: { id: string; depth: number }[]) {
+  const results = await Promise.all(
+    order
+      .filter((item) => isId(item.id))
+      .map((item, position) =>
+        supabase.from("thesis_sections").update({ position, depth: clampDepth(item.depth) }).eq("id", item.id),
+      ),
+  );
+  for (const result of results) check(result);
+}
+
+export async function deleteSection(id: string) {
+  const { supabase } = await db();
+  check(await supabase.from("thesis_sections").delete().eq("id", id));
+}
+
 // --- General infos ----------------------------------------------------------
 
 export async function addInfo(formData: FormData) {
