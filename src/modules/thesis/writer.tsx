@@ -59,6 +59,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { addSection, createOutline, deleteSection, saveOutline, saveSection } from "./actions";
+import type { Phase } from "./data";
+import { WritingSession } from "./writing-session";
 import {
   canIndent,
   countWords,
@@ -103,8 +105,12 @@ export function Writer({
   wordsPerPage,
   sources,
   images,
+  phases,
+  today,
 }: {
   initial: Section[];
+  phases: Phase[];
+  today: string;
   title: string;
   targetPages: number | null;
   wordsPerPage: number;
@@ -430,6 +436,7 @@ export function Writer({
               </>
             )}
           </span>
+          <WritingSession sections={sections} phases={phases} today={today} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm">

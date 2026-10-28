@@ -19,8 +19,22 @@ import { deleteLogEntry, saveLogEntry } from "./actions";
 import { formatDate, type LogEntry, type Phase } from "./data";
 import { closingAfter, Field, PhaseSelect } from "./fields";
 
-function LogFields({ entry, phases, today, defaultPhaseId }: { entry?: LogEntry; phases: Phase[]; today: string; defaultPhaseId: string | null }) {
-  const prefix = entry ? `log-${entry.id}` : "log-new";
+// `draft` prefills a new entry, e.g. from a writing session.
+export function LogFields({
+  entry,
+  draft,
+  phases,
+  today,
+  defaultPhaseId,
+}: {
+  entry?: LogEntry;
+  draft?: { hours: number; text: string };
+  phases: Phase[];
+  today: string;
+  defaultPhaseId: string | null;
+}) {
+  const prefix = entry ? `log-${entry.id}` : draft ? "log-session" : "log-new";
+  const hours = entry?.hours ?? draft?.hours;
   return (
     <>
       <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-3 sm:grid-cols-[10rem_6rem_minmax(0,1fr)]">
@@ -35,7 +49,7 @@ function LogFields({ entry, phases, today, defaultPhaseId }: { entry?: LogEntry;
             required
             pattern="^\s*\d{1,2}([.,]\d{1,2})?\s*$"
             placeholder="1,5"
-            defaultValue={entry ? String(entry.hours).replace(".", ",") : ""}
+            defaultValue={hours !== undefined ? String(hours).replace(".", ",") : ""}
             className="font-mono"
           />
         </Field>
@@ -46,7 +60,7 @@ function LogFields({ entry, phases, today, defaultPhaseId }: { entry?: LogEntry;
         </div>
       </div>
       <Field id={`${prefix}-text`} label="Was ich gemacht habe">
-        <Textarea id={`${prefix}-text`} name="text" required rows={3} maxLength={2000} defaultValue={entry?.text ?? ""} />
+        <Textarea id={`${prefix}-text`} name="text" required rows={3} maxLength={2000} defaultValue={entry?.text ?? draft?.text ?? ""} />
       </Field>
     </>
   );

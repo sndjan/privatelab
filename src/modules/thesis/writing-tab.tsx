@@ -1,15 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
-import { DOCUMENT_BUCKET, isImage } from "./data";
-import { loadDocuments, loadSections, loadSettings, loadSources } from "./queries";
+import { DOCUMENT_BUCKET, isImage, todayInGermany } from "./data";
+import { loadDocuments, loadPhases, loadSections, loadSettings, loadSources } from "./queries";
 import { Writer } from "./writer";
 
 // Writing the thesis itself: an outline with text, exported to LaTeX.
 export async function WritingTab({ userId }: { userId: string }) {
-  const [sections, sources, documents, settings] = await Promise.all([
+  const [sections, sources, documents, settings, phases] = await Promise.all([
     loadSections(),
     loadSources(),
     loadDocuments(),
     loadSettings(userId),
+    loadPhases(),
   ]);
   const images = documents.filter(isImage);
   // Previews of the images in the text; the links last a few hours.
@@ -21,6 +22,8 @@ export async function WritingTab({ userId }: { userId: string }) {
     <Writer
       initial={sections}
       title={settings.title}
+      phases={phases}
+      today={todayInGermany()}
       targetPages={settings.targetPages}
       wordsPerPage={settings.wordsPerPage}
       sources={sources
