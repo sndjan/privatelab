@@ -3,6 +3,7 @@ import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
 import { CircleUserRoundIcon, LogInIcon } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
+import { ConfirmDialogHost } from "@/components/confirm-dialog";
 import { Feedback } from "@/components/feedback";
 import { AllModulesLink, HeaderBrand, HeaderBrandFallback } from "@/components/header-brand";
 import { NavigationProgress } from "@/components/navigation-progress";
@@ -82,6 +83,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </Suspense>
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 print:p-0">{children}</main>
           <Toaster position="bottom-center" />
+          <ConfirmDialogHost />
           <ServiceWorker />
         </QueryProvider>
       </body>

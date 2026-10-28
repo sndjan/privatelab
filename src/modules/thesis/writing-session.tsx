@@ -4,6 +4,7 @@ import { SquareIcon, TimerIcon } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { SubmitButton } from "@/components/submit-button";
+import { confirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -111,8 +112,13 @@ export function WritingSession({ sections, phases, today }: { sections: Section[
                 type="button"
                 variant="ghost"
                 className="text-destructive hover:text-destructive sm:mr-auto"
-                onClick={() => {
-                  if (!window.confirm("Session ohne Eintrag beenden?")) return;
+                onClick={async () => {
+                  const ok = await confirmDialog({
+                    title: "Session ohne Eintrag beenden?",
+                    description: "Zeit und Wörter dieser Session werden nicht ins Arbeitslog eingetragen.",
+                    confirmLabel: "Verwerfen",
+                  });
+                  if (!ok) return;
                   setSession(null);
                   setEnding(false);
                 }}

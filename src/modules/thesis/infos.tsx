@@ -3,6 +3,7 @@
 import { InfoIcon, Loader2Icon, PlusIcon, XIcon } from "lucide-react";
 import { useOptimistic, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { confirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { addInfo, addPerson, deleteInfo, deletePerson, updateInfo } from "./actions";
 import type { Info, Person } from "./data";
@@ -151,8 +152,13 @@ export function PeopleList({ people: saved }: { people: Person[] }) {
                 aria-label={`${person.name} entfernen`}
                 disabled={person.id.startsWith("new-")}
                 className="flex size-6 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:bg-accent"
-                onClick={() => {
-                  if (!window.confirm(`${person.name} entfernen? Aus Protokollen, Terminen und To-dos verschwindet die Person auch.`)) return;
+                onClick={async () => {
+                  const ok = await confirmDialog({
+                    title: `${person.name} entfernen?`,
+                    description: "Aus Protokollen, Terminen und To-dos verschwindet die Person auch.",
+                    confirmLabel: "Entfernen",
+                  });
+                  if (!ok) return;
                   const data = new FormData();
                   data.set("personId", person.id);
                   run({ type: "delete", id: person.id }, () => deletePerson(data));

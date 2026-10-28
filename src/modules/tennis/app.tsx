@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import { FormPending } from "@/components/form-pending";
 import { Loading } from "@/components/loading";
+import { confirmSubmit } from "@/components/confirm-dialog";
 import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -563,7 +564,11 @@ function SessionView({ sessionId }: { sessionId: string }) {
 
         <form action={deleteSession}>
           <input type="hidden" name="sessionId" value={session.id} />
-          <SubmitButton variant="ghost" className="text-destructive hover:text-destructive">
+          <SubmitButton
+            variant="ghost"
+            className="text-destructive hover:text-destructive"
+            onClick={confirmSubmit({ title: "Stunde löschen?", description: "Plan, Notizen und Absagen dieser Stunde gehen verloren." })}
+          >
             Stunde löschen
           </SubmitButton>
         </form>
@@ -912,7 +917,14 @@ function GroupView({ groupId }: { groupId: string }) {
 
       <form action={deleteGroup}>
         <input type="hidden" name="groupId" value={group.id} />
-        <SubmitButton variant="ghost" className="text-destructive hover:text-destructive">
+        <SubmitButton
+          variant="ghost"
+          className="text-destructive hover:text-destructive"
+          onClick={confirmSubmit({
+            title: `„${group.name}“ löschen?`,
+            description: "Mit ihren Kindern, Favoriten und Aushilfe-Terminen. Ihre Stunden bleiben ohne Gruppe erhalten.",
+          })}
+        >
           Gruppe löschen
         </SubmitButton>
       </form>
