@@ -44,7 +44,7 @@ export function Attendance({
 
   if (players.length === 0) {
     return (
-      <p className="flex items-center gap-2 rounded-xl border border-dashed px-4 py-3 text-sm text-muted-foreground print:hidden">
+      <p className="flex items-center gap-2 rounded-xl border border-dashed px-4 py-3 text-sm text-muted-foreground">
         <UsersIcon className="size-4 shrink-0" />
         <span>
           Trag die Kinder der{" "}
@@ -103,7 +103,7 @@ export function Attendance({
   }
 
   return (
-    <section aria-label="Wer kommt?" className="space-y-3 rounded-xl border bg-card p-4 shadow-xs print:hidden">
+    <section aria-label="Wer kommt?" className="space-y-3 rounded-xl border bg-card p-4 shadow-xs">
       <div className="flex items-baseline gap-2">
         <h3 className="flex-1 font-semibold">Wer kommt?</h3>
         <p className="text-sm text-muted-foreground">

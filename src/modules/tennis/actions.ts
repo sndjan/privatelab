@@ -4,7 +4,18 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { cleanExercise, focusTags, parseDiagram, replan, type Exercise, type ExerciseInput, type PlanItem } from "./data";
+import { askForPlan } from "./ai-plan";
+import {
+  cleanExercise,
+  focusTags,
+  parseDiagram,
+  replan,
+  todayInGermany,
+  type Exercise,
+  type ExerciseInput,
+  type Group,
+  type PlanItem,
+} from "./data";
 import { starterExercises } from "./starter";
 
 // All writes go through the user's own Supabase client, so RLS enforces
@@ -335,4 +346,116 @@ export async function restorePlan(sessionId: string, plan: PlanItem[]) {
   const supabase = await db();
   check(await supabase.from("tennis_sessions").update({ plan: clean }).eq("id", sessionId));
   revalidatePath(PATH);
+}
+
+// --- AI assistant -------------------------------------------------------------
+
+export type AiPlanResult =
+  | { error: string }
+  | {
+      error: null;
+      groupId: string | null;
+      date: string | null;
+      startTime: string | null;
+      focus: string | null;
+      plan: PlanItem[];
+      created: string[];
+      note: string;
+    };
+
+// A session from a sentence like "Vorhandfokus für die U10, zum Aufwärmen Tic
+// Tac Toe und zwei Spiele". Exercises the collection doesn't have are created.
+export async function planWithAi(request: string, groupId: string | null, date: string): Promise<AiPlanResult> {
+  const wish = request.trim().slice(0, 1000);
+  if (!wish) return { error: "Schreib kurz, was du planen willst." };
+  const supabase = await db();
+  const [groupRows, exerciseRows, favoriteRows, sessionRows, playerRows] = await Promise.all([
+    supabase.from("tennis_groups").select("id, name, note, start_time, minutes, weekday").order("name"),
+    supabase.from("tennis_exercises").select("id, name, phase, minutes, summary, focus, players_min, players_max").order("name"),
+    supabase.from("tennis_favorites").select("group_id, exercise_id"),
+    supabase.from("tennis_sessions").select("group_id, plan").order("date", { ascending: false }).limit(60),
+    supabase.from("tennis_players").select("group_id"),
+  ]);
+  const groups = check(groupRows).map(
+    (row): Group => ({ id: row.id, name: row.name, note: row.note, startTime: row.start_time.slice(0, 5), minutes: row.minutes, weekday: row.weekday }),
+  );
+  const exercises = check(exerciseRows).map(
+    (row): Exercise => ({
+      id: row.id,
+      name: row.name,
+      phase: row.phase,
+      minutes: row.minutes,
+      summary: row.summary,
+      focus: row.focus ?? [],
+      playersMin: row.players_min,
+      playersMax: row.players_max,
+      description: "",
+      tips: [],
+      diagram: parseDiagram(null),
+      notes: "",
+    }),
+  );
+  const favorites: Record<string, string[]> = {};
+  for (const row of check(favoriteRows)) (favorites[row.group_id] ??= []).push(row.exercise_id);
+  const recent: Record<string, string[]> = {};
+  const seen: Record<string, number> = {};
+  for (const row of check(sessionRows)) {
+    if (!row.group_id || (seen[row.group_id] = (seen[row.group_id] ?? 0) + 1) > 2) continue;
+    (recent[row.group_id] ??= []).push(...((Array.isArray(row.plan) ? row.plan : []) as PlanItem[]).map((item) => item.exerciseId));
+  }
+  const kids: Record<string, number> = {};
+  for (const row of check(playerRows)) kids[row.group_id] = (kids[row.group_id] ?? 0) + 1;
+
+  const answer = await askForPlan({
+    request: wish,
+    today: todayInGermany(),
+    groups,
+    groupId: isId(groupId) ? groupId : null,
+    date: isDate(date) ? date : todayInGermany(),
+    exercises,
+    favorites,
+    recent,
+    kids,
+  });
+  if ("error" in answer) return { error: answer.error };
+
+  // New exercises first, so the plan can point at them.
+  const fresh = answer.new_exercises
+    .slice(0, 6)
+    .map((entry) => cleanExercise({ ...entry, playersMin: entry.players_min, playersMax: entry.players_max, diagram: { items: entry.diagram } }));
+  const createdIds: (string | null)[] = [];
+  for (const input of fresh) {
+    if (!input) {
+      createdIds.push(null);
+      continue;
+    }
+    const existing = exercises.find((exercise) => exercise.name.toLowerCase() === input.name.toLowerCase());
+    createdIds.push(existing?.id ?? check(await supabase.from("tennis_exercises").insert(toRow(input)).select("id").single()).id);
+  }
+  const known = new Set(exercises.map((exercise) => exercise.id));
+  const plan = answer.items
+    .map((item) => ({
+      exerciseId:
+        item.exercise_id && known.has(item.exercise_id)
+          ? item.exercise_id
+          : item.new_exercise_index !== null
+            ? createdIds[item.new_exercise_index] ?? null
+            : null,
+      minutes: Math.min(90, Math.max(5, Math.round(item.minutes / 5) * 5 || 10)),
+    }))
+    .filter((item): item is PlanItem => item.exerciseId !== null)
+    .slice(0, 20);
+  if (fresh.some(Boolean)) revalidatePath(PATH);
+  if (plan.length === 0) return { error: answer.note || "Die KI hat keine passenden Übungen gefunden." };
+
+  return {
+    error: null,
+    groupId: answer.group_id && groups.some((group) => group.id === answer.group_id) ? answer.group_id : null,
+    date: answer.date && isDate(answer.date) ? answer.date : null,
+    startTime: answer.start_time && isTime(answer.start_time) ? answer.start_time : null,
+    focus: answer.focus && (focusTags as readonly string[]).includes(answer.focus) ? answer.focus : null,
+    plan,
+    created: fresh.filter((input): input is ExerciseInput => input !== null).map((input) => input.name),
+    note: answer.note.trim(),
+  };
 }

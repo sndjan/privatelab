@@ -4,30 +4,30 @@ import { court, isArrow, type Arrow, type Diagram, type DiagramItem, type Piece 
 
 // A clay court from above with the exercise drawn on it. Colors are fixed
 // (it is a picture), so it looks the same in light and dark mode and in print.
+// `mono` draws it black on white, for the printed sheet.
 
 const viewBox = `${court.minX} ${court.minY} ${court.maxX - court.minX} ${court.maxY - court.minY}`;
-const line = { stroke: "#fff", strokeWidth: 0.09 };
-
-export function Court({ diagram, className }: { diagram: Diagram; className?: string }) {
+export function Court({ diagram, className, mono = false }: { diagram: Diagram; className?: string; mono?: boolean }) {
   return (
-    <CourtSvg className={className} role="img" aria-label="Skizze der Übung">
+    <CourtSvg className={className} mono={mono} role="img" aria-label="Skizze der Übung">
       {diagram.items.map((item, index) => (
-        <DiagramShape key={index} item={item} />
+        <DiagramShape key={index} item={item} mono={mono} />
       ))}
     </CourtSvg>
   );
 }
 
-export function CourtSvg({ className, children, ...props }: SVGProps<SVGSVGElement>) {
+export function CourtSvg({ className, children, mono = false, ...props }: SVGProps<SVGSVGElement> & { mono?: boolean }) {
+  const line = mono ? { stroke: "#000", strokeWidth: 0.12 } : { stroke: "#fff", strokeWidth: 0.09 };
   return (
-    <svg viewBox={viewBox} className={cn("block aspect-[16/29] rounded-lg", className)} {...props}>
-      <rect x={court.minX} y={court.minY} width={court.maxX - court.minX} height={court.maxY - court.minY} fill="#b4583a" />
+    <svg viewBox={viewBox} className={cn("block aspect-[16/29]", mono ? "rounded-none" : "rounded-lg", className)} {...props}>
+      <rect x={court.minX} y={court.minY} width={court.maxX - court.minX} height={court.maxY - court.minY} fill={mono ? "#fff" : "#b4583a"} />
       <rect
         x={-court.doubles}
         y={-court.baseline}
         width={court.doubles * 2}
         height={court.baseline * 2}
-        fill="#c8683f"
+        fill={mono ? "#fff" : "#c8683f"}
         {...line}
       />
       <line x1={-court.singles} y1={-court.baseline} x2={-court.singles} y2={court.baseline} {...line} />
@@ -46,8 +46,43 @@ export function CourtSvg({ className, children, ...props }: SVGProps<SVGSVGEleme
   );
 }
 
-export function DiagramShape({ item, selected = false }: { item: DiagramItem; selected?: boolean }) {
+export function DiagramShape({ item, selected = false, mono = false }: { item: DiagramItem; selected?: boolean; mono?: boolean }) {
+  if (mono) return isArrow(item) ? <ArrowShape arrow={item} selected={false} color="#000" /> : <MonoPiece piece={item} />;
   return isArrow(item) ? <ArrowShape arrow={item} selected={selected} /> : <PieceShape piece={item} selected={selected} />;
+}
+
+// Black on white: filled = trainer, outlined = kids.
+function MonoPiece({ piece }: { piece: Piece }) {
+  const { x, y } = piece;
+  switch (piece.type) {
+    case "coach":
+      return (
+        <g>
+          <circle cx={x} cy={y} r={0.7} fill="#000" />
+          <Label x={x} y={y} text={piece.label || "T"} color="#fff" />
+        </g>
+      );
+    case "player":
+      return (
+        <g>
+          <circle cx={x} cy={y} r={0.62} fill="#fff" stroke="#000" strokeWidth={0.12} />
+          {piece.label && <Label x={x} y={y} text={piece.label} color="#000" />}
+        </g>
+      );
+    case "cone":
+      return <path d={`M${x} ${y - 0.5} L${x + 0.45} ${y + 0.35} L${x - 0.45} ${y + 0.35} Z`} fill="#000" />;
+    case "target":
+      return (
+        <g>
+          <circle cx={x} cy={y} r={0.7} fill="none" stroke="#000" strokeWidth={0.14} />
+          <circle cx={x} cy={y} r={0.22} fill="#000" />
+        </g>
+      );
+    case "basket":
+      return <rect x={x - 0.5} y={y - 0.5} width={1} height={1} rx={0.15} fill="#fff" stroke="#000" strokeWidth={0.14} />;
+    case "ball":
+      return <circle cx={x} cy={y} r={0.28} fill="#fff" stroke="#000" strokeWidth={0.1} />;
+  }
 }
 
 const highlight = "#fde047";
@@ -126,7 +161,7 @@ function Label({ x, y, text, color }: { x: number; y: number; text: string; colo
 
 // Arrowheads are drawn as triangles (no <marker>), so several diagrams on one
 // page don't need unique ids.
-function ArrowShape({ arrow, selected }: { arrow: Arrow; selected: boolean }) {
+function ArrowShape({ arrow, selected, color: forced }: { arrow: Arrow; selected: boolean; color?: string }) {
   const { x, y, x2, y2 } = arrow;
   const length = Math.hypot(x2 - x, y2 - y) || 1;
   const ux = (x2 - x) / length;
@@ -134,7 +169,7 @@ function ArrowShape({ arrow, selected }: { arrow: Arrow; selected: boolean }) {
   const head = Math.min(0.7, length / 2);
   const baseX = x2 - ux * head;
   const baseY = y2 - uy * head;
-  const color = arrow.type === "shot" ? "#fef08a" : "#1e293b";
+  const color = forced ?? (arrow.type === "shot" ? "#fef08a" : "#1e293b");
   return (
     <g>
       {selected && <line x1={x} y1={y} x2={x2} y2={y2} stroke={highlight} strokeWidth={0.45} strokeLinecap="round" opacity={0.6} />}
