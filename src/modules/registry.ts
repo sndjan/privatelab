@@ -8,6 +8,7 @@ import FireModule from "./fire";
 import { moduleMeta, type ModuleMeta } from "./meta";
 import PackingModule from "./packing";
 import TennisModule from "./tennis";
+import ThesisModule from "./thesis";
 import WishlistModule from "./wishlist";
 import WorktimeModule from "./worktime";
 
@@ -28,6 +29,7 @@ const pages: Record<string, ComponentType<ModulePageProps>> = {
   fire: FireModule,
   packing: PackingModule,
   tennis: TennisModule,
+  thesis: ThesisModule,
   wishlist: WishlistModule,
   worktime: WorktimeModule,
 };

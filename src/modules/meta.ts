@@ -201,6 +201,14 @@ export const moduleMeta: ModuleMeta[] = [
 
   // Lernen & Wissen
   {
+    id: "thesis",
+    name: "Bachelorarbeit",
+    description: "Thema, Phasen, To-dos mit Deadline, Arbeitslog, Quellen in APA 7 und BibLaTeX, Besprechungsprotokolle.",
+    icon: "🎓",
+    category: "lernen",
+    status: "live",
+  },
+  {
     id: "anki-generator",
     name: "AI Anki Generator",
     description: "Karteikarten für Anki per KI aus Texten und Notizen erzeugen.",
