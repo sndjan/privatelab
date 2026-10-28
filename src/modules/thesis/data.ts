@@ -30,11 +30,40 @@ export type Todo = {
   phaseId: string | null;
   protocolId: string | null;
   doneOn: string | null;
+  // 1 (highest) to 3, or null.
+  priority: number | null;
+  personId: string | null;
 };
+
+export type Person = { id: string; name: string };
+
+export type EventKind = "appointment" | "deadline";
+
+export const eventKinds: { value: EventKind; label: string }[] = [
+  { value: "appointment", label: "Termin" },
+  { value: "deadline", label: "Deadline" },
+];
+
+// An appointment (e.g. a meeting with the supervisor) or a deadline (e.g.
+// Anmeldung, Abgabe), apart from the to-dos.
+export type ThesisEvent = {
+  id: string;
+  kind: EventKind;
+  title: string;
+  date: string;
+  time: string | null; // "14:30"
+  location: string;
+  note: string;
+  personIds: string[];
+  protocolId: string | null;
+};
+
+export type Info = { id: string; text: string };
 
 export type LogEntry = { id: string; day: string; hours: number; text: string; phaseId: string | null };
 
-export type Protocol = { id: string; date: string; title: string; participants: string; body: string };
+// participants: free text from before people existed; personIds are the chips.
+export type Protocol = { id: string; date: string; title: string; participants: string; personIds: string[]; body: string };
 
 export type DocumentCategory = "literature" | "guideline" | "draft" | "other";
 
@@ -84,6 +113,7 @@ export const isImage = (document: Pick<ThesisDocument, "mimeType">) =>
 export const tabs = [
   { id: "overview", label: "Überblick" },
   { id: "todos", label: "To-dos" },
+  { id: "events", label: "Termine" },
   { id: "log", label: "Arbeitslog" },
   { id: "sources", label: "Quellen" },
   { id: "protocols", label: "Protokolle" },
@@ -176,4 +206,108 @@ export function byDeadline(a: Todo, b: Todo) {
   if (!a.deadline) return 1;
   if (!b.deadline) return -1;
   return a.deadline < b.deadline ? -1 : 1;
+}
+
+// Open to-dos by priority (!1 first, none last), then by deadline.
+export function byPriority(a: Todo, b: Todo) {
+  return (a.priority ?? 9) - (b.priority ?? 9) || byDeadline(a, b);
+}
+
+export function priorityClass(priority: number) {
+  return priority === 1
+    ? "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-100"
+    : priority === 2
+      ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-100"
+      : "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-100";
+}
+
+// Appointments and deadlines in time order.
+export function byWhen(a: ThesisEvent, b: ThesisEvent) {
+  return a.date.localeCompare(b.date) || (a.time ?? "").localeCompare(b.time ?? "");
+}
+
+// Names of the people with these ids, in the given order.
+export const peopleNames = (people: Person[], ids: string[]) =>
+  ids.flatMap((id) => people.find((person) => person.id === id)?.name ?? []);
+
+// --- Quick to-do entry ------------------------------------------------------
+//
+// One line, e.g. "Gliederung an Sandra schicken !1 @Sandra #Exposé bis Fr":
+//   !1 … !3      priority
+//   @Name        person (an existing one by the start of the name, else new)
+//   #Phase       phase, by the start of its name
+//   bis …        deadline: heute, morgen, übermorgen, a weekday (Mo … So,
+//                the next one), 12.11., 12.11.2026 or 2026-11-12
+
+const weekdayWords = ["montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag", "sonntag"];
+
+export function parseDeadline(word: string, today: string): string | null {
+  const value = word.toLowerCase().replace(/\.$/, "");
+  if (value === "heute") return today;
+  if (value === "morgen") return addDays(today, 1);
+  if (value === "übermorgen") return addDays(today, 2);
+  // "fr", "Fr.", "frei", "Freitag"
+  const weekday = value.length >= 2 ? weekdayWords.findIndex((name) => name.startsWith(value)) : -1;
+  if (weekday >= 0) {
+    const current = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7;
+    return addDays(today, (weekday - current + 7) % 7);
+  }
+  if (isDate(value)) return value;
+  const match = /^(\d{1,2})\.(\d{1,2})\.?(\d{2}|\d{4})?$/.exec(value);
+  if (match) {
+    const year = match[3] ? (match[3].length === 2 ? `20${match[3]}` : match[3]) : today.slice(0, 4);
+    let date = `${year}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+    // "12.1." in December means next January.
+    if (!match[3] && isDate(date) && date < today) date = `${Number(year) + 1}${date.slice(4)}`;
+    return isDate(date) ? date : null;
+  }
+  return null;
+}
+
+export type QuickTodo = {
+  title: string;
+  priority: number | null;
+  // An existing person, or the name of a new one.
+  personId: string | null;
+  newPerson: string | null;
+  phaseId: string | null;
+  deadline: string | null;
+};
+
+// Names compared without case and spaces, as "@Prof.Weber" stands for "Prof. Weber".
+export const compact = (name: string) => name.toLowerCase().replace(/\s+/g, "");
+const startsWith = (name: string, prefix: string) => compact(name).startsWith(compact(prefix));
+
+export function parseQuickTodo(input: string, { people, phases, today }: { people: Person[]; phases: Phase[]; today: string }): QuickTodo {
+  const result: QuickTodo = { title: "", priority: null, personId: null, newPerson: null, phaseId: null, deadline: null };
+  const words = input.trim().split(/\s+/).filter(Boolean);
+  const rest: string[] = [];
+  for (let index = 0; index < words.length; index++) {
+    const word = words[index];
+    const priority = /^!([1-3])$/.exec(word);
+    if (priority) {
+      result.priority = Number(priority[1]);
+    } else if (/^@\S+/.test(word)) {
+      const name = word.slice(1).replace(/[,.;:]$/, "");
+      const exact = people.find((person) => compact(person.name) === compact(name));
+      const matches = people.filter((person) => startsWith(person.name, name));
+      const person = exact ?? (matches.length === 1 ? matches[0] : undefined);
+      if (person) {
+        result.personId = person.id;
+        result.newPerson = null;
+      } else {
+        result.personId = null;
+        result.newPerson = name.slice(0, 80);
+      }
+    } else if (/^#\S+/.test(word) && phases.some((phase) => startsWith(phase.name, word.slice(1)))) {
+      result.phaseId = phases.find((phase) => startsWith(phase.name, word.slice(1)))!.id;
+    } else if (word.toLowerCase() === "bis" && index + 1 < words.length && parseDeadline(words[index + 1], today)) {
+      result.deadline = parseDeadline(words[index + 1], today);
+      index++;
+    } else {
+      rest.push(word);
+    }
+  }
+  result.title = rest.join(" ").slice(0, 200);
+  return result;
 }

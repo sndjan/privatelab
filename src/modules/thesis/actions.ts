@@ -5,7 +5,16 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { sourceKinds, suggestCitationKey, type SourceField, type SourceKind, type SourceStatus } from "./cite";
-import { DOCUMENT_BUCKET, documentCategories, isDate, maxDocumentBytes, parseDecimal, todayInGermany } from "./data";
+import {
+  DOCUMENT_BUCKET,
+  documentCategories,
+  isDate,
+  maxDocumentBytes,
+  parseDecimal,
+  parseQuickTodo,
+  todayInGermany,
+  type Person,
+} from "./data";
 
 // All writes go through the user's own Supabase client, so RLS enforces
 // ownership and access to the 'thesis' module.
@@ -50,6 +59,8 @@ function optionalInt(formData: FormData, key: string, min: number, max: number) 
   const value = Number(raw);
   return Number.isInteger(value) && value >= min && value <= max ? value : null;
 }
+
+const isId = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value);
 
 // Throws on a Supabase error; otherwise returns the data (an empty result for writes without select).
 function check<T>({ data, error }: { data: T; error: { message: string } | null }): NonNullable<T> {
@@ -109,11 +120,14 @@ export async function deletePhase(formData: FormData) {
 export async function saveTodo(formData: FormData) {
   const title = text(formData, "title", 200);
   if (!title) throw new Error("Title missing");
+  const priority = optionalInt(formData, "priority", 1, 3);
   const row = {
     title,
     note: longText(formData, "note", 2000),
     deadline: optionalDate(formData, "deadline"),
     phase_id: optionalId(formData, "phaseId"),
+    priority,
+    person_id: optionalId(formData, "personId"),
   };
   const { supabase } = await db();
   const todoId = String(formData.get("todoId") ?? "");
@@ -129,6 +143,35 @@ export async function deleteTodo(formData: FormData) {
   const { supabase } = await db();
   check(await supabase.from("thesis_todos").delete().eq("id", String(formData.get("todoId"))));
   revalidatePath(PATH);
+}
+
+// One line like "Gliederung schicken !1 @Sandra #Exposé bis Fr" (see
+// parseQuickTodo). A person named with @ who doesn't exist yet is added.
+export async function addQuickTodo(input: string, protocolId: string | null = null): Promise<{ error: string | null }> {
+  const { supabase } = await db();
+  const [people, phases] = await Promise.all([
+    supabase.from("thesis_people").select("id, name"),
+    supabase.from("thesis_phases").select("id, name, start_date, end_date"),
+  ]);
+  const parsed = parseQuickTodo(input, {
+    people: check(people) as Person[],
+    phases: check(phases).map((row) => ({ id: row.id, name: row.name, startDate: row.start_date, endDate: row.end_date })),
+    today: todayInGermany(),
+  });
+  if (!parsed.title) return { error: "Was ist zu tun? Der Text fehlt noch." };
+  const personId = parsed.personId ?? (parsed.newPerson ? (await ensurePeople(supabase, [parsed.newPerson]))[0] : null);
+  check(
+    await supabase.from("thesis_todos").insert({
+      title: parsed.title,
+      priority: parsed.priority,
+      person_id: personId,
+      phase_id: parsed.phaseId,
+      deadline: parsed.deadline,
+      protocol_id: isId(protocolId) ? protocolId : null,
+    }),
+  );
+  revalidatePath(PATH);
+  return { error: null };
 }
 
 export async function setTodoDone(id: string, done: boolean) {
@@ -247,21 +290,70 @@ export async function setSourceStatus(id: string, status: SourceStatus) {
 
 // --- Protocols --------------------------------------------------------------
 
+// The chips of a form: ids of existing people ("personId") and names typed in
+// for new ones ("newPerson"), which are added.
+async function personIds(supabase: Awaited<ReturnType<typeof db>>["supabase"], formData: FormData) {
+  const ids = formData.getAll("personId").filter(isId);
+  const names = formData
+    .getAll("newPerson")
+    .map((name) => String(name).trim().slice(0, 80))
+    .filter(Boolean);
+  return [...new Set([...ids, ...(await ensurePeople(supabase, names))])].slice(0, 30);
+}
+
+// Ids of the people with these names, adding the ones that don't exist yet.
+async function ensurePeople(supabase: Awaited<ReturnType<typeof db>>["supabase"], names: string[]) {
+  if (names.length === 0) return [];
+  const existing = check(await supabase.from("thesis_people").select("id, name")) as Person[];
+  const ids: string[] = [];
+  for (const name of names) {
+    const found = existing.find((person) => person.name.toLowerCase() === name.toLowerCase());
+    if (found) {
+      ids.push(found.id);
+      continue;
+    }
+    const created = check(await supabase.from("thesis_people").insert({ name }).select("id, name").single()) as Person;
+    existing.push(created);
+    ids.push(created.id);
+  }
+  return ids;
+}
+
+export async function addPerson(name: string): Promise<Person | null> {
+  const trimmed = name.trim().slice(0, 80);
+  if (!trimmed) return null;
+  const { supabase } = await db();
+  const [id] = await ensurePeople(supabase, [trimmed]);
+  revalidatePath(PATH);
+  return { id, name: trimmed };
+}
+
+// Removes the person from protocols, appointments and to-dos too.
+export async function deletePerson(formData: FormData) {
+  const { supabase } = await db();
+  check(await supabase.from("thesis_people").delete().eq("id", String(formData.get("personId"))));
+  revalidatePath(PATH);
+}
+
 export async function saveProtocol(formData: FormData) {
   const title = text(formData, "title", 120);
   if (!title) throw new Error("Title missing");
+  const { supabase } = await db();
   const row = {
     date: date(formData, "date"),
     title,
     participants: text(formData, "participants", 300),
+    person_ids: await personIds(supabase, formData),
     body: longText(formData, "body", 50000),
   };
-  const { supabase } = await db();
   let protocolId = String(formData.get("protocolId") ?? "");
   if (protocolId) {
     check(await supabase.from("thesis_protocols").update(row).eq("id", protocolId));
   } else {
     protocolId = check(await supabase.from("thesis_protocols").insert(row).select("id").single()).id;
+    // Written for an appointment: link it.
+    const eventId = String(formData.get("eventId") ?? "");
+    if (isId(eventId)) check(await supabase.from("thesis_events").update({ protocol_id: protocolId }).eq("id", eventId));
   }
   revalidatePath(PATH);
   redirect(`${PATH}?tab=protocols&protocol=${protocolId}`);
@@ -273,6 +365,61 @@ export async function deleteProtocol(formData: FormData) {
   check(await supabase.from("thesis_protocols").delete().eq("id", String(formData.get("protocolId"))));
   revalidatePath(PATH);
   redirect(`${PATH}?tab=protocols`);
+}
+
+// --- Appointments and deadlines -----------------------------------------------
+
+export async function saveEvent(formData: FormData) {
+  const title = text(formData, "title", 200);
+  if (!title) throw new Error("Title missing");
+  const time = text(formData, "time", 5);
+  const { supabase } = await db();
+  const row = {
+    kind: formData.get("kind") === "deadline" ? "deadline" : "appointment",
+    title,
+    date: date(formData, "date"),
+    time: /^([01]\d|2[0-3]):[0-5]\d$/.test(time) ? time : null,
+    location: text(formData, "location", 200),
+    note: longText(formData, "note", 2000),
+    person_ids: await personIds(supabase, formData),
+  };
+  const eventId = String(formData.get("eventId") ?? "");
+  if (eventId) {
+    check(await supabase.from("thesis_events").update(row).eq("id", eventId));
+  } else {
+    check(await supabase.from("thesis_events").insert(row));
+  }
+  revalidatePath(PATH);
+}
+
+export async function deleteEvent(formData: FormData) {
+  const { supabase } = await db();
+  check(await supabase.from("thesis_events").delete().eq("id", String(formData.get("eventId"))));
+  revalidatePath(PATH);
+}
+
+// --- General infos ----------------------------------------------------------
+
+export async function addInfo(formData: FormData) {
+  const value = text(formData, "text", 500);
+  if (!value) return;
+  const { supabase } = await db();
+  check(await supabase.from("thesis_infos").insert({ text: value }));
+  revalidatePath(PATH);
+}
+
+export async function updateInfo(id: string, value: string) {
+  const trimmed = value.trim().slice(0, 500);
+  const { supabase } = await db();
+  if (trimmed) check(await supabase.from("thesis_infos").update({ text: trimmed }).eq("id", id));
+  else check(await supabase.from("thesis_infos").delete().eq("id", id));
+  revalidatePath(PATH);
+}
+
+export async function deleteInfo(formData: FormData) {
+  const { supabase } = await db();
+  check(await supabase.from("thesis_infos").delete().eq("id", String(formData.get("infoId"))));
+  revalidatePath(PATH);
 }
 
 // --- Documents --------------------------------------------------------------

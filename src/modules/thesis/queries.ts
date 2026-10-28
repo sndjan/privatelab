@@ -4,11 +4,15 @@ import {
   DOCUMENT_BUCKET,
   emptySettings,
   type DocumentCategory,
+  type EventKind,
+  type Info,
   type LogEntry,
+  type Person,
   type Phase,
   type Protocol,
   type Settings,
   type ThesisDocument,
+  type ThesisEvent,
   type Todo,
 } from "./data";
 
@@ -40,7 +44,7 @@ export async function loadPhases(): Promise<Phase[]> {
   return (data ?? []).map((row) => ({ id: row.id, name: row.name, startDate: row.start_date, endDate: row.end_date }));
 }
 
-const todoColumns = "id, title, note, deadline, phase_id, protocol_id, done_on";
+const todoColumns = "id, title, note, deadline, phase_id, protocol_id, done_on, priority, person_id";
 
 type TodoRow = {
   id: string;
@@ -50,6 +54,8 @@ type TodoRow = {
   phase_id: string | null;
   protocol_id: string | null;
   done_on: string | null;
+  priority: number | null;
+  person_id: string | null;
 };
 
 const toTodo = (row: TodoRow): Todo => ({
@@ -60,6 +66,8 @@ const toTodo = (row: TodoRow): Todo => ({
   phaseId: row.phase_id,
   protocolId: row.protocol_id,
   doneOn: row.done_on,
+  priority: row.priority,
+  personId: row.person_id,
 });
 
 export async function loadTodos(protocolId?: string): Promise<Todo[]> {
@@ -146,7 +154,11 @@ export async function loadSource(id: string): Promise<Source | null> {
   return data ? toSource(data as SourceRow) : null;
 }
 
-const protocolColumns = "id, date, title, participants, body";
+const protocolColumns = "id, date, title, participants, person_ids, body";
+
+type ProtocolRow = Omit<Protocol, "personIds"> & { person_ids: string[] | null };
+
+const toProtocol = ({ person_ids, ...row }: ProtocolRow): Protocol => ({ ...row, personIds: person_ids ?? [] });
 
 export async function loadProtocols(): Promise<Protocol[]> {
   const supabase = await createClient();
@@ -155,13 +167,66 @@ export async function loadProtocols(): Promise<Protocol[]> {
     .select(protocolColumns)
     .order("date", { ascending: false })
     .order("created_at", { ascending: false });
-  return (data ?? []) as Protocol[];
+  return ((data ?? []) as ProtocolRow[]).map(toProtocol);
 }
 
 export async function loadProtocol(id: string): Promise<Protocol | null> {
   const supabase = await createClient();
   const { data } = await supabase.from("thesis_protocols").select(protocolColumns).eq("id", id).maybeSingle();
-  return (data as Protocol | null) ?? null;
+  return data ? toProtocol(data as ProtocolRow) : null;
+}
+
+export async function loadPeople(): Promise<Person[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("thesis_people").select("id, name").order("name");
+  return (data ?? []) as Person[];
+}
+
+const eventColumns = "id, kind, title, date, time, location, note, person_ids, protocol_id";
+
+type EventRow = {
+  id: string;
+  kind: string;
+  title: string;
+  date: string;
+  time: string | null;
+  location: string;
+  note: string;
+  person_ids: string[] | null;
+  protocol_id: string | null;
+};
+
+const toEvent = (row: EventRow): ThesisEvent => ({
+  id: row.id,
+  kind: row.kind as EventKind,
+  title: row.title,
+  date: row.date,
+  time: row.time?.slice(0, 5) ?? null,
+  location: row.location,
+  note: row.note,
+  personIds: row.person_ids ?? [],
+  protocolId: row.protocol_id,
+});
+
+// Appointments and deadlines, or those linked to one protocol. In time order.
+export async function loadEvents(protocolId?: string): Promise<ThesisEvent[]> {
+  const supabase = await createClient();
+  let query = supabase.from("thesis_events").select(eventColumns).order("date").order("time", { nullsFirst: true });
+  if (protocolId) query = query.eq("protocol_id", protocolId);
+  const { data } = await query;
+  return ((data ?? []) as EventRow[]).map(toEvent);
+}
+
+export async function loadEvent(id: string): Promise<ThesisEvent | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("thesis_events").select(eventColumns).eq("id", id).maybeSingle();
+  return data ? toEvent(data as EventRow) : null;
+}
+
+export async function loadInfos(): Promise<Info[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("thesis_infos").select("id, text").order("created_at");
+  return (data ?? []) as Info[];
 }
 
 const documentColumns =

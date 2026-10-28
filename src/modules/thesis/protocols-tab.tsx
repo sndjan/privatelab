@@ -1,24 +1,28 @@
-import { ArrowLeftIcon, PencilIcon, PlusIcon, SearchIcon, UploadIcon } from "lucide-react";
+import { ArrowLeftIcon, CalendarClockIcon, PencilIcon, PlusIcon, SearchIcon, UploadIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { byDeadline, formatDate, phaseOn, type Protocol } from "./data";
+import { byPriority, formatDate, formatShortDate, peopleNames, type Person, type Protocol } from "./data";
 import { DocumentList } from "./documents-tab";
 import { ProtocolMarkdown } from "./markdown";
 import { ProtocolForm } from "./protocol-form";
-import { loadDocuments, loadPhases, loadProtocol, loadProtocols, loadTodos } from "./queries";
-import { TodoDialog } from "./todo-dialog";
+import { loadDocuments, loadEvent, loadEvents, loadPeople, loadPhases, loadProtocol, loadProtocols, loadTodos } from "./queries";
+import { QuickTodo } from "./quick-todo";
 import { TodoList } from "./todo-list";
 
 const PATH = "/m/thesis";
 
-type Props = { today: string; protocolId?: string; edit: boolean; query?: string };
+type Props = { today: string; protocolId?: string; edit: boolean; query?: string; eventId?: string };
 
-export async function ProtocolsTab({ today, protocolId, edit, query }: Props) {
+export async function ProtocolsTab({ today, protocolId, edit, query, eventId }: Props) {
   if (protocolId === "new" || (protocolId && edit)) {
-    const protocol = protocolId === "new" ? null : await loadProtocol(protocolId);
+    const [protocol, people, event] = await Promise.all([
+      protocolId === "new" ? null : loadProtocol(protocolId),
+      loadPeople(),
+      protocolId === "new" && eventId ? loadEvent(eventId) : null,
+    ]);
     if (protocolId !== "new" && !protocol) notFound();
     return (
       <Card>
@@ -28,16 +32,16 @@ export async function ProtocolsTab({ today, protocolId, edit, query }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ProtocolForm protocol={protocol} today={today} />
+          <ProtocolForm protocol={protocol} people={people} event={event} today={today} />
         </CardContent>
       </Card>
     );
   }
   if (protocolId) return <ProtocolView protocolId={protocolId} today={today} />;
 
-  const protocols = await loadProtocols();
+  const [protocols, people] = await Promise.all([loadProtocols(), loadPeople()]);
   const search = query?.trim() ?? "";
-  const shown = search ? protocols.filter((protocol) => matches(protocol, search)) : protocols;
+  const shown = search ? protocols.filter((protocol) => matches(protocol, people, search)) : protocols;
 
   return (
     <div className="space-y-4">
@@ -73,8 +77,7 @@ export async function ProtocolsTab({ today, protocolId, edit, query }: Props) {
                 className="flex flex-col gap-0.5 px-4 py-3 hover:bg-accent/50 active:bg-accent"
               >
                 <span className="text-xs text-muted-foreground">
-                  {formatDate(protocol.date)}
-                  {protocol.participants && ` · ${protocol.participants}`}
+                  {[formatDate(protocol.date), participants(protocol, people)].filter(Boolean).join(" · ")}
                 </span>
                 <span className="font-medium">{protocol.title}</span>
                 {protocol.body && (
@@ -90,14 +93,16 @@ export async function ProtocolsTab({ today, protocolId, edit, query }: Props) {
 }
 
 async function ProtocolView({ protocolId, today }: { protocolId: string; today: string }) {
-  const [protocol, phases, todos, documents] = await Promise.all([
+  const [protocol, phases, todos, documents, people, events] = await Promise.all([
     loadProtocol(protocolId),
     loadPhases(),
     loadTodos(protocolId),
     loadDocuments({ protocolId }),
+    loadPeople(),
+    loadEvents(protocolId),
   ]);
   if (!protocol) notFound();
-  const open = todos.filter((todo) => !todo.doneOn).sort(byDeadline);
+  const open = todos.filter((todo) => !todo.doneOn).sort(byPriority);
   const done = todos.filter((todo) => todo.doneOn);
 
   return (
@@ -113,8 +118,17 @@ async function ProtocolView({ protocolId, today }: { protocolId: string; today: 
             <h2>{protocol.title}</h2>
           </CardTitle>
           <CardDescription>
-            {formatDate(protocol.date)}
-            {protocol.participants && ` · ${protocol.participants}`}
+            {[formatDate(protocol.date), participants(protocol, people)].filter(Boolean).join(" · ")}
+            {events.map((event) => (
+              <Link
+                key={event.id}
+                href={`${PATH}?tab=events`}
+                className="mt-1 flex items-center gap-1 text-brand hover:underline"
+              >
+                <CalendarClockIcon className="size-3.5" /> Termin: {event.title}, {formatShortDate(event.date)}
+                {event.time && ` ${event.time}`}
+              </Link>
+            ))}
           </CardDescription>
           <CardAction>
             <Button asChild variant="ghost" size="icon" className="text-muted-foreground">
@@ -140,13 +154,8 @@ async function ProtocolView({ protocolId, today }: { protocolId: string; today: 
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {todos.length > 0 && <TodoList todos={[...open, ...done]} phases={phases} today={today} showNotes />}
-          <TodoDialog
-            phases={phases}
-            defaultPhaseId={phaseOn(phases, today)?.id ?? null}
-            protocolId={protocol.id}
-            triggerLabel="To-do hinzufügen"
-          />
+          <QuickTodo people={people} phases={phases} today={today} protocolId={protocol.id} />
+          {todos.length > 0 && <TodoList todos={[...open, ...done]} phases={phases} people={people} today={today} showNotes />}
         </CardContent>
       </Card>
 
@@ -172,9 +181,13 @@ async function ProtocolView({ protocolId, today }: { protocolId: string; today: 
 
 const normalize = (text: string) => text.toLocaleLowerCase("de-DE");
 
-function matches(protocol: Protocol, search: string) {
+// "Sandra, Prof. Weber" from the chips and the old free text.
+const participants = (protocol: Protocol, people: Person[]) =>
+  [...peopleNames(people, protocol.personIds), protocol.participants].filter(Boolean).join(", ");
+
+function matches(protocol: Protocol, people: Person[], search: string) {
   const needle = normalize(search);
-  return [protocol.title, protocol.participants, protocol.body].some((field) => normalize(field).includes(needle));
+  return [protocol.title, participants(protocol, people), protocol.body].some((field) => normalize(field).includes(needle));
 }
 
 // The text around the first match (or the start), without Markdown symbols.
