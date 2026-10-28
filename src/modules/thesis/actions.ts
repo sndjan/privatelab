@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { sourceKinds, suggestCitationKey, type SourceField, type SourceKind, type SourceStatus } from "./cite";
-import { isDate, parseDecimal, todayInGermany } from "./data";
+import { DOCUMENT_BUCKET, documentCategories, isDate, maxDocumentBytes, parseDecimal, todayInGermany } from "./data";
 
 // All writes go through the user's own Supabase client, so RLS enforces
 // ownership and access to the 'thesis' module.
@@ -273,4 +273,74 @@ export async function deleteProtocol(formData: FormData) {
   check(await supabase.from("thesis_protocols").delete().eq("id", String(formData.get("protocolId"))));
   revalidatePath(PATH);
   redirect(`${PATH}?tab=protocols`);
+}
+
+// --- Documents --------------------------------------------------------------
+
+// The browser uploads the file into "<user id>/…" first; this saves the row
+// (or, for an existing document, its new details and maybe a new file).
+export async function saveDocument(formData: FormData) {
+  const title = text(formData, "title", 200);
+  if (!title) throw new Error("Title missing");
+  const category = String(formData.get("category"));
+  const { supabase, userId } = await db();
+  const row = {
+    title,
+    note: longText(formData, "note", 2000),
+    category: documentCategories.some((entry) => entry.value === category) ? category : "other",
+    source_id: optionalId(formData, "sourceId"),
+    protocol_id: optionalId(formData, "protocolId"),
+  };
+
+  const storagePath = String(formData.get("storagePath") ?? "");
+  const file = storagePath
+    ? {
+        storage_path: ownPath(storagePath, userId),
+        file_name: text(formData, "fileName", 255) || "Datei",
+        mime_type: text(formData, "mimeType", 200) || "application/octet-stream",
+        size_bytes: Math.max(0, Math.min(maxDocumentBytes, Math.round(Number(formData.get("sizeBytes")) || 0))),
+        file_updated_at: new Date().toISOString(),
+      }
+    : null;
+
+  let documentId = String(formData.get("documentId") ?? "");
+  if (documentId) {
+    const { storage_path: oldPath } = check(
+      await supabase.from("thesis_documents").select("storage_path").eq("id", documentId).single(),
+    );
+    check(await supabase.from("thesis_documents").update({ ...row, ...file }).eq("id", documentId));
+    // The replaced file is gone for good.
+    if (file && oldPath !== file.storage_path) await supabase.storage.from(DOCUMENT_BUCKET).remove([oldPath]);
+  } else {
+    if (!file) throw new Error("File missing");
+    documentId = check(await supabase.from("thesis_documents").insert({ ...row, ...file }).select("id").single()).id;
+  }
+  revalidatePath(PATH);
+  return documentId;
+}
+
+// Removes an uploaded file whose row couldn't be saved.
+export async function discardUpload(storagePath: string) {
+  const { supabase, userId } = await db();
+  await supabase.storage.from(DOCUMENT_BUCKET).remove([ownPath(storagePath, userId)]);
+}
+
+export async function deleteDocument(formData: FormData) {
+  const { supabase } = await db();
+  const { storage_path: path } = check(
+    await supabase
+      .from("thesis_documents")
+      .delete()
+      .eq("id", String(formData.get("documentId")))
+      .select("storage_path")
+      .single(),
+  );
+  await supabase.storage.from(DOCUMENT_BUCKET).remove([path]);
+  revalidatePath(PATH);
+  redirect(`${PATH}?tab=documents`);
+}
+
+function ownPath(path: string, userId: string) {
+  if (!path.startsWith(`${userId}/`) || path.includes("..") || path.length > 200) throw new Error("Invalid path");
+  return path;
 }

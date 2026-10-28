@@ -15,6 +15,7 @@ import {
   type Settings,
   type TabId,
 } from "./data";
+import { DocumentsTab } from "./documents-tab";
 import { LogTab } from "./log-tab";
 import { PhaseDialog } from "./phase-dialog";
 import { ProtocolsTab } from "./protocols-tab";
@@ -27,7 +28,8 @@ import { TodoList } from "./todo-list";
 const PATH = "/m/thesis";
 
 // Tracks the thesis as it happens: topic and time frame, phases, to-dos, a
-// work log with hours, sources (APA 7 and BibLaTeX) and meeting protocols.
+// work log with hours, sources (APA 7 and BibLaTeX), meeting protocols and
+// documents.
 // It only shows what was entered; nothing is suggested or generated.
 export default async function ThesisModule({ user, hasAccess, searchParams }: ModulePageProps) {
   if (!user || !hasAccess) notFound();
@@ -65,6 +67,16 @@ export default async function ThesisModule({ user, hasAccess, searchParams }: Mo
       {tab === "sources" && <SourcesTab today={today} sourceId={param("source")} status={param("status")} />}
       {tab === "protocols" && (
         <ProtocolsTab today={today} protocolId={param("protocol")} edit={param("edit") === "1"} query={param("q")} />
+      )}
+      {tab === "documents" && (
+        <DocumentsTab
+          userId={user.id}
+          documentId={param("document")}
+          edit={param("edit") === "1"}
+          category={param("category")}
+          sourceId={param("source")}
+          protocolId={param("protocol")}
+        />
       )}
     </div>
   );

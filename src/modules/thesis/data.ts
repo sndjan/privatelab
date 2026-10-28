@@ -36,12 +36,58 @@ export type LogEntry = { id: string; day: string; hours: number; text: string; p
 
 export type Protocol = { id: string; date: string; title: string; participants: string; body: string };
 
+export type DocumentCategory = "literature" | "guideline" | "draft" | "other";
+
+export const documentCategories: { value: DocumentCategory; label: string }[] = [
+  { value: "literature", label: "Literatur" },
+  { value: "guideline", label: "Vorlage / Richtlinie" },
+  { value: "draft", label: "Entwurf" },
+  { value: "other", label: "Sonstiges" },
+];
+
+export const categoryLabel = (category: DocumentCategory) =>
+  documentCategories.find((entry) => entry.value === category)?.label ?? category;
+
+export type ThesisDocument = {
+  id: string;
+  title: string;
+  note: string;
+  category: DocumentCategory;
+  storagePath: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  sourceId: string | null;
+  protocolId: string | null;
+  createdAt: string;
+  fileUpdatedAt: string;
+};
+
+export const DOCUMENT_BUCKET = "thesis-documents";
+
+// The bucket's limit (Supabase free plan maximum).
+export const maxDocumentBytes = 50 * 1024 * 1024;
+
+// 1536000 → "1,5 MB"
+export function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toLocaleString("de-DE", { maximumFractionDigits: 1 })} MB`;
+}
+
+export const isPdf = (document: Pick<ThesisDocument, "mimeType" | "fileName">) =>
+  document.mimeType === "application/pdf" || /\.pdf$/i.test(document.fileName);
+
+export const isImage = (document: Pick<ThesisDocument, "mimeType">) =>
+  /^image\/(png|jpe?g|gif|webp|avif|svg\+xml)$/.test(document.mimeType);
+
 export const tabs = [
   { id: "overview", label: "Überblick" },
   { id: "todos", label: "To-dos" },
   { id: "log", label: "Arbeitslog" },
   { id: "sources", label: "Quellen" },
   { id: "protocols", label: "Protokolle" },
+  { id: "documents", label: "Dokumente" },
 ] as const;
 
 export type TabId = (typeof tabs)[number]["id"];

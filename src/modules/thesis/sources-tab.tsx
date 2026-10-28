@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, ExternalLinkIcon, PencilIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
+import { ArrowLeftIcon, ExternalLinkIcon, FileTextIcon, PaperclipIcon, PencilIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,8 @@ import {
   sourceStatuses,
   type Source,
 } from "./cite";
-import { loadSource, loadSources } from "./queries";
+import type { ThesisDocument } from "./data";
+import { loadDocuments, loadSource, loadSources } from "./queries";
 import { SourceForm } from "./source-form";
 import { CopyText, DownloadText, StatusSelect } from "./source-tools";
 
@@ -48,7 +49,8 @@ export async function SourcesTab({ today, sourceId, status }: Props) {
     );
   }
 
-  const all = (await loadSources()).sort((a, b) => sortKey(a).localeCompare(sortKey(b), "de-DE"));
+  const [sources, documents] = await Promise.all([loadSources(), loadDocuments()]);
+  const all = sources.sort((a, b) => sortKey(a).localeCompare(sortKey(b), "de-DE"));
   const filter = sourceStatuses.find((entry) => entry.value === status)?.value;
   const shown = filter ? all.filter((source) => source.status === filter) : all;
   const cited = all.filter((source) => source.status === "cited");
@@ -102,7 +104,7 @@ export async function SourcesTab({ today, sourceId, status }: Props) {
         <ul className="flex flex-col gap-3">
           {shown.map((source) => (
             <li key={source.id}>
-              <SourceCard source={source} />
+              <SourceCard source={source} documents={documents.filter((document) => document.sourceId === source.id)} />
             </li>
           ))}
         </ul>
@@ -111,7 +113,7 @@ export async function SourcesTab({ today, sourceId, status }: Props) {
   );
 }
 
-function SourceCard({ source }: { source: Source }) {
+function SourceCard({ source, documents }: { source: Source; documents: ThesisDocument[] }) {
   const missing = missingFields(source);
   const link = doiUrl(source.doi) || source.url;
 
@@ -138,6 +140,21 @@ function SourceCard({ source }: { source: Source }) {
               <ExternalLinkIcon className="size-3" /> Öffnen
             </a>
           )}
+          {documents.map((document) => (
+            <Link
+              key={document.id}
+              href={`${PATH}?tab=documents&document=${document.id}`}
+              className="inline-flex max-w-full items-center gap-1 text-brand hover:underline"
+            >
+              <FileTextIcon className="size-3 shrink-0" /> <span className="truncate">{document.title}</span>
+            </Link>
+          ))}
+          <Link
+            href={`${PATH}?tab=documents&document=new&source=${source.id}`}
+            className="inline-flex items-center gap-1 hover:text-foreground"
+          >
+            <PaperclipIcon className="size-3" /> Datei anhängen
+          </Link>
         </div>
         {missing.length > 0 && (
           <p className="flex items-start gap-1.5 text-xs text-debt">

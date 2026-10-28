@@ -1,6 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Source, SourceKind, SourceStatus } from "./cite";
-import { emptySettings, type LogEntry, type Phase, type Protocol, type Settings, type Todo } from "./data";
+import {
+  DOCUMENT_BUCKET,
+  emptySettings,
+  type DocumentCategory,
+  type LogEntry,
+  type Phase,
+  type Protocol,
+  type Settings,
+  type ThesisDocument,
+  type Todo,
+} from "./data";
 
 // Reads the user's rows (RLS limits every query to them) and maps them to
 // the module's types.
@@ -152,4 +162,64 @@ export async function loadProtocol(id: string): Promise<Protocol | null> {
   const supabase = await createClient();
   const { data } = await supabase.from("thesis_protocols").select(protocolColumns).eq("id", id).maybeSingle();
   return (data as Protocol | null) ?? null;
+}
+
+const documentColumns =
+  "id, title, note, category, storage_path, file_name, mime_type, size_bytes, source_id, protocol_id, created_at, file_updated_at";
+
+type DocumentRow = {
+  id: string;
+  title: string;
+  note: string;
+  category: string;
+  storage_path: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number | string;
+  source_id: string | null;
+  protocol_id: string | null;
+  created_at: string;
+  file_updated_at: string;
+};
+
+const toDocument = (row: DocumentRow): ThesisDocument => ({
+  id: row.id,
+  title: row.title,
+  note: row.note,
+  category: row.category as DocumentCategory,
+  storagePath: row.storage_path,
+  fileName: row.file_name,
+  mimeType: row.mime_type,
+  sizeBytes: Number(row.size_bytes),
+  sourceId: row.source_id,
+  protocolId: row.protocol_id,
+  createdAt: row.created_at,
+  fileUpdatedAt: row.file_updated_at,
+});
+
+// All documents, or those linked to one source or protocol. Newest first.
+export async function loadDocuments(link?: { sourceId?: string; protocolId?: string }): Promise<ThesisDocument[]> {
+  const supabase = await createClient();
+  let query = supabase.from("thesis_documents").select(documentColumns).order("created_at", { ascending: false });
+  if (link?.sourceId) query = query.eq("source_id", link.sourceId);
+  if (link?.protocolId) query = query.eq("protocol_id", link.protocolId);
+  const { data } = await query;
+  return ((data ?? []) as DocumentRow[]).map(toDocument);
+}
+
+export async function loadDocument(id: string): Promise<ThesisDocument | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("thesis_documents").select(documentColumns).eq("id", id).maybeSingle();
+  return data ? toDocument(data as DocumentRow) : null;
+}
+
+// Short-lived links to view and to download a document's file.
+export async function documentUrls(document: ThesisDocument) {
+  const supabase = await createClient();
+  const bucket = supabase.storage.from(DOCUMENT_BUCKET);
+  const [view, download] = await Promise.all([
+    bucket.createSignedUrl(document.storagePath, 60 * 60),
+    bucket.createSignedUrl(document.storagePath, 60 * 60, { download: document.fileName }),
+  ]);
+  return { viewUrl: view.data?.signedUrl ?? null, downloadUrl: download.data?.signedUrl ?? null };
 }

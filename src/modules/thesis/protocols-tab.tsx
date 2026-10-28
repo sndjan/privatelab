@@ -1,13 +1,14 @@
-import { ArrowLeftIcon, PencilIcon, PlusIcon, SearchIcon } from "lucide-react";
+import { ArrowLeftIcon, PencilIcon, PlusIcon, SearchIcon, UploadIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { byDeadline, formatDate, phaseOn, type Protocol } from "./data";
+import { DocumentList } from "./documents-tab";
 import { ProtocolMarkdown } from "./markdown";
 import { ProtocolForm } from "./protocol-form";
-import { loadPhases, loadProtocol, loadProtocols, loadTodos } from "./queries";
+import { loadDocuments, loadPhases, loadProtocol, loadProtocols, loadTodos } from "./queries";
 import { TodoDialog } from "./todo-dialog";
 import { TodoList } from "./todo-list";
 
@@ -89,7 +90,12 @@ export async function ProtocolsTab({ today, protocolId, edit, query }: Props) {
 }
 
 async function ProtocolView({ protocolId, today }: { protocolId: string; today: string }) {
-  const [protocol, phases, todos] = await Promise.all([loadProtocol(protocolId), loadPhases(), loadTodos(protocolId)]);
+  const [protocol, phases, todos, documents] = await Promise.all([
+    loadProtocol(protocolId),
+    loadPhases(),
+    loadTodos(protocolId),
+    loadDocuments({ protocolId }),
+  ]);
   if (!protocol) notFound();
   const open = todos.filter((todo) => !todo.doneOn).sort(byDeadline);
   const done = todos.filter((todo) => todo.doneOn);
@@ -141,6 +147,23 @@ async function ProtocolView({ protocolId, today }: { protocolId: string; today: 
             protocolId={protocol.id}
             triggerLabel="To-do hinzufügen"
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">
+            <h2>Dokumente</h2>
+          </CardTitle>
+          {documents.length === 0 && <CardDescription>z. B. Folien oder Unterlagen zu diesem Termin.</CardDescription>}
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {documents.length > 0 && <DocumentList documents={documents} />}
+          <Button asChild variant="outline" className="w-fit">
+            <Link href={`${PATH}?tab=documents&document=new&protocol=${protocol.id}`}>
+              <UploadIcon /> Dokument hochladen
+            </Link>
+          </Button>
         </CardContent>
       </Card>
     </div>
