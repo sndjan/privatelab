@@ -180,7 +180,7 @@ export async function addQuickTodo(input: string, protocolId: string | null = nu
 export async function setTodoDone(id: string, done: boolean) {
   const { supabase } = await db();
   check(await supabase.from("thesis_todos").update({ done_on: done ? todayInGermany() : null }).eq("id", id));
-  revalidatePath(PATH);
+  // No revalidatePath: the browser already changed its cached to-dos.
 }
 
 // --- Work log ---------------------------------------------------------------

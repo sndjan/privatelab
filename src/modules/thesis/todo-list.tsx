@@ -2,12 +2,13 @@
 
 import { MessageSquareTextIcon, UserIcon } from "lucide-react";
 import { ViewLink as Link } from "@/lib/query/view-link";
-import { useOptimistic, useTransition } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { setTodoDone } from "./actions";
 import { formatDate, formatShortDate, priorityClass, relativeDays, type Person, type Phase, type Protocol, type Todo } from "./data";
+import { thesisQuery } from "./query";
 import { TodoDialog } from "./todo-dialog";
 
 const PATH = "/m/thesis";
@@ -32,21 +33,20 @@ export function TodoList({ todos, ...props }: Props) {
   );
 }
 
-// Ticking shows the to-do as done right away; the list sorts it into
-// "Erledigt" once the server answered.
-function TodoRow({ todo: saved, phases, people, protocols, today, showNotes = false }: Omit<Props, "todos"> & { todo: Todo }) {
-  const [doneOn, setDoneOn] = useOptimistic(saved.doneOn);
-  const [, startTransition] = useTransition();
-  const todo = { ...saved, doneOn };
+// Ticking marks the to-do done in the cached list right away, so every view
+// shows it at once; the server catches up in the background.
+function TodoRow({ todo, phases, people, protocols, today, showNotes = false }: Omit<Props, "todos"> & { todo: Todo }) {
+  const queryClient = useQueryClient();
+  const key = thesisQuery("todos").queryKey;
 
   function toggle(done: boolean) {
-    startTransition(async () => {
-      setDoneOn(done ? today : null);
-      try {
-        await setTodoDone(todo.id, done);
-      } catch {
-        toast.error("Das hat nicht geklappt. Prüf deine Verbindung.");
-      }
+    void queryClient.cancelQueries({ queryKey: key });
+    queryClient.setQueryData(key, (todos) =>
+      todos?.map((entry) => (entry.id === todo.id ? { ...entry, doneOn: done ? today : null } : entry)),
+    );
+    setTodoDone(todo.id, done).catch(() => {
+      toast.error("Das hat nicht geklappt. Prüf deine Verbindung.");
+      void queryClient.invalidateQueries({ queryKey: key });
     });
   }
 
@@ -104,7 +104,7 @@ function TodoRow({ todo: saved, phases, people, protocols, today, showNotes = fa
           )}
         </span>
       </span>
-      <TodoDialog key={JSON.stringify(saved)} todo={saved} phases={phases} people={people} defaultPhaseId={null} />
+      <TodoDialog key={JSON.stringify(todo)} todo={todo} phases={phases} people={people} defaultPhaseId={null} />
     </li>
   );
 }

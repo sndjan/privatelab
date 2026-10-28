@@ -2,7 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronLeftIcon, PencilIcon } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { dataQuery, type LoaderResult } from "@/lib/query/data";
 import { ViewLink as Link } from "@/lib/query/view-link";
@@ -34,7 +34,6 @@ export function ListScreen({
   startInEditMode: boolean;
 }) {
   const [editing, setEditing] = useState(startInEditMode);
-  const [, startTransition] = useTransition();
   const queryClient = useQueryClient();
   const listKey = dataQuery("packing", "list", { id: list.id }).queryKey;
 
@@ -43,15 +42,11 @@ export function ListScreen({
   function change(patch: (data: ListData) => Partial<ListData>, action: () => Promise<unknown>) {
     void queryClient.cancelQueries({ queryKey: listKey });
     queryClient.setQueryData(listKey, (data) => (data ? { ...data, ...patch(data) } : data));
-    startTransition(async () => {
-      try {
-        await action();
-      } catch {
-        void queryClient.invalidateQueries({ queryKey: listKey });
-      }
+    // Not in a transition: a pending save would hold back switching views.
+    action()
+      .catch(() => queryClient.invalidateQueries({ queryKey: listKey }))
       // The overview's progress.
-      void queryClient.invalidateQueries({ queryKey: ["packing", "overview"] });
-    });
+      .finally(() => queryClient.invalidateQueries({ queryKey: ["packing", "overview"] }));
   }
 
   function tick(ids: string[], value: boolean) {
