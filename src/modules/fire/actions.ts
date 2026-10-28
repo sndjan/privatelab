@@ -160,3 +160,27 @@ export async function deleteMonth(formData: FormData) {
 
   revalidatePath(PATH);
 }
+
+export async function addPlannedExpense(formData: FormData) {
+  await requireUser();
+  const name = String(formData.get("name") ?? "").trim().slice(0, 80);
+  const month = String(formData.get("month") ?? "");
+  const amount = toNumber(formData.get("amount"));
+  if (!name || !/^\d{4}-\d{2}$/.test(month) || amount <= 0) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("fire_planned_expenses").insert({ name, amount, month: `${month}-01` });
+  if (error) throw new Error(error.message);
+
+  revalidatePath(PATH);
+}
+
+export async function deletePlannedExpense(formData: FormData) {
+  await requireUser();
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("fire_planned_expenses").delete().eq("id", String(formData.get("expenseId")));
+  if (error) throw new Error(error.message);
+
+  revalidatePath(PATH);
+}

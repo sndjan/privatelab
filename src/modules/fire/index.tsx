@@ -21,14 +21,17 @@ import {
   formatMonth,
   formatSignedMoney,
   monthlySavings,
+  expensesByOffset,
   monthsToTarget,
   savingsRate,
   signedBalance,
   type AccountKind,
   type FireSettings,
+  type PlannedExpense,
 } from "./calc";
 import { Calculator } from "./calculator";
 import { NetWorthChart } from "./net-worth-chart";
+import { PlannedExpenses } from "./planned-expenses";
 import { RecordMonth } from "./record-month";
 import { TargetDialog } from "./target-dialog";
 import { kindColor } from "./ui";
@@ -71,10 +74,11 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
   }
 
   const supabase = await createClient();
-  const [{ data: settingsRow }, { data: accountRows }, { data: balanceRows }] = await Promise.all([
+  const [{ data: settingsRow }, { data: accountRows }, { data: balanceRows }, { data: expenseRows }] = await Promise.all([
     supabase.from("fire_settings").select("*").eq("user_id", user.id).maybeSingle(),
     supabase.from("fire_accounts").select("id, name, kind, archived").order("created_at"),
     supabase.from("fire_balances").select("account_id, month, balance").order("month"),
+    supabase.from("fire_planned_expenses").select("id, name, amount, month").order("month"),
   ]);
 
   const settings: FireSettings = settingsRow
@@ -89,6 +93,7 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
   const accounts = (accountRows ?? []) as Account[];
   const balances = (balanceRows ?? []).map((row) => ({ ...row, balance: Number(row.balance) })) as Balance[];
   const activeAccounts = accounts.filter((account) => !account.archived);
+  const expenses: PlannedExpense[] = (expenseRows ?? []).map((row) => ({ ...row, amount: Number(row.amount) }));
 
   const history = buildHistory(accounts, balances);
   const latest = history.at(-1);
@@ -98,7 +103,9 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
   const savings = monthlySavings(settings);
   const progress = target > 0 ? Math.round((netWorth / target) * 100) : 0;
   const startMonth = `${currentMonth()}-01`;
-  const months = monthsToTarget(netWorth, savings, settings.expectedReturn, target);
+  const plannedByOffset = expensesByOffset(expenses, startMonth);
+  const planned = [...plannedByOffset.values()].reduce((sum, amount) => sum + amount, 0);
+  const months = monthsToTarget(netWorth, savings, settings.expectedReturn, target, plannedByOffset);
 
   // Investments, pension, cash and property by kind, for the allocation bar.
   const allocation = accountKinds
@@ -166,6 +173,7 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
                       · in {formatDuration(months)}
                     </>
                   )}
+                  {planned > 0 && <> · mit {formatMoney(planned)} geplanten Ausgaben</>}
                 </div>
               </>
             ) : (
@@ -269,8 +277,16 @@ export default async function FireModule({ user, hasAccess }: ModulePageProps) {
           </CardContent>
         </Card>
 
-        <WhatIf key={JSON.stringify({ netWorth, settings })} netWorth={netWorth} startMonth={startMonth} settings={settings} />
+        <WhatIf
+          key={JSON.stringify({ netWorth, settings, expenses })}
+          netWorth={netWorth}
+          startMonth={startMonth}
+          settings={settings}
+          expenses={expenses}
+        />
       </div>
+
+      <PlannedExpenses expenses={expenses} startMonth={startMonth} />
 
       <Card>
         <CardHeader>

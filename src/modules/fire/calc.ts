@@ -45,19 +45,46 @@ export function monthlySavings(settings: FireSettings) {
 
 const MAX_MONTHS = 100 * 12;
 
-// Months until net worth reaches the target, saving `savings` per month and
-// compounding monthly at the expected real return. null = not within 100 years.
-export function monthsToTarget(netWorth: number, savings: number, annualReturn: number, target: number) {
-  if (target <= 0) return null;
-  if (netWorth >= target) return 0;
+// A one-off expense in the future; `month` is the first day of its month.
+export type PlannedExpense = { id: string; name: string; amount: number; month: string };
 
-  const monthlyReturn = Math.pow(1 + annualReturn / 100, 1 / 12) - 1;
-  let value = netWorth;
-  for (let month = 1; month <= MAX_MONTHS; month++) {
-    value = value * (1 + monthlyReturn) + savings;
-    if (value >= target) return month;
+// Planned expenses as amounts per month from `startMonth` (0 = this month);
+// past ones are left out, they are already gone from the balances.
+export function expensesByOffset(expenses: Pick<PlannedExpense, "amount" | "month">[], startMonth: string) {
+  const start = new Date(`${startMonth}T00:00:00`);
+  const byOffset = new Map<number, number>();
+  for (const expense of expenses) {
+    const date = new Date(`${expense.month}T00:00:00`);
+    const offset = (date.getFullYear() - start.getFullYear()) * 12 + date.getMonth() - start.getMonth();
+    if (offset >= 0) byOffset.set(offset, (byOffset.get(offset) ?? 0) + expense.amount);
   }
-  return null;
+  return byOffset;
+}
+
+// Months until net worth reaches the target, saving `savings` per month and
+// compounding monthly at the expected real return. Planned expenses (by
+// month offset, 0 = this month) are taken out in their month, and the target
+// only counts as reached once no later expense pulls it below again.
+// null = not within 100 years.
+export function monthsToTarget(
+  netWorth: number,
+  savings: number,
+  annualReturn: number,
+  target: number,
+  expenses: Map<number, number> = new Map(),
+) {
+  if (target <= 0) return null;
+  const monthlyReturn = Math.pow(1 + annualReturn / 100, 1 / 12) - 1;
+  const lastExpense = Math.max(-1, ...expenses.keys());
+  let value = netWorth - (expenses.get(0) ?? 0);
+  let reached: number | null = value >= target ? 0 : null;
+  for (let month = 1; month <= MAX_MONTHS; month++) {
+    if (reached !== null && month > lastExpense) return reached;
+    value = value * (1 + monthlyReturn) + savings - (expenses.get(month) ?? 0);
+    if (value < target) reached = null;
+    else reached ??= month;
+  }
+  return reached;
 }
 
 export function addMonths(date: Date, months: number) {
