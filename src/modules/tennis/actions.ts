@@ -138,6 +138,7 @@ function groupValues(formData: FormData) {
   return {
     name: text(formData, "name", 60),
     note: text(formData, "note", 500),
+    ...(formData.has("coach") && { coach: text(formData, "coach", 60) }),
     ...(isTime(startTime) && { start_time: startTime }),
     ...(minutes >= 15 && minutes <= 180 && { minutes }),
     ...(formData.has("weekday") && { weekday: Number.isInteger(weekday) && weekday >= 1 && weekday <= 7 ? weekday : null }),
@@ -205,6 +206,25 @@ export async function addHoliday(formData: FormData) {
       end_date: startDate <= endDate ? endDate : startDate,
     }),
   );
+  revalidatePath(PATH);
+}
+
+export async function addStandIn(formData: FormData) {
+  const date = text(formData, "date", 10);
+  const groupId = String(formData.get("groupId") ?? "");
+  if (!isDate(date) || !groupId) return;
+  const supabase = await db();
+  check(
+    await supabase
+      .from("tennis_stand_ins")
+      .upsert({ group_id: groupId, date, note: text(formData, "note", 200) }, { onConflict: "group_id,date" }),
+  );
+  revalidatePath(PATH);
+}
+
+export async function deleteStandIn(formData: FormData) {
+  const supabase = await db();
+  check(await supabase.from("tennis_stand_ins").delete().eq("id", String(formData.get("standInId"))));
   revalidatePath(PATH);
 }
 
@@ -370,14 +390,14 @@ export async function planWithAi(request: string, groupId: string | null, date: 
   if (!wish) return { error: "Schreib kurz, was du planen willst." };
   const supabase = await db();
   const [groupRows, exerciseRows, favoriteRows, sessionRows, playerRows] = await Promise.all([
-    supabase.from("tennis_groups").select("id, name, note, start_time, minutes, weekday").order("name"),
+    supabase.from("tennis_groups").select("id, name, note, start_time, minutes, weekday, coach").order("name"),
     supabase.from("tennis_exercises").select("id, name, phase, minutes, summary, focus, players_min, players_max").order("name"),
     supabase.from("tennis_favorites").select("group_id, exercise_id"),
     supabase.from("tennis_sessions").select("group_id, plan").order("date", { ascending: false }).limit(60),
     supabase.from("tennis_players").select("group_id"),
   ]);
   const groups = check(groupRows).map(
-    (row): Group => ({ id: row.id, name: row.name, note: row.note, startTime: row.start_time.slice(0, 5), minutes: row.minutes, weekday: row.weekday }),
+    (row): Group => ({ id: row.id, name: row.name, note: row.note, startTime: row.start_time.slice(0, 5), minutes: row.minutes, weekday: row.weekday, coach: row.coach ?? "" }),
   );
   const exercises = check(exerciseRows).map(
     (row): Exercise => ({

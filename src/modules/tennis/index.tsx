@@ -1,11 +1,11 @@
-import { BookOpenIcon, CalendarPlusIcon, ChevronLeftIcon, ChevronRightIcon, PalmtreeIcon, PencilIcon, StarIcon, Trash2Icon, UsersIcon } from "lucide-react";
+import { BookOpenIcon, CalendarCheckIcon, CalendarPlusIcon, ChevronLeftIcon, ChevronRightIcon, PalmtreeIcon, PencilIcon, PlusIcon, StarIcon, Trash2Icon, UsersIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FormPending } from "@/components/form-pending";
 import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,11 +13,13 @@ import { createClient } from "@/lib/supabase/server";
 import type { ModulePageProps } from "@/modules/registry";
 import {
   addHoliday,
+  addStandIn,
   createGroup,
   deleteExercise,
   deleteGroup,
   deleteHoliday,
   deleteSession,
+  deleteStandIn,
   loadStarterExercises,
   saveExerciseNotes,
   saveSessionNotes,
@@ -33,12 +35,14 @@ import {
   formatSessionDate,
   generatePlan,
   holidayOn,
+  isoWeekday,
+  myTrainingDates,
+  nextTrainingDate,
   parseDiagram,
   phaseName,
   playersLabel,
   timeline,
   todayInGermany,
-  trainingDates,
   weekdayNames,
   weekdays,
   type Exercise,
@@ -49,6 +53,7 @@ import {
   type PlanItem,
   type Player,
   type Session,
+  type StandIn,
 } from "./data";
 import { ExerciseForm } from "./exercise-form";
 import { FavoriteToggles } from "./favorite-toggles";
@@ -98,7 +103,8 @@ const newExercise = {
 // --- Rows ---------------------------------------------------------------------
 
 const exerciseColumns = "id, name, phase, minutes, summary, description, tips, focus, diagram, notes, players_min, players_max";
-const groupColumns = "id, name, note, start_time, minutes, weekday";
+const groupColumns = "id, name, note, start_time, minutes, weekday, coach";
+const standInColumns = "id, group_id, date, note";
 const sessionColumns = "id, group_id, date, start_time, minutes, focus, plan, notes, absent";
 const playerColumns = "id, group_id, name, gender";
 const holidayColumns = "id, name, start_date, end_date";
@@ -108,7 +114,16 @@ type ExerciseRow = Omit<Exercise, "diagram" | "playersMin" | "playersMax"> & {
   players_min: number | null;
   players_max: number | null;
 };
-type GroupRow = { id: string; name: string; note: string; start_time: string; minutes: number; weekday: number | null };
+type GroupRow = {
+  id: string;
+  name: string;
+  note: string;
+  start_time: string;
+  minutes: number;
+  weekday: number | null;
+  coach: string | null;
+};
+type StandInRow = { id: string; group_id: string; date: string; note: string };
 type PlayerRow = { id: string; group_id: string; name: string; gender: Gender | null };
 type HolidayRow = { id: string; name: string; start_date: string; end_date: string };
 type SessionRow = {
@@ -141,7 +156,10 @@ const toGroup = (row: GroupRow): Group => ({
   startTime: row.start_time.slice(0, 5),
   minutes: row.minutes,
   weekday: row.weekday,
+  coach: row.coach ?? "",
 });
+
+const toStandIn = (row: StandInRow): StandIn => ({ id: row.id, groupId: row.group_id, date: row.date, note: row.note });
 
 function toSession(row: SessionRow): Session {
   const plan = (Array.isArray(row.plan) ? row.plan : []).filter(
@@ -166,32 +184,41 @@ const sessionEnd = (session: Session) => formatClock(timeline(session.startTime,
 
 async function Overview() {
   const supabase = await createClient();
-  const [{ data: groupRows }, { count: exerciseCount }, { data: sessionRows }, { data: playerRows }, { data: holidayRows }] =
-    await Promise.all([
-      supabase.from("tennis_groups").select(groupColumns).order("name"),
-      supabase.from("tennis_exercises").select("id", { count: "exact", head: true }),
-      supabase.from("tennis_sessions").select(sessionColumns).order("date", { ascending: false }).order("start_time", { ascending: false }).limit(30),
-      supabase.from("tennis_players").select("group_id"),
-      supabase.from("tennis_holidays").select(holidayColumns).gte("end_date", todayInGermany()).order("start_date"),
-    ]);
+  const [
+    { data: groupRows },
+    { count: exerciseCount },
+    { data: sessionRows },
+    { data: playerRows },
+    { data: holidayRows },
+    { data: standInRows },
+  ] = await Promise.all([
+    supabase.from("tennis_groups").select(groupColumns).order("name"),
+    supabase.from("tennis_exercises").select("id", { count: "exact", head: true }),
+    supabase.from("tennis_sessions").select(sessionColumns).order("date", { ascending: false }).order("start_time", { ascending: false }).limit(30),
+    supabase.from("tennis_players").select("group_id"),
+    supabase.from("tennis_holidays").select(holidayColumns).gte("end_date", todayInGermany()).order("start_date"),
+    supabase.from("tennis_stand_ins").select(standInColumns).gte("date", todayInGermany()).order("date"),
+  ]);
   const groups = ((groupRows ?? []) as GroupRow[]).map(toGroup);
   const sessions = ((sessionRows ?? []) as SessionRow[]).map(toSession);
   const holidays = ((holidayRows ?? []) as HolidayRow[]).map(toHoliday);
+  const standIns = ((standInRows ?? []) as StandInRow[]).map(toStandIn);
   const today = todayInGermany();
   const upcoming = sessions.filter((session) => session.date >= today).reverse();
   const past = sessions.filter((session) => session.date < today).slice(0, 5);
   const groupName = (id: string | null) => groups.find((group) => group.id === id)?.name ?? "Ohne Gruppe";
   const playerCount = (groupId: string) => (playerRows ?? []).filter((row) => row.group_id === groupId).length;
+  const nextStandIn = (groupId: string) => standIns.find((standIn) => standIn.groupId === groupId)?.date;
   const currentHoliday = holidayOn(today, holidays);
   const nextHoliday = holidays.find((holiday) => holiday.startDate > today);
 
-  // Training days of the next week that have no session yet.
-  const weekEnd = addDays(today, 6);
+  // My training days of the next week (stand-ins: the next two weeks) that
+  // have no session yet.
   const unplanned = groups
     .flatMap((group) =>
-      group.weekday ? trainingDates(group.weekday, today, holidays).map((date) => ({ group, date })) : [],
+      myTrainingDates(group, today, addDays(today, group.coach ? 13 : 6), holidays, standIns).map((date) => ({ group, date })),
     )
-    .filter(({ group, date }) => date <= weekEnd && !sessions.some((session) => session.groupId === group.id && session.date === date))
+    .filter(({ group, date }) => !sessions.some((session) => session.groupId === group.id && session.date === date))
     .sort((a, b) => a.date.localeCompare(b.date) || a.group.startTime.localeCompare(b.group.startTime));
 
   return (
@@ -252,7 +279,9 @@ async function Overview() {
                         <span>
                           {date === today ? "Heute" : formatSessionDate(date)}, {group.startTime} · {group.name}
                         </span>
-                        <span className="text-xs">Noch nicht geplant</span>
+                        <span className="text-xs">
+                          {group.coach ? `Aushilfe für ${group.coach} · ` : ""}Noch nicht geplant
+                        </span>
                       </span>
                       <span className="text-sm font-medium text-brand">Planen</span>
                     </Link>
@@ -273,6 +302,8 @@ async function Overview() {
                 <span className="line-clamp-1 text-xs text-muted-foreground">
                   {[
                     group.weekday && `${weekdays[group.weekday - 1]} ${group.startTime}`,
+                    group.coach && `Trainer:in ${group.coach}`,
+                    group.coach && nextStandIn(group.id) && `ich helfe ${formatSessionDate(nextStandIn(group.id)!)} aus`,
                     playerCount(group.id) > 0 && `${playerCount(group.id)} Kinder`,
                     group.note,
                   ]
@@ -445,20 +476,29 @@ function SessionLink({ session, title, today }: { session: Session; title: strin
 async function PlanView({ sessionId, groupId, date }: { sessionId: string | null; groupId: string | null; date: string | null }) {
   const supabase = await createClient();
   const today = todayInGermany();
-  const [{ data: groupRows }, { data: exerciseRows }, { data: favoriteRows }, { data: sessionRows }, { data: playerRows }, { data: holidayRows }] =
-    await Promise.all([
-      supabase.from("tennis_groups").select(groupColumns).order("name"),
-      supabase.from("tennis_exercises").select(exerciseColumns).order("name"),
-      supabase.from("tennis_favorites").select("group_id, exercise_id"),
-      supabase.from("tennis_sessions").select(sessionColumns).order("date", { ascending: false }).limit(60),
-      supabase.from("tennis_players").select("id, group_id"),
-      supabase.from("tennis_holidays").select(holidayColumns).gte("end_date", today).order("start_date"),
-    ]);
+  const [
+    { data: groupRows },
+    { data: exerciseRows },
+    { data: favoriteRows },
+    { data: sessionRows },
+    { data: playerRows },
+    { data: holidayRows },
+    { data: standInRows },
+  ] = await Promise.all([
+    supabase.from("tennis_groups").select(groupColumns).order("name"),
+    supabase.from("tennis_exercises").select(exerciseColumns).order("name"),
+    supabase.from("tennis_favorites").select("group_id, exercise_id"),
+    supabase.from("tennis_sessions").select(sessionColumns).order("date", { ascending: false }).limit(60),
+    supabase.from("tennis_players").select("id, group_id"),
+    supabase.from("tennis_holidays").select(holidayColumns).gte("end_date", today).order("start_date"),
+    supabase.from("tennis_stand_ins").select(standInColumns).gte("date", today).order("date"),
+  ]);
   const groups = ((groupRows ?? []) as GroupRow[]).map(toGroup);
   const exercises = ((exerciseRows ?? []) as ExerciseRow[]).map(toExercise);
   const favorites = (favoriteRows ?? []).map((row) => `${row.group_id}:${row.exercise_id}`);
   const sessions = ((sessionRows ?? []) as SessionRow[]).map(toSession);
   const holidays = ((holidayRows ?? []) as HolidayRow[]).map(toHoliday);
+  const standIns = ((standInRows ?? []) as StandInRow[]).map(toStandIn);
 
   // What each group played in its last two sessions comes up less often.
   const recent: Record<string, string[]> = {};
@@ -491,7 +531,7 @@ async function PlanView({ sessionId, groupId, date }: { sessionId: string | null
     const count = group ? players[group.id] : 0;
     initial = {
       groupId: group?.id ?? null,
-      date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : group?.weekday ? (trainingDates(group.weekday, today, holidays)[0] ?? today) : today,
+      date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : group ? (nextTrainingDate(group, today, holidays, standIns) ?? today) : today,
       startTime: group?.startTime ?? "16:00",
       minutes,
       focus: null,
@@ -516,6 +556,7 @@ async function PlanView({ sessionId, groupId, date }: { sessionId: string | null
       players={players}
       absent={existing?.absent.length ?? 0}
       holidays={holidays}
+      standIns={standIns}
       initial={initial}
     />
   );
@@ -775,7 +816,7 @@ async function ExerciseView({ exerciseId, edit }: { exerciseId: string; edit: bo
 
 async function GroupView({ groupId }: { groupId: string }) {
   const supabase = await createClient();
-  const [{ data: row }, { data: favoriteRows }, { data: sessionRows }, { data: playerRows }] = await Promise.all([
+  const [{ data: row }, { data: favoriteRows }, { data: sessionRows }, { data: playerRows }, { data: standInRows }] = await Promise.all([
     supabase.from("tennis_groups").select(groupColumns).eq("id", groupId).maybeSingle<GroupRow>(),
     supabase.from("tennis_favorites").select("exercise_id").eq("group_id", groupId),
     supabase
@@ -786,6 +827,7 @@ async function GroupView({ groupId }: { groupId: string }) {
       .order("start_time", { ascending: false })
       .limit(20),
     supabase.from("tennis_players").select(playerColumns).eq("group_id", groupId).order("name"),
+    supabase.from("tennis_stand_ins").select(standInColumns).eq("group_id", groupId).order("date"),
   ]);
   if (!row) notFound();
   const group = toGroup(row);
@@ -796,6 +838,15 @@ async function GroupView({ groupId }: { groupId: string }) {
   const favorites = (exerciseRows ?? []) as { id: string; name: string; diagram: unknown }[];
   const sessions = ((sessionRows ?? []) as SessionRow[]).map(toSession);
   const today = todayInGermany();
+  const standIns = ((standInRows ?? []) as StandInRow[]).map(toStandIn);
+  const comingStandIns = standIns.filter((standIn) => standIn.date >= today);
+  const pastStandIns = standIns.filter((standIn) => standIn.date < today).length;
+  // The group's next training day I'm not standing in yet, as the default.
+  let suggested = today;
+  if (group.weekday) {
+    suggested = addDays(today, (group.weekday - isoWeekday(today) + 7) % 7);
+    while (standIns.some((standIn) => standIn.date === suggested)) suggested = addDays(suggested, 7);
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -803,6 +854,68 @@ async function GroupView({ groupId }: { groupId: string }) {
         <BackLink />
         <h2 className="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight">{group.name}</h2>
       </div>
+
+      {group.coach && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarCheckIcon className="size-4" /> Wann ich aushelfe
+            </CardTitle>
+            <CardDescription>
+              Die Gruppe trainiert normalerweise {group.coach}. Nur diese Tage erscheinen bei dir unter „Nächste Stunden“.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {comingStandIns.length > 0 && (
+              <ul className="divide-y">
+                {comingStandIns.map((standIn) => {
+                  const planned = sessions.find((session) => session.date === standIn.date);
+                  return (
+                    <li key={standIn.id} className="flex items-center gap-2 py-1.5">
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span>
+                          {standIn.date === today ? "Heute" : formatSessionDate(standIn.date)}, {group.startTime}
+                        </span>
+                        {standIn.note && <span className="truncate text-xs text-muted-foreground">{standIn.note}</span>}
+                      </span>
+                      <Button asChild variant="ghost" size="sm" className="text-brand">
+                        <Link href={planned ? `${PATH}?session=${planned.id}` : `${PATH}?plan=1&group=${group.id}&date=${standIn.date}`}>
+                          {planned ? "Ansehen" : "Planen"}
+                        </Link>
+                      </Button>
+                      <form action={deleteStandIn}>
+                        <input type="hidden" name="standInId" value={standIn.id} />
+                        <SubmitButton variant="ghost" size="icon" className="text-muted-foreground" aria-label="Löschen" done="Gelöscht">
+                          <Trash2Icon />
+                        </SubmitButton>
+                      </form>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <form action={addStandIn} className="flex flex-wrap items-end gap-2">
+              <input type="hidden" name="groupId" value={group.id} />
+              <div className="space-y-2">
+                <Label htmlFor="stand-in-date">Datum</Label>
+                <Input key={suggested} id="stand-in-date" name="date" type="date" required defaultValue={suggested} className="w-40" />
+              </div>
+              <div className="min-w-40 flex-1 space-y-2">
+                <Label htmlFor="stand-in-note">Notiz</Label>
+                <Input id="stand-in-note" name="note" maxLength={200} placeholder={`z. B. ${group.coach} im Urlaub`} />
+              </div>
+              <SubmitButton variant="outline" done="Eingetragen">
+                <PlusIcon /> Eintragen
+              </SubmitButton>
+            </form>
+            {pastStandIns > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Schon {pastStandIns}× ausgeholfen.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Button asChild size="lg" className="h-14 w-full text-base">
         <Link href={`${PATH}?plan=1&group=${group.id}`}>
@@ -891,6 +1004,13 @@ async function GroupView({ groupId }: { groupId: string }) {
                 <Label htmlFor="group-minutes">Minuten</Label>
                 <Input id="group-minutes" name="minutes" type="number" min={15} max={180} step={15} defaultValue={group.minutes} className="font-mono" />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="group-coach">Wer trainiert die Gruppe normalerweise?</Label>
+              <Input id="group-coach" name="coach" maxLength={60} defaultValue={group.coach} placeholder="Ich" />
+              <p className="text-xs text-muted-foreground">
+                Leer lassen, wenn es deine Gruppe ist. Mit einem Namen planst du nur die Tage, an denen du aushilfst.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="group-note">Notiz</Label>

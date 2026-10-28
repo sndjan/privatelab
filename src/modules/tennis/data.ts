@@ -49,7 +49,13 @@ export type Group = {
   minutes: number;
   // ISO weekday the group trains on: 1 = Monday … 7 = Sunday.
   weekday: number | null;
+  // Who usually coaches it; "" = me. For someone else's group only the
+  // stand-in dates are my training days.
+  coach: string;
 };
+
+// A date I stand in for a group's regular coach.
+export type StandIn = { id: string; groupId: string; date: string; note: string };
 
 export type Gender = "m" | "f";
 
@@ -293,6 +299,23 @@ export function trainingDates(weekday: number, from: string, holidays: Holiday[]
   }
   return dates;
 }
+
+// My training days of a group from `from` to `until` (both included): its
+// weekly day when I coach it, otherwise the dates I stand in.
+export function myTrainingDates(group: Group, from: string, until: string, holidays: Holiday[], standIns: StandIn[]) {
+  if (group.coach) {
+    return standIns
+      .filter((standIn) => standIn.groupId === group.id && standIn.date >= from && standIn.date <= until)
+      .map((standIn) => standIn.date)
+      .sort();
+  }
+  if (!group.weekday) return [];
+  return trainingDates(group.weekday, from, holidays, 30).filter((date) => date <= until);
+}
+
+// The next day to plan a session for the group, or null if none is known.
+export const nextTrainingDate = (group: Group, from: string, holidays: Holiday[], standIns: StandIn[]) =>
+  myTrainingDates(group, from, addDays(from, 182), holidays, standIns)[0] ?? null;
 
 // --- Times -------------------------------------------------------------------
 
