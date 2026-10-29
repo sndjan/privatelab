@@ -63,8 +63,10 @@ import { Input } from "@/components/ui/input";
 import { ViewLink as Link } from "@/lib/query/view-link";
 import { cn } from "@/lib/utils";
 import { addSection, createOutline, deleteSection, saveOutline, saveSection } from "./actions";
+import { citationStyleOf, type CitationStyle } from "./cite";
 import type { Phase } from "./data";
 import { thesisQuery } from "./query";
+import { writerFonts } from "./writer-fonts";
 import { WritingSession } from "./writing-session";
 import {
   canIndent,
@@ -94,7 +96,7 @@ import {
 
 const PATH = "/m/thesis";
 
-export type CitableSource = { id: string; key: string; label: string; summary: string };
+export type CitableSource = { id: string; key: string; label: string; summary: string; notes: string };
 // An image from the documents with a short-lived preview link.
 export type WriterImage = ExportImage & { url: string | null };
 
@@ -121,6 +123,7 @@ export function Writer({
   title,
   targetPages,
   wordsPerPage,
+  citationStyle,
   sources,
   images,
   phases,
@@ -132,6 +135,7 @@ export function Writer({
   title: string;
   targetPages: number | null;
   wordsPerPage: number;
+  citationStyle: CitationStyle;
   sources: CitableSource[];
   images: WriterImage[];
 }) {
@@ -140,6 +144,13 @@ export function Writer({
   // View options remembered on this device, e.g. "hide-images".
   const [view, setView] = useStoredSet("thesis-writer-view");
   const showImages = !view.has("hide-images");
+  // Stored in the view options as "font:literata".
+  const font = writerFonts.find((entry) => view.has(`font:${entry.id}`)) ?? writerFonts[0];
+  function pickFont(id: string) {
+    const next = new Set([...view].filter((entry) => !entry.startsWith("font:")));
+    if (id !== writerFonts[0].id) next.add(`font:${id}`);
+    setView(next);
+  }
   const [outlineOnly, setOutlineOnly] = useState(false);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [toolsId, setToolsId] = useState<string | null>(null);
@@ -570,7 +581,11 @@ export function Writer({
   }
 
   return (
-    <div ref={root} className="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
+    <div
+      ref={root}
+      className="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)]"
+      style={{ "--writer-font": font.family } as React.CSSProperties}
+    >
       <aside className="hidden lg:block">
         <nav aria-label="Gliederung" className="sticky top-4 max-h-[calc(100dvh-2rem)] space-y-0.5 overflow-y-auto text-sm">
           {sections.map((section, index) => (
@@ -661,6 +676,18 @@ export function Writer({
                 Bilder im Text zeigen
               </DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
+              <DropdownMenuLabel>Schrift</DropdownMenuLabel>
+              {writerFonts.map((entry) => (
+                <DropdownMenuCheckboxItem
+                  key={entry.id}
+                  checked={entry.id === font.id}
+                  onCheckedChange={() => pickFont(entry.id)}
+                  style={{ fontFamily: entry.family }}
+                >
+                  {entry.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+              <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => setCollapsed(new Set(sections.map((section) => section.id)))}>
                 <ChevronsDownUpIcon /> Alle einklappen
               </DropdownMenuItem>
@@ -677,14 +704,14 @@ export function Writer({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-72">
               <DropdownMenuLabel>LaTeX</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => download(toLatexDocument(sections, images, title), "main.tex", "application/x-tex")}>
+              <DropdownMenuItem onSelect={() => download(toLatexDocument(sections, images, title, citationStyle), "main.tex", "application/x-tex")}>
                 <FileCodeIcon />
                 <span className="flex flex-col">
                   Komplettes Dokument
                   <span className="text-xs text-muted-foreground">main.tex, kompiliert so in Overleaf</span>
                 </span>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => download(toLatex(sections, images), "arbeit.tex", "application/x-tex")}>
+              <DropdownMenuItem onSelect={() => download(toLatex(sections, images, citationStyle), "arbeit.tex", "application/x-tex")}>
                 <FileCodeIcon />
                 <span className="flex flex-col">
                   Nur der Inhalt
@@ -812,6 +839,7 @@ export function Writer({
         open={picker === "cite"}
         onOpenChange={(open) => !open && setPicker(null)}
         sources={sources}
+        style={citationStyle}
         onPick={(key) => insert(`[@${key}]`)}
       />
       <ImagePicker
@@ -1430,7 +1458,9 @@ function SectionCard({
                       >
                         <span className="font-mono">@{source.key}</span>{" "}
                         <span className="text-muted-foreground">{source.label}</span>
-                        {source.summary && <span className="block truncate text-xs text-muted-foreground">{source.summary}</span>}
+                        {(source.summary || source.notes) && (
+                          <span className="block truncate text-xs text-muted-foreground">{source.summary || source.notes}</span>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -1562,7 +1592,8 @@ function SectionCard({
 }
 
 // Text field and the marked selection behind it share these, so they line up.
-const textClass = "field-sizing-content font-serif text-[15px] leading-7 whitespace-pre-wrap break-words";
+// The font comes from the Ansicht menu (--writer-font on the writer).
+const textClass = "field-sizing-content font-(family-name:--writer-font) text-[15px] leading-7 whitespace-pre-wrap break-words";
 
 // The saved fields that differ, or null.
 function changes(from: Section, to: Section): Partial<Section> | null {
@@ -1576,7 +1607,7 @@ function changes(from: Section, to: Section): Partial<Section> | null {
 }
 
 const matches = (source: CitableSource, query: string) =>
-  `${source.key} ${source.label} ${source.summary}`.toLowerCase().includes(query.trim().toLowerCase());
+  `${source.key} ${source.label} ${source.summary} ${source.notes}`.toLowerCase().includes(query.trim().toLowerCase());
 
 const formatPages = (pages: number) => (pages < 10 ? pages.toLocaleString("de-DE", { maximumFractionDigits: 1 }) : Math.round(pages).toString());
 
@@ -1584,13 +1615,16 @@ function SourcePicker({
   open,
   onOpenChange,
   sources,
+  style,
   onPick,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sources: CitableSource[];
+  style: CitationStyle;
   onPick: (key: string) => void;
 }) {
+  const { command } = citationStyleOf(style);
   const [query, setQuery] = useState("");
   const shown = sources.filter((source) => matches(source, query));
   return (
@@ -1598,7 +1632,9 @@ function SourcePicker({
       <DialogContent className="flex max-h-[85dvh] flex-col">
         <DialogHeader>
           <DialogTitle>Quelle zitieren</DialogTitle>
-          <DialogDescription>Fügt [@schlüssel] ein; im LaTeX-Export wird daraus \parencite.</DialogDescription>
+          <DialogDescription>
+            Fügt [@schlüssel] ein; im LaTeX-Export wird daraus \{command} ({citationStyleOf(style).label}).
+          </DialogDescription>
         </DialogHeader>
         <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Suchen" aria-label="Quellen durchsuchen" autoFocus />
         <ul className="-mx-2 min-h-0 flex-1 divide-y overflow-y-auto">
@@ -1606,8 +1642,13 @@ function SourcePicker({
             <li key={source.key}>
               <button type="button" onClick={() => onPick(source.key)} className="w-full cursor-pointer rounded-md p-2 text-left hover:bg-accent">
                 <span className="block font-mono text-sm">@{source.key}</span>
-                {source.summary && <span className="block text-sm">{source.summary}</span>}
+                {source.summary ? (
+                  <span className="block text-sm font-medium">{source.summary}</span>
+                ) : (
+                  !source.notes && <span className="block text-xs text-muted-foreground italic">Keine Kurzbeschreibung (im Tab Quellen ergänzen)</span>
+                )}
                 <span className="line-clamp-2 block text-sm text-muted-foreground">{source.label}</span>
+                {source.notes && <span className="mt-0.5 line-clamp-3 block text-xs whitespace-pre-line text-muted-foreground">Notizen: {source.notes}</span>}
               </button>
             </li>
           ))}

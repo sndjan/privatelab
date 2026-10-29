@@ -14,7 +14,17 @@ import {
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckIcon, EyeOffIcon, GripVerticalIcon, MessageSquareIcon, PlusIcon, RotateCcwIcon, SlidersHorizontalIcon } from "lucide-react";
+import {
+  CheckIcon,
+  EyeOffIcon,
+  GripVerticalIcon,
+  Maximize2Icon,
+  MessageSquareIcon,
+  Minimize2Icon,
+  PlusIcon,
+  RotateCcwIcon,
+  SlidersHorizontalIcon,
+} from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -33,6 +43,9 @@ import {
   normalizeOverviewLayout,
   overviewWidgets,
   phaseOn,
+  relativeDays,
+  type Break,
+  type Milestone,
   type OverviewArea,
   type OverviewLayout,
   type Settings,
@@ -41,6 +54,8 @@ import {
 import { EventList } from "./events-tab";
 import { Infos, PeopleList } from "./infos";
 import { PhaseDialog } from "./phase-dialog";
+import { MilestoneDialog } from "./plan-dialogs";
+import { MilestoneList } from "./planning";
 import { thesisQuery } from "./query";
 import { QuickTodo } from "./quick-todo";
 import { SettingsDialog, SettingsForm } from "./settings-form";
@@ -55,7 +70,7 @@ const labelOf = (id: WidgetId) => overviewWidgets.find((widget) => widget.id ===
 // The Überblick: cards that can be moved, hidden and shown again ("Anpassen").
 // The arrangement is saved with the settings, so it is the same on every device.
 export function Overview({ today }: { today: string }) {
-  const [settings, phases, todos, log, sources, protocols, people, events, infos, sections] = useThesis(
+  const [settings, phases, todos, log, sources, protocols, people, events, infos, sections, milestones, breaks] = useThesis(
     "settings",
     "phases",
     "todos",
@@ -66,6 +81,8 @@ export function Overview({ today }: { today: string }) {
     "events",
     "infos",
     "sections",
+    "milestones",
+    "breaks",
   );
   const queryClient = useQueryClient();
   // The arrangement being edited, or null while just looking.
@@ -144,7 +161,14 @@ export function Overview({ today }: { today: string }) {
   );
 
   const widgets: Record<WidgetId, () => ReactNode> = {
-    timeframe: () => <TimeFrame settings={{ ...settings, startDate: dates.start, endDate: dates.end }} today={today} />,
+    timeframe: () => (
+      <TimeFrame
+        settings={{ ...settings, startDate: dates.start, endDate: dates.end }}
+        today={today}
+        milestones={milestones}
+        breaks={breaks}
+      />
+    ),
     stats: () => (
       // Laid out by its own width, so it also fits into a column.
       <div className="@container">
@@ -347,10 +371,13 @@ export function Overview({ today }: { today: string }) {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">
-            <h2>Phasen</h2>
+            <h2>Phasen & Meilensteine</h2>
           </CardTitle>
-          {phases.length === 0 && (
-            <CardDescription>Eigene Abschnitte mit Zeitraum, denen du To-dos und Arbeitszeit zuordnen kannst.</CardDescription>
+          {phases.length === 0 && milestones.length === 0 && (
+            <CardDescription>
+              Phasen sind Abschnitte mit Zeitraum, denen du To-dos und Arbeitszeit zuordnen kannst; Meilensteine Ziele mit Datum, z. B.
+              „Erster Entwurf“.
+            </CardDescription>
           )}
         </CardHeader>
         <CardContent className="space-y-3">
@@ -375,7 +402,11 @@ export function Overview({ today }: { today: string }) {
               })}
             </ul>
           )}
-          <PhaseDialog defaultStart={phases.at(-1)?.endDate ?? dates.start} />
+          {milestones.length > 0 && <MilestoneList milestones={milestones} today={today} />}
+          <div className="flex flex-wrap gap-2">
+            <PhaseDialog defaultStart={phases.at(-1)?.endDate ?? dates.start} />
+            <MilestoneDialog defaultDate={dates.end > today ? dates.end : today} />
+          </div>
         </CardContent>
       </Card>
     ),
@@ -461,10 +492,22 @@ function OverviewEditor({
     onChange({ ...draft, [area]: draft[area].filter((entry) => entry !== id), hidden: [...draft.hidden, id] });
   }
 
-  // Back into the shorter column.
+  const shorterColumn = () => (draft.left.length <= draft.right.length ? "left" : "right");
+
+  // Back where the default layout has it (full width or a column), at the end.
   function show(id: WidgetId) {
-    const area = draft.left.length <= draft.right.length ? "left" : "right";
+    const home = (["top", "left", "right"] as const).find((area) => defaultOverviewLayout[area].includes(id));
+    const area = home === "top" ? "top" : shorterColumn();
     onChange({ ...draft, hidden: draft.hidden.filter((entry) => entry !== id), [area]: [...draft[area], id] });
+  }
+
+  // Full width ↔ column without dragging (a card changes its width while it
+  // crosses over, which makes dragging between the two fiddly).
+  function toggleWide(id: WidgetId) {
+    const area = areaOf(draft, id);
+    if (!area || area === "hidden") return;
+    const to = area === "top" ? shorterColumn() : "top";
+    onChange({ ...draft, [area]: draft[area].filter((entry) => entry !== id), [to]: [...draft[to], id] });
   }
 
   return (
@@ -496,7 +539,7 @@ function OverviewEditor({
       <DndContext id={dndId} sensors={sensors} collisionDetection={closestCorners} onDragOver={onDragOver} onDragEnd={onDragEnd}>
         <Area id="top" items={draft.top} label="Ganze Breite">
           {draft.top.map((id) => (
-            <EditableWidget key={id} id={id} onHide={() => hide(id)}>
+            <EditableWidget key={id} id={id} wide onHide={() => hide(id)} onToggleWide={() => toggleWide(id)}>
               {widgets[id]()}
             </EditableWidget>
           ))}
@@ -505,7 +548,7 @@ function OverviewEditor({
           {(["left", "right"] as const).map((area) => (
             <Area key={area} id={area} items={draft[area]} label={area === "left" ? "Linke Spalte" : "Rechte Spalte"}>
               {draft[area].map((id) => (
-                <EditableWidget key={id} id={id} onHide={() => hide(id)}>
+                <EditableWidget key={id} id={id} wide={false} onHide={() => hide(id)} onToggleWide={() => toggleWide(id)}>
                   {widgets[id]()}
                 </EditableWidget>
               ))}
@@ -533,7 +576,19 @@ function Area({ id, items, label, children }: { id: OverviewArea; items: WidgetI
   );
 }
 
-function EditableWidget({ id, onHide, children }: { id: WidgetId; onHide: () => void; children: ReactNode }) {
+function EditableWidget({
+  id,
+  wide,
+  onHide,
+  onToggleWide,
+  children,
+}: {
+  id: WidgetId;
+  wide: boolean;
+  onHide: () => void;
+  onToggleWide: () => void;
+  children: ReactNode;
+}) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id });
   return (
     <div
@@ -553,6 +608,9 @@ function EditableWidget({ id, onHide, children }: { id: WidgetId; onHide: () => 
           <GripVerticalIcon className="size-4" />
         </button>
         <span className="flex-1 truncate text-sm font-medium">{labelOf(id)}</span>
+        <Button variant="ghost" size="sm" onClick={onToggleWide} className="text-muted-foreground">
+          {wide ? <Minimize2Icon /> : <Maximize2Icon />} {wide ? "In Spalte" : "Ganze Breite"}
+        </Button>
         <Button variant="ghost" size="sm" onClick={onHide} className="text-muted-foreground">
           <EyeOffIcon /> Ausblenden
         </Button>
@@ -567,7 +625,19 @@ function EditableWidget({ id, onHide, children }: { id: WidgetId; onHide: () => 
 
 // --- Cards -----------------------------------------------------------------------
 
-function TimeFrame({ settings, today }: { settings: Settings & { startDate: string; endDate: string }; today: string }) {
+// The time frame as a bar, with the milestones as diamonds and the free days
+// as lighter stretches on it.
+function TimeFrame({
+  settings,
+  today,
+  milestones,
+  breaks,
+}: {
+  settings: Settings & { startDate: string; endDate: string };
+  today: string;
+  milestones: Milestone[];
+  breaks: Break[];
+}) {
   const total = daysBetween(settings.startDate, settings.endDate) + 1;
   const elapsed = Math.max(0, Math.min(total, daysBetween(settings.startDate, today) + 1));
   const left = daysBetween(today, settings.endDate);
@@ -579,6 +649,12 @@ function TimeFrame({ settings, today }: { settings: Settings & { startDate: stri
         : left === 0
           ? "Abgabe heute"
           : `Abgabe war am ${formatDate(settings.endDate)}`;
+  // Where a day sits on the bar, 0 to 1; `offset` 0 is the start of the day, 1 its end.
+  const at = (day: string, offset: number) => Math.max(0, Math.min(1, (daysBetween(settings.startDate, day) + offset) / total));
+  const inRange = (day: string) => day >= settings.startDate && day <= settings.endDate;
+  const shownMilestones = milestones.filter((milestone) => inRange(milestone.date));
+  const shownBreaks = breaks.filter((entry) => entry.endDate >= settings.startDate && entry.startDate <= settings.endDate);
+  const next = milestones.find((milestone) => !milestone.done && milestone.date >= today);
 
   return (
     <section aria-label="Zeitraum" className="flex flex-col gap-3 rounded-xl bg-hero p-5 text-hero-foreground sm:p-6">
@@ -589,20 +665,48 @@ function TimeFrame({ settings, today }: { settings: Settings & { startDate: stri
         </span>
       </div>
       <div className="text-4xl leading-none font-medium tracking-tight">{headline}</div>
-      <div
-        role="progressbar"
-        aria-label="Vergangene Zeit"
-        aria-valuemin={0}
-        aria-valuemax={total}
-        aria-valuenow={elapsed}
-        className="h-2 overflow-hidden rounded-full bg-hero-track"
-      >
-        <div className="h-full rounded-full bg-hero-bar" style={{ width: `${(elapsed / total) * 100}%` }} />
+      <div className="relative">
+        <div
+          role="progressbar"
+          aria-label="Vergangene Zeit"
+          aria-valuemin={0}
+          aria-valuemax={total}
+          aria-valuenow={elapsed}
+          className="relative h-2 overflow-hidden rounded-full bg-hero-track"
+        >
+          <div className="h-full rounded-full bg-hero-bar" style={{ width: `${(elapsed / total) * 100}%` }} />
+          {shownBreaks.map((entry) => (
+            <div
+              key={entry.id}
+              title={`${entry.name || "Pause"}: ${formatDate(entry.startDate)} – ${formatDate(entry.endDate)}`}
+              className="absolute inset-y-0 bg-hero-foreground/35"
+              style={{ left: `${at(entry.startDate, 0) * 100}%`, right: `${(1 - at(entry.endDate, 1)) * 100}%` }}
+            />
+          ))}
+        </div>
+        {shownMilestones.map((milestone) => (
+          <span
+            key={milestone.id}
+            title={`${milestone.name}, ${formatDate(milestone.date)}`}
+            aria-hidden
+            className={cn(
+              "absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px] border-2 border-hero",
+              milestone.done ? "bg-hero-bar" : "bg-hero-foreground",
+            )}
+            style={{ left: `${at(milestone.date, 0.5) * 100}%` }}
+          />
+        ))}
       </div>
       <div className="flex justify-between text-xs text-hero-muted">
         <span>{formatDate(settings.startDate)}</span>
         <span>Abgabe {formatDate(settings.endDate)}</span>
       </div>
+      {next && (
+        <p className="text-sm text-hero-muted">
+          Nächster Meilenstein: <span className="text-hero-foreground">{next.name}</span>, {formatDate(next.date)} ·{" "}
+          {relativeDays(next.date, today)}
+        </p>
+      )}
     </section>
   );
 }

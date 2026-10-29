@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarIcon, FlagIcon, Loader2Icon, PlusIcon, TagIcon, UserIcon } from "lucide-react";
+import { CalendarIcon, FlagIcon, InfoIcon, Loader2Icon, PlusIcon, TagIcon, UserIcon } from "lucide-react";
 import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ import { compact, formatShortDate, parseQuickTodo, priorityClass, type Person, t
 // One line for a new to-do: "Gliederung schicken !1 @Sandra #Exposé bis Fr".
 // Enter saves it and keeps the field focused for the next one. Below the
 // field, chips show what was understood; @ and # suggest people and phases.
+// The shortcuts are explained behind the info button.
 export function QuickTodo({
   people,
   phases,
@@ -26,6 +27,7 @@ export function QuickTodo({
   const [value, setValue] = useState("");
   const [caret, setCaret] = useState(0);
   const [highlight, setHighlight] = useState(0);
+  const [help, setHelp] = useState(false);
   const [pending, startTransition] = useTransition();
   const input = useRef<HTMLInputElement>(null);
   // Where the cursor goes after a completion, set right after the render so
@@ -108,10 +110,26 @@ export function QuickTodo({
           enterKeyHint="send"
           aria-label="Neues To-do"
           aria-autocomplete="list"
-          placeholder="Neues To-do … !1 @Person #Phase bis Fr"
+          placeholder="Neues To-do …"
           className="h-11 w-full rounded-lg border bg-card pr-10 pl-9 text-base shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:text-sm"
         />
-        {pending && <Loader2Icon className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
+        {pending ? (
+          <Loader2Icon className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setHelp(!help)}
+            aria-expanded={help}
+            aria-label="Kürzel erklären"
+            title="Kürzel erklären"
+            className={cn(
+              "absolute top-1/2 right-1.5 inline-flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground",
+              help && "text-foreground",
+            )}
+          >
+            <InfoIcon className="size-4" />
+          </button>
+        )}
         {suggestion && (
           <ul role="listbox" className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-md border bg-popover text-sm shadow-md">
             {suggestion.options.map((option, index) => (
@@ -132,7 +150,24 @@ export function QuickTodo({
           </ul>
         )}
       </div>
-      {value.trim() ? (
+      {help && (
+        <ul className="space-y-0.5 rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <li>
+            <code>!1</code> bis <code>!3</code> Priorität (1 ist am wichtigsten)
+          </li>
+          <li>
+            <code>@Name</code> Person, neue Namen werden angelegt
+          </li>
+          <li>
+            <code>#Phase</code> Phase
+          </li>
+          <li>
+            <code>bis Fr</code>, <code>bis morgen</code>, <code>bis 12.11.</code> Deadline
+          </li>
+          <li>Enter legt an, das Feld bleibt für das nächste To-do offen.</li>
+        </ul>
+      )}
+      {value.trim() && (
         <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">
           {parsed.priority && <Token icon={FlagIcon} className={priorityClass(parsed.priority)}>Prio {parsed.priority}</Token>}
           {person && (
@@ -144,10 +179,6 @@ export function QuickTodo({
           {phase && <Token icon={TagIcon}>{phase}</Token>}
           {parsed.deadline && <Token icon={CalendarIcon}>bis {formatShortDate(parsed.deadline)}</Token>}
           {parsed.title ? <span>Enter zum Anlegen</span> : <span>Noch kein Text</span>}
-        </p>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          <code>!1</code>–<code>!3</code> Priorität · <code>@Name</code> Person · <code>#Phase</code> · <code>bis Fr</code>, <code>bis 12.11.</code>
         </p>
       )}
     </div>

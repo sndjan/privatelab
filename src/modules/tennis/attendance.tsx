@@ -2,12 +2,14 @@
 
 import { DicesIcon, Loader2Icon, RefreshCwIcon, UsersIcon } from "lucide-react";
 import { ViewLink as Link } from "@/lib/query/view-link";
-import { useOptimistic, useTransition } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useRef, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { replanSession, restorePlan, setAbsent } from "./actions";
 import { fitsPlayers, type Exercise, type Player } from "./data";
+import { tennisQuery } from "./query";
 import { useLive } from "./session-plan";
 
 const PATH = "/m/tennis";
@@ -32,13 +34,11 @@ export function Attendance({
   absent: string[];
   items: { exercise: Exercise; minutes: number }[];
 }) {
-  const [absent, toggle] = useOptimistic(new Set(savedAbsent), (current, playerId: string) => {
-    const next = new Set(current);
-    if (next.has(playerId)) next.delete(playerId);
-    else next.add(playerId);
-    return next;
-  });
-  const [, startToggle] = useTransition();
+  const queryClient = useQueryClient();
+  const key = tennisQuery("sessions").queryKey;
+  const absent = new Set(savedAbsent);
+  // Saves run one after another, each with the list as it was after its tap.
+  const saving = useRef(Promise.resolve());
   const [replanning, startReplan] = useTransition();
   const live = useLive({ date, startTime, plan: items });
 
@@ -65,21 +65,26 @@ export function Attendance({
   const over = live?.kind === "over";
   const unfit = items.slice(from).filter((item) => !fitsPlayers(item.exercise, present.length));
 
+  // The tap shows in the cached session at once (no round trip, so nothing
+  // flickers back); the server catches up in the background.
   function flip(player: Player) {
-    const on = !absent.has(player.id);
-    startToggle(async () => {
-      toggle(player.id);
-      try {
-        await setAbsent(sessionId, player.id, on);
-      } catch {
+    const next = absent.has(player.id) ? savedAbsent.filter((id) => id !== player.id) : [...savedAbsent, player.id];
+    void queryClient.cancelQueries({ queryKey: key });
+    queryClient.setQueryData(key, (sessions) =>
+      sessions?.map((session) => (session.id === sessionId ? { ...session, absent: next } : session)),
+    );
+    saving.current = saving.current
+      .then(() => setAbsent(sessionId, next))
+      .catch(() => {
         toast.error("Konnte nicht gespeichert werden.");
-      }
-    });
+        void queryClient.invalidateQueries({ queryKey: key });
+      });
   }
 
   function replan(all: boolean) {
     startReplan(async () => {
       try {
+        await saving.current;
         const result = await replanSession(sessionId, { from: all && live?.kind === "running" ? from + 1 : from, all });
         if (result.changed === 0) {
           toast.info(all ? "Keine anderen Übungen gefunden." : "Keine passenden Übungen in der Sammlung gefunden.");

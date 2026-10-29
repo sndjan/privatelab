@@ -1,15 +1,31 @@
-import type { SVGProps } from "react";
+import { createContext, useContext, type SVGProps } from "react";
 import { cn } from "@/lib/utils";
 import { court, isArrow, type Arrow, type Diagram, type DiagramItem, type Piece } from "./data";
 
 // A clay court from above with the exercise drawn on it. Colors are fixed
 // (it is a picture), so it looks the same in light and dark mode and in print.
-// `mono` draws it black on white, for the printed sheet.
+// `mono` draws it black on white, for the printed sheet. `horizontal` turns
+// it a quarter (net upright, the coach's half on the left), so it fills a
+// wide space and is easier to read; labels stay upright.
 
 const viewBox = `${court.minX} ${court.minY} ${court.maxX - court.minX} ${court.maxY - court.minY}`;
-export function Court({ diagram, className, mono = false }: { diagram: Diagram; className?: string; mono?: boolean }) {
+// Rotated by -90°: (x, y) is drawn at (y, -x).
+const horizontalViewBox = `${court.minY} ${-court.maxX} ${court.maxY - court.minY} ${court.maxX - court.minX}`;
+const Horizontal = createContext(false);
+
+export function Court({
+  diagram,
+  className,
+  mono = false,
+  horizontal = false,
+}: {
+  diagram: Diagram;
+  className?: string;
+  mono?: boolean;
+  horizontal?: boolean;
+}) {
   return (
-    <CourtSvg className={className} mono={mono} role="img" aria-label="Skizze der Übung">
+    <CourtSvg className={className} mono={mono} horizontal={horizontal} role="img" aria-label="Skizze der Übung">
       {diagram.items.map((item, index) => (
         <DiagramShape key={index} item={item} mono={mono} />
       ))}
@@ -17,32 +33,46 @@ export function Court({ diagram, className, mono = false }: { diagram: Diagram; 
   );
 }
 
-export function CourtSvg({ className, children, mono = false, ...props }: SVGProps<SVGSVGElement> & { mono?: boolean }) {
+export function CourtSvg({
+  className,
+  children,
+  mono = false,
+  horizontal = false,
+  ...props
+}: SVGProps<SVGSVGElement> & { mono?: boolean; horizontal?: boolean }) {
   const line = mono ? { stroke: "#000", strokeWidth: 0.12 } : { stroke: "#fff", strokeWidth: 0.09 };
   return (
-    <svg viewBox={viewBox} className={cn("block aspect-[16/29]", mono ? "rounded-none" : "rounded-lg", className)} {...props}>
-      <rect x={court.minX} y={court.minY} width={court.maxX - court.minX} height={court.maxY - court.minY} fill={mono ? "#fff" : "#b4583a"} />
-      <rect
-        x={-court.doubles}
-        y={-court.baseline}
-        width={court.doubles * 2}
-        height={court.baseline * 2}
-        fill={mono ? "#fff" : "#c8683f"}
-        {...line}
-      />
-      <line x1={-court.singles} y1={-court.baseline} x2={-court.singles} y2={court.baseline} {...line} />
-      <line x1={court.singles} y1={-court.baseline} x2={court.singles} y2={court.baseline} {...line} />
-      <line x1={-court.singles} y1={-court.service} x2={court.singles} y2={-court.service} {...line} />
-      <line x1={-court.singles} y1={court.service} x2={court.singles} y2={court.service} {...line} />
-      <line x1={0} y1={-court.service} x2={0} y2={court.service} {...line} />
-      <line x1={0} y1={-court.baseline} x2={0} y2={-court.baseline + 0.3} {...line} />
-      <line x1={0} y1={court.baseline} x2={0} y2={court.baseline - 0.3} {...line} />
-      {/* Net with posts */}
-      <line x1={-court.doubles - 0.9} y1={0} x2={court.doubles + 0.9} y2={0} stroke="#23302b" strokeWidth={0.16} />
-      <circle cx={-court.doubles - 0.9} cy={0} r={0.18} fill="#23302b" />
-      <circle cx={court.doubles + 0.9} cy={0} r={0.18} fill="#23302b" />
-      {children}
-    </svg>
+    <Horizontal value={horizontal}>
+      <svg
+        viewBox={horizontal ? horizontalViewBox : viewBox}
+        className={cn("block", horizontal ? "aspect-[29/16]" : "aspect-[16/29]", mono ? "rounded-none" : "rounded-lg", className)}
+        {...props}
+      >
+        <g transform={horizontal ? "rotate(-90)" : undefined}>
+          <rect x={court.minX} y={court.minY} width={court.maxX - court.minX} height={court.maxY - court.minY} fill={mono ? "#fff" : "#b4583a"} />
+          <rect
+            x={-court.doubles}
+            y={-court.baseline}
+            width={court.doubles * 2}
+            height={court.baseline * 2}
+            fill={mono ? "#fff" : "#c8683f"}
+            {...line}
+          />
+          <line x1={-court.singles} y1={-court.baseline} x2={-court.singles} y2={court.baseline} {...line} />
+          <line x1={court.singles} y1={-court.baseline} x2={court.singles} y2={court.baseline} {...line} />
+          <line x1={-court.singles} y1={-court.service} x2={court.singles} y2={-court.service} {...line} />
+          <line x1={-court.singles} y1={court.service} x2={court.singles} y2={court.service} {...line} />
+          <line x1={0} y1={-court.service} x2={0} y2={court.service} {...line} />
+          <line x1={0} y1={-court.baseline} x2={0} y2={-court.baseline + 0.3} {...line} />
+          <line x1={0} y1={court.baseline} x2={0} y2={court.baseline - 0.3} {...line} />
+          {/* Net with posts */}
+          <line x1={-court.doubles - 0.9} y1={0} x2={court.doubles + 0.9} y2={0} stroke="#23302b" strokeWidth={0.16} />
+          <circle cx={-court.doubles - 0.9} cy={0} r={0.18} fill="#23302b" />
+          <circle cx={court.doubles + 0.9} cy={0} r={0.18} fill="#23302b" />
+          {children}
+        </g>
+      </svg>
+    </Horizontal>
   );
 }
 
@@ -143,8 +173,10 @@ function PieceShape({ piece, selected }: { piece: Piece; selected: boolean }) {
 }
 
 function Label({ x, y, text, color }: { x: number; y: number; text: string; color: string }) {
+  const horizontal = useContext(Horizontal);
   return (
     <text
+      transform={horizontal ? `rotate(90 ${x} ${y})` : undefined}
       x={x}
       y={y}
       fill={color}

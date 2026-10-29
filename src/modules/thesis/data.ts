@@ -1,5 +1,7 @@
 // Types and date helpers of the thesis module. Dates are "YYYY-MM-DD" strings.
 
+import type { CitationStyle } from "./cite";
+
 export type Settings = {
   title: string;
   researchQuestion: string;
@@ -13,6 +15,8 @@ export type Settings = {
   wordsPerPage: number;
   // How the Überblick is arranged; null until it was changed.
   overviewLayout: OverviewLayout | null;
+  // For the reference list and the LaTeX export.
+  citationStyle: CitationStyle;
 };
 
 export const emptySettings: Settings = {
@@ -26,6 +30,7 @@ export const emptySettings: Settings = {
   targetPages: null,
   wordsPerPage: 300,
   overviewLayout: null,
+  citationStyle: "apa",
 };
 
 // The cards of the Überblick. top spans the width, left and right are the
@@ -41,7 +46,7 @@ export const overviewWidgets = [
   { id: "log", label: "Arbeitslog" },
   { id: "topic", label: "Thema" },
   { id: "people", label: "Personen" },
-  { id: "phases", label: "Phasen" },
+  { id: "phases", label: "Phasen & Meilensteine" },
 ] as const;
 
 export type WidgetId = (typeof overviewWidgets)[number]["id"];
@@ -76,6 +81,12 @@ export function normalizeOverviewLayout(raw: unknown): OverviewLayout {
 }
 
 export type Phase = { id: string; name: string; startDate: string; endDate: string };
+
+// Days off, e.g. "Weihnachten" from 23.12. to 1.1.
+export type Break = { id: string; name: string; startDate: string; endDate: string };
+
+// A date to reach, e.g. "Erster Entwurf".
+export type Milestone = { id: string; name: string; date: string; done: boolean };
 
 export type Todo = {
   id: string;
@@ -170,6 +181,7 @@ export const tabs = [
   { id: "writing", label: "Schreiben" },
   { id: "todos", label: "To-dos" },
   { id: "events", label: "Termine" },
+  { id: "calendar", label: "Kalender" },
   { id: "log", label: "Arbeitslog" },
   { id: "sources", label: "Quellen" },
   { id: "protocols", label: "Protokolle" },
@@ -202,6 +214,11 @@ export function daysBetween(from: string, to: string) {
 export function mondayOf(date: string) {
   const weekday = (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
   return addDays(date, -weekday);
+}
+
+// The break that contains the day, if any.
+export function breakOn(breaks: Break[], day: string) {
+  return breaks.find((entry) => entry.startDate <= day && day <= entry.endDate) ?? null;
 }
 
 // The phase that contains the day; the latest one if several overlap.

@@ -282,15 +282,11 @@ export async function deleteSession(formData: FormData) {
   redirect(PATH);
 }
 
-// Marks a player of the session's group as absent (cancelled) or back.
-export async function setAbsent(sessionId: string, playerId: string, absent: boolean) {
-  if (!isId(playerId)) return;
+// The whole list of kids who cancelled, saved in the order the taps came in
+// (see Attendance), so quick taps can't overwrite each other.
+export async function setAbsent(sessionId: string, playerIds: string[]) {
   const supabase = await db();
-  const session = check(await supabase.from("tennis_sessions").select("absent").eq("id", sessionId).single());
-  const current = (session.absent ?? []) as string[];
-  const next = absent ? [...new Set([...current, playerId])] : current.filter((id) => id !== playerId);
-  check(await supabase.from("tennis_sessions").update({ absent: next }).eq("id", sessionId));
-  revalidatePath(PATH);
+  check(await supabase.from("tennis_sessions").update({ absent: [...new Set(playerIds.filter(isId))] }).eq("id", sessionId));
 }
 
 // Re-plans a session for the kids who are there (see replan in data.ts):
@@ -442,7 +438,14 @@ export async function planWithAi(request: string, groupId: string | null, date: 
   // New exercises first, so the plan can point at them.
   const fresh = answer.new_exercises
     .slice(0, 6)
-    .map((entry) => cleanExercise({ ...entry, playersMin: entry.players_min, playersMax: entry.players_max, diagram: { items: entry.diagram } }));
+    .map((entry) =>
+      cleanExercise({
+        ...entry,
+        playersMin: Number(entry.players_min) || null,
+        playersMax: Number(entry.players_max) || null,
+        diagram: { items: (Array.isArray(entry.diagram) ? entry.diagram : []).map((item) => ({ ...item, label: item.label || undefined })) },
+      }),
+    );
   const createdIds: (string | null)[] = [];
   for (const input of fresh) {
     if (!input) {
@@ -458,7 +461,7 @@ export async function planWithAi(request: string, groupId: string | null, date: 
       exerciseId:
         item.exercise_id && known.has(item.exercise_id)
           ? item.exercise_id
-          : item.new_exercise_index !== null
+          : item.new_exercise_index >= 0
             ? createdIds[item.new_exercise_index] ?? null
             : null,
       minutes: Math.min(90, Math.max(5, Math.round(item.minutes / 5) * 5 || 10)),

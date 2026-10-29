@@ -9,12 +9,22 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { deleteSource, saveSource } from "./actions";
-import { apa, sourceKinds, sourceStatuses, suggestCitationKey, type Source, type SourceField, type SourceKind } from "./cite";
+import {
+  citationStyleOf,
+  reference,
+  sourceKinds,
+  sourceStatuses,
+  suggestCitationKey,
+  type CitationStyle,
+  type Source,
+  type SourceField,
+  type SourceKind,
+} from "./cite";
 import { Field } from "./fields";
 
 const PATH = "/m/thesis";
 
-type Props = { source: Source | null; today: string };
+type Props = { source: Source | null; today: string; style: CitationStyle };
 
 const lines = (value: string) =>
   value
@@ -24,9 +34,9 @@ const lines = (value: string) =>
 
 const number = (value: string) => (/^\d+$/.test(value.trim()) ? Number(value) : null);
 
-// New or existing source. The fields follow the kind, and the APA reference
-// below shows what will be copied.
-export function SourceForm({ source, today }: Props) {
+// New or existing source. The fields follow the kind, and the reference in
+// the chosen citation style below shows what will be copied.
+export function SourceForm({ source, today, style }: Props) {
   const [values, setValues] = useState({
     kind: source?.kind ?? ("web" as SourceKind),
     authors: source?.authors.join("\n") ?? "",
@@ -216,9 +226,9 @@ export function SourceForm({ source, today }: Props) {
       )}
 
       <section aria-label="Vorschau" className="space-y-1.5 rounded-lg bg-muted px-3 py-2.5">
-        <h2 className="text-xs text-muted-foreground">APA 7</h2>
+        <h2 className="text-xs text-muted-foreground">{citationStyleOf(style).label}</h2>
         <p className="text-sm break-words">
-          {apa(preview).map((segment, index) =>
+          {reference(preview, style).map((segment, index) =>
             segment.italic ? <i key={index}>{segment.text}</i> : <span key={index}>{segment.text}</span>,
           )}
         </p>

@@ -6,10 +6,12 @@ import { DOCUMENT_BUCKET, isImage } from "./data";
 import {
   documentUrls,
   loadDocument,
+  loadBreaks,
   loadDocuments,
   loadEvents,
   loadInfos,
   loadLog,
+  loadMilestones,
   loadPeople,
   loadPhases,
   loadProtocols,
@@ -22,6 +24,8 @@ import {
 export const thesisLoaders = {
   settings: (_, user) => loadSettings(user.id),
   phases: () => loadPhases(),
+  breaks: () => loadBreaks(),
+  milestones: () => loadMilestones(),
   todos: () => loadTodos(),
   log: () => loadLog(),
   sources: () => loadSources(),
