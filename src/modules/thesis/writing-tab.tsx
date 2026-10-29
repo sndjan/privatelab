@@ -22,12 +22,14 @@ export function WritingTab() {
       today={todayInGermany()}
       targetPages={settings.targetPages}
       wordsPerPage={settings.wordsPerPage}
+      citationStyle={settings.citationStyle}
       sources={sources
         .map((source) => ({
           id: source.id,
           key: source.citationKey,
           label: [source.authors[0]?.split(",")[0], source.year && `(${source.year})`, source.title].filter(Boolean).join(" "),
           summary: source.summary,
+          notes: source.notes,
         }))
         .sort((a, b) => a.key.localeCompare(b.key))}
       images={documents.filter(isImage).map((document) => ({

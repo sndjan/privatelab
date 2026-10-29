@@ -7,14 +7,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import { byWhen, formatShortDate, peopleNames, relativeDays, type Person, type Protocol, type ThesisEvent } from "./data";
 import { EventDialog } from "./event-dialog";
+import { BreakDialog, MilestoneDialog } from "./plan-dialogs";
+import { BreakList, MilestoneList } from "./planning";
 import { useThesis } from "./use-thesis";
 
 const PATH = "/m/thesis";
 
 // Appointments and deadlines, apart from the to-dos. After an appointment,
 // "Protokoll schreiben" starts its protocol with date, title and people.
+// Below them the milestones and the free days.
 export function EventsTab({ today }: { today: string }) {
-  const [events, people, protocols] = useThesis("events", "people", "protocols");
+  const [events, people, protocols, milestones, breaks, settings] = useThesis(
+    "events",
+    "people",
+    "protocols",
+    "milestones",
+    "breaks",
+    "settings",
+  );
   const coming = events.filter((event) => event.date >= today).sort(byWhen);
   const past = events
     .filter((event) => event.date < today)
@@ -40,6 +50,38 @@ export function EventsTab({ today }: { today: string }) {
             <EventList events={coming} people={people} protocols={protocols} today={today} />
           </CardContent>
         )}
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">
+            <h2>Meilensteine</h2>
+          </CardTitle>
+          {milestones.length === 0 && (
+            <CardDescription>Ziele mit Datum, z. B. „Erster Entwurf“. Sie stehen auf der Zeitleiste im Überblick und im Kalender.</CardDescription>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {milestones.length > 0 && <MilestoneList milestones={milestones} today={today} />}
+          <MilestoneDialog defaultDate={settings.endDate && settings.endDate > today ? settings.endDate : today} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">
+            <h2>Freie Tage</h2>
+          </CardTitle>
+          {breaks.length === 0 && (
+            <CardDescription>
+              Plan Pausen ein, z. B. über Weihnachten. Dann zeigt die Bachelorarbeit an diesen Tagen nur einen Hinweis, dass du frei hast.
+            </CardDescription>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {breaks.length > 0 && <BreakList breaks={breaks} today={today} />}
+          <BreakDialog today={today} />
+        </CardContent>
       </Card>
 
       {past.length > 0 && (

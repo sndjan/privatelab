@@ -8,6 +8,10 @@
 //   [@key] or [@key, S. 12]  citation of a source (its citation key)
 //   ![Beschriftung](doc:<id>)  an image from the documents
 
+import { citationStyleOf, type CitationStyle } from "./cite";
+
+type CiteCommand = ReturnType<typeof citationStyleOf>["command"];
+
 export type SectionStatus = "open" | "draft" | "done";
 
 export const sectionStatuses: { value: SectionStatus; label: string }[] = [
@@ -171,17 +175,18 @@ const escapeLatex = (text: string) =>
     .replace(/"(\S[^"]*?)"/g, "\\enquote{$1}")
     .replace(/„([^“]*)“/g, "\\enquote{$1}");
 
-// **bold**, *italics* and citations inside one line.
-function latexInline(text: string) {
+// **bold**, *italics* and citations inside one line. A citation becomes the
+// command of the citation style: \parencite, \footcite or \cite.
+function latexInline(text: string, cite: CiteCommand) {
   let out = "";
   let last = 0;
   for (const match of text.matchAll(/\*\*(.+?)\*\*|\*(.+?)\*|\[@([^\],]+)(?:,\s*([^\]]+))?\]/g)) {
     out += escapeLatex(text.slice(last, match.index));
-    if (match[1] !== undefined) out += `\\textbf{${latexInline(match[1])}}`;
-    else if (match[2] !== undefined) out += `\\emph{${latexInline(match[2])}}`;
+    if (match[1] !== undefined) out += `\\textbf{${latexInline(match[1], cite)}}`;
+    else if (match[2] !== undefined) out += `\\emph{${latexInline(match[2], cite)}}`;
     else {
       const keys = match[3].split(/[;\s]+@?/).filter(Boolean).join(",");
-      out += match[4] ? `\\parencite[${escapeLatex(match[4].trim())}]{${keys}}` : `\\parencite{${keys}}`;
+      out += match[4] ? `\\${cite}[${escapeLatex(match[4].trim())}]{${keys}}` : `\\${cite}{${keys}}`;
     }
     last = match.index + match[0].length;
   }
@@ -204,21 +209,22 @@ const label = (title: string, number: string) =>
 // The body of the thesis for \input{} in a LaTeX template (biblatex for the
 // citations, graphicx and csquotes). Images point at the file name of the
 // document; copy the files next to the .tex file.
-export function toLatex(sections: Section[], images: ExportImage[]) {
-  return `% Aus Private Lab exportiert. Einbinden mit \\input{arbeit} in eine Vorlage mit \\chapter (z. B. report,\n% scrreprt); braucht biblatex, graphicx und csquotes.\n\n${latexSections(sections, images)}\n`;
+export function toLatex(sections: Section[], images: ExportImage[], style: CitationStyle = "apa") {
+  const { biblatex, command } = citationStyleOf(style);
+  return `% Aus Private Lab exportiert. Einbinden mit \\input{arbeit} in eine Vorlage mit \\chapter (z. B. report,\n% scrreprt); braucht biblatex (style=${biblatex}), graphicx und csquotes.\n\n${latexSections(sections, images, command)}\n`;
 }
 
-function latexSections(sections: Section[], images: ExportImage[]) {
+function latexSections(sections: Section[], images: ExportImage[], cite: CiteCommand) {
   const numbers = numbering(sections);
   return sections
     .map((section, index) => {
-      const heading = `\\${commands[section.depth]}{${latexInline(section.title || "Ohne Titel")}}\\label{${label(section.title, numbers[index])}}`;
-      return [heading, latexBody(section.body, images)].filter(Boolean).join("\n\n");
+      const heading = `\\${commands[section.depth]}{${latexInline(section.title || "Ohne Titel", cite)}}\\label{${label(section.title, numbers[index])}}`;
+      return [heading, latexBody(section.body, images, cite)].filter(Boolean).join("\n\n");
     })
     .join("\n\n");
 }
 
-function latexBody(body: string, images: ExportImage[]) {
+function latexBody(body: string, images: ExportImage[], cite: CiteCommand) {
   return body
     .replace(/\r\n/g, "\n")
     // An image on its own line inside a paragraph still becomes a figure.
@@ -234,24 +240,25 @@ function latexBody(body: string, images: ExportImage[]) {
           "\\begin{figure}[htbp]",
           "  \\centering",
           `  \\includegraphics[width=0.8\\textwidth]{${file ? file.fileName.replace(/[{}\\%#]/g, "") : "BILD-FEHLT"}}`,
-          `  \\caption{${latexInline(image[1] || file?.title || "")}}`,
+          `  \\caption{${latexInline(image[1] || file?.title || "", cite)}}`,
           "\\end{figure}",
         ].join("\n");
       }
       const lines = block.split("\n");
       if (lines.every((line) => /^\s*- /.test(line))) {
-        return ["\\begin{itemize}", ...lines.map((line) => `  \\item ${latexInline(line.replace(/^\s*- /, ""))}`), "\\end{itemize}"].join("\n");
+        return ["\\begin{itemize}", ...lines.map((line) => `  \\item ${latexInline(line.replace(/^\s*- /, ""), cite)}`), "\\end{itemize}"].join("\n");
       }
-      return lines.map((line) => latexInline(line.trim())).join("\n");
+      return lines.map((line) => latexInline(line.trim(), cite)).join("\n");
     })
     .join("\n\n");
 }
 
 // A complete document that compiles as it is, e.g. as main.tex in a new
-// Overleaf project: report class (for \chapter), biblatex-apa with
-// literatur.bib from the Quellen tab, the images uploaded next to it.
-export function toLatexDocument(sections: Section[], images: ExportImage[], title: string) {
+// Overleaf project: report class (for \chapter), biblatex in the citation
+// style with literatur.bib from the Quellen tab, the images uploaded next to it.
+export function toLatexDocument(sections: Section[], images: ExportImage[], title: string, style: CitationStyle = "apa") {
   const plain = (text: string) => escapeLatex(text.replace(/\s+/g, " ").trim());
+  const { biblatex, command } = citationStyleOf(style);
   return [
     "% Aus Private Lab exportiert. In Overleaf: neues leeres Projekt, diese Datei als main.tex,",
     "% dazu literatur.bib (Tab Quellen) und die Bilder aus den Dokumenten hochladen.",
@@ -260,7 +267,9 @@ export function toLatexDocument(sections: Section[], images: ExportImage[], titl
     "\\usepackage[ngerman]{babel}",
     "\\usepackage{csquotes}",
     "\\usepackage{graphicx}",
-    "\\usepackage[style=apa,backend=biber]{biblatex}",
+    `\\usepackage[style=${biblatex},backend=biber]{biblatex}`,
+    // Harvard as usual in Germany: Müller/Schmidt 2020.
+    ...(style === "harvard" ? ["\\renewcommand*{\\multinamedelim}{\\addslash}", "\\renewcommand*{\\finalnamedelim}{\\addslash}"] : []),
     "\\addbibresource{literatur.bib}",
     "",
     `\\title{${plain(title) || "Bachelorarbeit"}}`,
@@ -271,7 +280,7 @@ export function toLatexDocument(sections: Section[], images: ExportImage[], titl
     "\\maketitle",
     "\\tableofcontents",
     "",
-    latexSections(sections, images),
+    latexSections(sections, images, command),
     "",
     "\\printbibliography",
     "\\end{document}",

@@ -1,9 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Source, SourceKind, SourceStatus } from "./cite";
+import { isCitationStyle, type Source, type SourceKind, type SourceStatus } from "./cite";
 import type { Section, SectionComment, SectionStatus } from "./writing";
 import {
   DOCUMENT_BUCKET,
   emptySettings,
+  type Break,
+  type Milestone,
   normalizeOverviewLayout,
   type DocumentCategory,
   type EventKind,
@@ -37,7 +39,23 @@ export async function loadSettings(userId: string): Promise<Settings> {
     wordsPerPage: data.words_per_page ?? 300,
     // Before the migration 20261114000000_thesis_overview_layout.sql there is no column.
     overviewLayout: data.overview_layout ? normalizeOverviewLayout(data.overview_layout) : null,
+    // Before the migration 20261115000000_thesis_planning_calendar.sql there is no column.
+    citationStyle: isCitationStyle(data.citation_style) ? data.citation_style : "apa",
   };
+}
+
+// Before the migration 20261115000000_thesis_planning_calendar.sql the
+// tables don't exist; then there are none.
+export async function loadBreaks(): Promise<Break[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("thesis_breaks").select("id, name, start_date, end_date").order("start_date");
+  return (data ?? []).map((row) => ({ id: row.id, name: row.name, startDate: row.start_date, endDate: row.end_date }));
+}
+
+export async function loadMilestones(): Promise<Milestone[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("thesis_milestones").select("id, name, date, done").order("date").order("created_at");
+  return (data ?? []).map((row) => ({ id: row.id, name: row.name, date: row.date, done: row.done }));
 }
 
 export async function loadPhases(): Promise<Phase[]> {

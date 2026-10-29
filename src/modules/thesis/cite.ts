@@ -1,6 +1,7 @@
-// Sources and how they are cited: APA 7 in the German adaptation (DGPs) for
-// the reference list, and BibLaTeX entries for biblatex-apa (LaTeX with
-// biber). Plain string formatting, no lookups and no AI.
+// Sources and how they are cited: the reference list in one of the styles
+// common at German universities (APA 7 in the DGPs adaptation, Harvard,
+// Deutsche Zitierweise with footnotes, IEEE), all in German, and BibLaTeX
+// entries for LaTeX with biber. Plain string formatting, no lookups and no AI.
 
 export type SourceKind = "web" | "article" | "book" | "chapter" | "software";
 export type SourceStatus = "found" | "read" | "cited";
@@ -358,17 +359,319 @@ export function apa(source: Source): Segment[] {
   return merged;
 }
 
-export const apaText = (source: Source) => apa(source).map((segment) => segment.text).join("");
+// --- Other styles -----------------------------------------------------------
+
+export type CitationStyle = "apa" | "harvard" | "deutsch" | "ieee";
+
+// What each style looks like, and how the LaTeX export does it: the
+// biblatex style (all in TeX Live, so they work in Overleaf) and the command
+// a [@key] in the text becomes.
+export const citationStyles: {
+  value: CitationStyle;
+  label: string;
+  short: string;
+  example: string;
+  usedIn: string;
+  biblatex: string;
+  command: "parencite" | "footcite" | "cite";
+}[] = [
+  {
+    value: "apa",
+    label: "APA 7 (DGPs)",
+    short: "APA",
+    example: "(Müller & Schmidt, 2020, S. 12)",
+    usedIn: "Psychologie, Sozial- und Wirtschaftswissenschaften",
+    biblatex: "apa",
+    command: "parencite",
+  },
+  {
+    value: "harvard",
+    label: "Harvard (Autor-Jahr)",
+    short: "Harvard",
+    example: "(Müller/Schmidt 2020, S. 12)",
+    usedIn: "BWL, Wirtschaftsinformatik, viele Fachhochschulen",
+    biblatex: "authoryear",
+    command: "parencite",
+  },
+  {
+    value: "deutsch",
+    label: "Deutsche Zitierweise (Fußnoten)",
+    short: "Fußnoten",
+    example: "Fußnote: Müller, Hans/Schmidt, Klaus: Titel, 2020, S. 12.",
+    usedIn: "Geistes-, Rechts- und Geschichtswissenschaften",
+    biblatex: "verbose-ibid",
+    command: "footcite",
+  },
+  {
+    value: "ieee",
+    label: "IEEE (numerisch)",
+    short: "IEEE",
+    example: "[1, S. 12]",
+    usedIn: "Informatik, Elektrotechnik, Ingenieurwissenschaften",
+    biblatex: "ieee",
+    command: "cite",
+  },
+];
+
+export const isCitationStyle = (value: unknown): value is CitationStyle =>
+  citationStyles.some((style) => style.value === value);
+export const citationStyleOf = (value: CitationStyle) => citationStyles.find((style) => style.value === value)!;
+
+// Builds a reference from pieces: empty ones are dropped, neighbors with the
+// same style merged, the trailing space removed.
+function segmentsOf(pieces: (Segment | string | false | null | undefined)[]): Segment[] {
+  const merged: Segment[] = [];
+  for (const piece of pieces) {
+    if (!piece) continue;
+    const segment = typeof piece === "string" ? { text: piece } : { ...piece };
+    const last = merged.at(-1);
+    // "2. Aufl." followed by ". " keeps one period.
+    if (last?.text.endsWith(".") && segment.text.startsWith(".")) segment.text = segment.text.slice(1);
+    if (!segment.text) continue;
+    if (last && Boolean(last.italic) === Boolean(segment.italic)) last.text += segment.text;
+    else merged.push({ ...segment });
+  }
+  if (merged.length > 0) merged[merged.length - 1].text = merged[merged.length - 1].text.trimEnd();
+  return merged;
+}
+
+const italic = (text: string): Segment => ({ text: text.trim(), italic: true });
+const yearOf = (source: Source) => (source.year === null ? "o. J." : String(source.year));
+const pagesOf = (source: Source) => (source.pages.trim() ? `S. ${dash(source.pages)}` : "");
+const versionOf = (source: Source) => source.version.trim().replace(/^v(?=\d)/i, "");
+const linkOf = (source: Source) => doiUrl(source.doi) || source.url.trim();
+// "a, b, c" with the last joined by `and`.
+const joinLast = (names: string[], and: string) =>
+  names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} ${and} ${names.at(-1)}`;
+
+// Harvard and Deutsche Zitierweise: names separated by slashes, from four on
+// the first with "et al." / "u. a."; without authors "o. V." (ohne Verfasser).
+function slashNames(names: string[], format: (name: string) => string, more: string) {
+  if (names.length === 0) return "o. V.";
+  if (names.length > 3) return `${format(names[0])} ${more}`;
+  return names.map(format).join("/");
+}
+const fullName = (name: string) => name.trim();
+
+// Harvard as taught at German universities:
+// Müller, H./Schmidt, K. (2020): Titel, 2. Aufl., Verlag.
+function harvard(source: Source): Segment[] {
+  const head = `${slashNames(source.authors, nameFamilyFirst, "et al.")} (${yearOf(source)}): `;
+  const title = source.title.trim();
+  const link = linkOf(source);
+  const online = link ? `, [online] ${link}${source.kind === "web" && source.accessed ? ` [abgerufen am ${germanLongDate(source.accessed)}]` : ""}` : "";
+  switch (source.kind) {
+    case "web":
+      return segmentsOf([head, title, source.container.trim() && `, ${source.container.trim()}`, online, "."]);
+    case "article":
+      return segmentsOf([
+        head,
+        `${title}, in: `,
+        italic(source.container),
+        source.volume.trim() && `, Jg. ${source.volume.trim()}`,
+        source.issue.trim() && `, Nr. ${source.issue.trim()}`,
+        pagesOf(source) && `, ${pagesOf(source)}`,
+        doiUrl(source.doi) && `, ${doiUrl(source.doi)}`,
+        ".",
+      ]);
+    case "book":
+      return segmentsOf([
+        head,
+        italic(title),
+        editionText(source.edition) && `, ${editionText(source.edition)}`,
+        source.publisher.trim() && `, ${source.publisher.trim()}`,
+        doiUrl(source.doi) ? `, ${doiUrl(source.doi)}` : source.url.trim() && `, [online] ${source.url.trim()}`,
+        ".",
+      ]);
+    case "chapter":
+      return segmentsOf([
+        head,
+        `${title}, in: `,
+        source.editors.length > 0 && `${slashNames(source.editors, nameFamilyFirst, "et al.")} (Hrsg.): `,
+        italic(source.container),
+        editionText(source.edition) && `, ${editionText(source.edition)}`,
+        source.publisher.trim() && `, ${source.publisher.trim()}`,
+        pagesOf(source) && `, ${pagesOf(source)}`,
+        ".",
+      ]);
+    case "software":
+      return segmentsOf([
+        head,
+        italic(title),
+        versionOf(source) && ` (Version ${versionOf(source)})`,
+        " [Software]",
+        source.publisher.trim() && `, ${source.publisher.trim()}`,
+        online,
+        ".",
+      ]);
+  }
+}
+
+// Deutsche Zitierweise, the entry in the Literaturverzeichnis (the first
+// footnote looks the same): Müller, Hans/Schmidt, Klaus: Titel, 2. Aufl., Verlag, 2020.
+function deutsch(source: Source): Segment[] {
+  const head = `${slashNames(source.authors, fullName, "u. a.")}: `;
+  const title = source.title.trim();
+  const year = yearOf(source);
+  const url = source.url.trim() && `, URL: ${source.url.trim()}`;
+  const doi = doiUrl(source.doi) && `, DOI: ${doiUrl(source.doi).replace("https://doi.org/", "")}`;
+  switch (source.kind) {
+    case "web":
+      return segmentsOf([
+        head,
+        title,
+        source.container.trim() && `, ${source.container.trim()}`,
+        source.year !== null && `, ${year}`,
+        url,
+        source.accessed && ` (abgerufen am ${germanLongDate(source.accessed)})`,
+        ".",
+      ]);
+    case "article":
+      return segmentsOf([
+        head,
+        `${title}, in: ${source.container.trim()}`,
+        source.volume.trim() && ` ${source.volume.trim()}`,
+        ` (${year})`,
+        source.issue.trim() && `, Nr. ${source.issue.trim()}`,
+        pagesOf(source) && `, ${pagesOf(source)}`,
+        doi,
+        ".",
+      ]);
+    case "book":
+      return segmentsOf([
+        head,
+        title,
+        editionText(source.edition) && `, ${editionText(source.edition)}`,
+        source.publisher.trim() && `, ${source.publisher.trim()}`,
+        `, ${year}`,
+        doi || url,
+        ".",
+      ]);
+    case "chapter":
+      return segmentsOf([
+        head,
+        `${title}, in: `,
+        source.editors.length > 0 && `${slashNames(source.editors, fullName, "u. a.")} (Hrsg.): `,
+        source.container.trim(),
+        editionText(source.edition) && `, ${editionText(source.edition)}`,
+        source.publisher.trim() && `, ${source.publisher.trim()}`,
+        `, ${year}`,
+        pagesOf(source) && `, ${pagesOf(source)}`,
+        doi,
+        ".",
+      ]);
+    case "software":
+      return segmentsOf([
+        head,
+        title,
+        versionOf(source) && `, Version ${versionOf(source)}`,
+        source.publisher.trim() && `, ${source.publisher.trim()}`,
+        `, ${year}`,
+        url,
+        ".",
+      ]);
+  }
+}
+
+// IEEE with the German terms of biblatex-ieee:
+// H. Müller und K. Schmidt, „Titel“, Zeitschrift, Bd. 3, Nr. 2, S. 1–9, 2020.
+function ieee(source: Source): Segment[] {
+  const names = source.authors.length > 6 ? `${nameGivenFirst(source.authors[0])} u. a.` : joinLast(source.authors.map(nameGivenFirst), "und");
+  const head = names ? `${names}, ` : "";
+  const quoted = `„${source.title.trim()}“`;
+  const year = yearOf(source);
+  const doi = doiUrl(source.doi) && `, doi: ${doiUrl(source.doi).replace("https://doi.org/", "")}`;
+  const online = source.url.trim() && ` [Online]. Verfügbar unter: ${source.url.trim()}`;
+  switch (source.kind) {
+    case "web":
+      return segmentsOf([
+        head,
+        `${quoted}, `,
+        source.container.trim() && `${source.container.trim()}, `,
+        source.year !== null && `${year}. `,
+        source.accessed && `Zugegriffen: ${germanLongDate(source.accessed)}.`,
+        online,
+      ]);
+    case "article":
+      return segmentsOf([
+        head,
+        `${quoted}, `,
+        italic(source.container),
+        source.volume.trim() && `, Bd. ${source.volume.trim()}`,
+        source.issue.trim() && `, Nr. ${source.issue.trim()}`,
+        pagesOf(source) && `, ${pagesOf(source)}`,
+        `, ${year}`,
+        doi,
+        ".",
+      ]);
+    case "book":
+      return segmentsOf([
+        head,
+        italic(source.title),
+        editionText(source.edition) && `, ${editionText(source.edition)}`,
+        ". ",
+        source.publisher.trim() && `${source.publisher.trim()}, `,
+        year,
+        doi,
+        ".",
+      ]);
+    case "chapter":
+      return segmentsOf([
+        head,
+        `${quoted}, in `,
+        italic(source.container),
+        source.editors.length > 0 && `, ${joinLast(source.editors.map(nameGivenFirst), "und")}, Hrsg.`,
+        editionText(source.edition) && `, ${editionText(source.edition)}`,
+        ". ",
+        source.publisher.trim() && `${source.publisher.trim()}, `,
+        year,
+        pagesOf(source) && `, ${pagesOf(source)}`,
+        doi,
+        ".",
+      ]);
+    case "software":
+      return segmentsOf([
+        head,
+        italic(source.title),
+        versionOf(source) && `, Version ${versionOf(source)}`,
+        ". ",
+        source.publisher.trim() && `${source.publisher.trim()}, `,
+        `${year}.`,
+        online,
+      ]);
+  }
+}
+
+// The entry for the reference list in the chosen style.
+export function reference(source: Source, style: CitationStyle): Segment[] {
+  switch (style) {
+    case "apa":
+      return apa(source);
+    case "harvard":
+      return harvard(source);
+    case "deutsch":
+      return deutsch(source);
+    case "ieee":
+      return ieee(source);
+  }
+}
+
+export const referenceText = (source: Source, style: CitationStyle) =>
+  reference(source, style)
+    .map((segment) => segment.text)
+    .join("");
 
 const escapeHtml = (text: string) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-export const apaHtml = (source: Source) =>
-  apa(source)
+export const referenceHtml = (source: Source, style: CitationStyle) =>
+  reference(source, style)
     .map((segment) => (segment.italic ? `<i>${escapeHtml(segment.text)}</i>` : escapeHtml(segment.text)))
     .join("");
 
-// --- BibLaTeX (biblatex-apa) -----------------------------------------------
+// --- BibLaTeX ------------------------------------------------------------------
+// The same .bib works with every style above (biblatex-apa, authoryear,
+// verbose-ibid, biblatex-ieee).
 
 const latexSpecial: Record<string, string> = {
   "\\": "\\textbackslash{}",
@@ -454,7 +757,8 @@ export function biblatex(source: Source) {
 
 export const bibliography = (sources: Source[]) => sources.map(biblatex).join("\n\n") + "\n";
 
-// APA reference lists are sorted by the first author (or the title without authors).
+// Reference lists are sorted by the first author (or the title without
+// authors); IEEE numbers them in the order of citation, which LaTeX does.
 export function sortKey(source: Source) {
   return (source.authors[0] ?? source.title).toLocaleLowerCase("de-DE");
 }

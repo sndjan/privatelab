@@ -61,7 +61,6 @@ export function SessionPlan({ date, startTime, items }: { date: string; startTim
               )}
             >
               <div className="flex gap-4">
-                <Court diagram={exercise.diagram} className="w-24 shrink-0 sm:w-32" />
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <p className="text-sm text-muted-foreground">
                     <span className="font-mono">
@@ -100,6 +99,7 @@ export function SessionPlan({ date, startTime, items }: { date: string; startTim
                   </Link>
                 </div>
               </div>
+              {exercise.diagram.items.length > 0 && <Court diagram={exercise.diagram} horizontal className="mt-3 w-full max-w-xl" />}
             </li>
           );
         })}

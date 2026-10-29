@@ -5,11 +5,13 @@ import { Suspense } from "react";
 import { Loading } from "@/components/loading";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ViewLink as Link } from "@/lib/query/view-link";
+import { CalendarTab } from "./calendar-tab";
 import { byPriority, tabs, todayInGermany, type TabId } from "./data";
 import { DocumentsTab } from "./documents-tab";
 import { Overview } from "./overview";
 import { EventsTab } from "./events-tab";
 import { LogTab } from "./log-tab";
+import { BreakGate } from "./planning";
 import { ProtocolsTab } from "./protocols-tab";
 import { QuickTodo } from "./quick-todo";
 import { SourcesTab } from "./sources-tab";
@@ -50,31 +52,34 @@ export function ThesisApp({ userId }: { userId: string }) {
       </nav>
 
       <Suspense fallback={<Loading />}>
-        {tab === "overview" && <Overview today={today} />}
-        {tab === "writing" && <WritingTab />}
-        {tab === "todos" && <TodosTab today={today} />}
-        {tab === "events" && <EventsTab today={today} />}
-        {tab === "log" && <LogTab today={today} />}
-        {tab === "sources" && <SourcesTab today={today} sourceId={param("source")} status={param("status")} query={param("q")} />}
-        {tab === "protocols" && (
-          <ProtocolsTab
-            today={today}
-            protocolId={param("protocol")}
-            edit={param("edit") === "1"}
-            query={param("q")}
-            eventId={param("event")}
-          />
-        )}
-        {tab === "documents" && (
-          <DocumentsTab
-            userId={userId}
-            documentId={param("document")}
-            edit={param("edit") === "1"}
-            category={param("category")}
-            sourceId={param("source")}
-            protocolId={param("protocol")}
-          />
-        )}
+        <BreakGate today={today}>
+          {tab === "overview" && <Overview today={today} />}
+          {tab === "writing" && <WritingTab />}
+          {tab === "todos" && <TodosTab today={today} />}
+          {tab === "events" && <EventsTab today={today} />}
+          {tab === "calendar" && <CalendarTab today={today} />}
+          {tab === "log" && <LogTab today={today} />}
+          {tab === "sources" && <SourcesTab today={today} sourceId={param("source")} status={param("status")} query={param("q")} />}
+          {tab === "protocols" && (
+            <ProtocolsTab
+              today={today}
+              protocolId={param("protocol")}
+              edit={param("edit") === "1"}
+              query={param("q")}
+              eventId={param("event")}
+            />
+          )}
+          {tab === "documents" && (
+            <DocumentsTab
+              userId={userId}
+              documentId={param("document")}
+              edit={param("edit") === "1"}
+              category={param("category")}
+              sourceId={param("source")}
+              protocolId={param("protocol")}
+            />
+          )}
+        </BreakGate>
       </Suspense>
     </div>
   );

@@ -639,8 +639,8 @@ function ExerciseView({ exerciseId, edit }: { exerciseId: string; edit: boolean 
         ))}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,14rem)_1fr]">
-        <Court diagram={exercise.diagram} className="mx-auto w-full max-w-60" />
+      <div className="space-y-4">
+        <Court diagram={exercise.diagram} horizontal className="w-full" />
         <div className="space-y-3">
           {exercise.summary && <p className="font-medium">{exercise.summary}</p>}
           {exercise.description && <p className="text-sm whitespace-pre-line">{exercise.description}</p>}

@@ -4,7 +4,15 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { sourceKinds, suggestCitationKey, type SourceField, type SourceKind, type SourceStatus } from "./cite";
+import {
+  isCitationStyle,
+  sourceKinds,
+  suggestCitationKey,
+  type CitationStyle,
+  type SourceField,
+  type SourceKind,
+  type SourceStatus,
+} from "./cite";
 import {
   DOCUMENT_BUCKET,
   documentCategories,
@@ -107,6 +115,17 @@ export async function saveOverviewLayout(layout: OverviewLayout | null) {
   );
 }
 
+// For the reference list and the LaTeX export. Settings may not exist yet.
+export async function saveCitationStyle(style: CitationStyle) {
+  if (!isCitationStyle(style)) throw new Error("Unknown citation style");
+  const { supabase, userId } = await db();
+  check(
+    await supabase
+      .from("thesis_settings")
+      .upsert({ user_id: userId, citation_style: style, updated_at: new Date().toISOString() }, { onConflict: "user_id" }),
+  );
+}
+
 // --- Phases -----------------------------------------------------------------
 
 export async function savePhase(formData: FormData) {
@@ -129,6 +148,56 @@ export async function deletePhase(formData: FormData) {
   const { supabase } = await db();
   check(await supabase.from("thesis_phases").delete().eq("id", String(formData.get("phaseId"))));
   revalidatePath(PATH);
+}
+
+// --- Free days and milestones ------------------------------------------------
+
+export async function saveBreak(formData: FormData) {
+  const startDate = date(formData, "startDate");
+  let endDate = optionalDate(formData, "endDate") ?? startDate;
+  if (endDate < startDate) endDate = startDate;
+  const row = { name: text(formData, "name", 80), start_date: startDate, end_date: endDate };
+  const { supabase } = await db();
+  const breakId = String(formData.get("breakId") ?? "");
+  if (breakId) {
+    check(await supabase.from("thesis_breaks").update(row).eq("id", breakId));
+  } else {
+    check(await supabase.from("thesis_breaks").insert(row));
+  }
+  revalidatePath(PATH);
+}
+
+export async function deleteBreak(formData: FormData) {
+  const { supabase } = await db();
+  check(await supabase.from("thesis_breaks").delete().eq("id", String(formData.get("breakId"))));
+  revalidatePath(PATH);
+}
+
+export async function saveMilestone(formData: FormData) {
+  const name = text(formData, "name", 80);
+  if (!name) throw new Error("Name missing");
+  const row = { name, date: date(formData, "date") };
+  const { supabase } = await db();
+  const milestoneId = String(formData.get("milestoneId") ?? "");
+  if (milestoneId) {
+    check(await supabase.from("thesis_milestones").update(row).eq("id", milestoneId));
+  } else {
+    check(await supabase.from("thesis_milestones").insert(row));
+  }
+  revalidatePath(PATH);
+}
+
+export async function deleteMilestone(formData: FormData) {
+  const { supabase } = await db();
+  check(await supabase.from("thesis_milestones").delete().eq("id", String(formData.get("milestoneId"))));
+  revalidatePath(PATH);
+}
+
+// Ticked in the cache by the client; nothing to re-render.
+export async function setMilestoneDone(milestoneId: string, done: boolean) {
+  if (!isId(milestoneId)) return;
+  const { supabase } = await db();
+  check(await supabase.from("thesis_milestones").update({ done }).eq("id", milestoneId));
 }
 
 // --- To-dos -----------------------------------------------------------------
