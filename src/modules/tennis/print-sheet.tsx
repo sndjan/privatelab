@@ -60,8 +60,10 @@ export function PrintSheet({
               </p>
               {exercise.summary && <p>{exercise.summary}</p>}
               {exercise.tips.length > 0 && <p className="italic">„{exercise.tips.join("“ · „")}“</p>}
+              {exercise.variations.easier && <p>Leichter: {exercise.variations.easier}</p>}
+              {exercise.variations.harder && <p>Schwerer: {exercise.variations.harder}</p>}
             </div>
-            {exercise.diagram.items.length > 0 && <Court diagram={exercise.diagram} mono className="h-[22mm] w-auto shrink-0" />}
+            {exercise.diagram.items.length > 0 && <Court diagram={exercise.diagram} mono horizontal className="h-[22mm] w-auto shrink-0" />}
           </li>
         ))}
       </ol>

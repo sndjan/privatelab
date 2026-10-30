@@ -63,7 +63,7 @@ export function Library({ exercises, favoriteIds }: { exercises: Exercise[]; fav
               {list.map((exercise) => (
                 <li key={exercise.id}>
                   <Link href={`${PATH}?exercise=${exercise.id}`} className="flex gap-3 p-3 active:bg-accent">
-                    <Court diagram={exercise.diagram} className="w-12 shrink-0" />
+                    <Court diagram={exercise.diagram} horizontal className="w-20 shrink-0 self-start" />
                     <span className="min-w-0 flex-1 space-y-0.5">
                       <span className="flex items-center gap-1.5 font-medium">
                         {favorites.has(exercise.id) && <StarIcon className="size-3.5 shrink-0 fill-amber-400 text-amber-500" />}

@@ -52,8 +52,9 @@ export function DiagramEditor({
 
   function point(event: PointerEvent) {
     const matrix = svgRef.current!.getScreenCTM()!.inverse();
-    const { x, y } = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix);
-    return { x: clampX(x), y: clampY(y) };
+    // The court is drawn turned a quarter: (x, y) is shown at (y, -x).
+    const { x: u, y: v } = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix);
+    return { x: clampX(-v), y: clampY(u) };
   }
 
   function change(update: (items: DiagramItem[]) => DiagramItem[], remember = true) {
@@ -182,7 +183,8 @@ export function DiagramEditor({
       <div className="flex justify-center">
         <CourtSvg
           ref={svgRef}
-          className="max-h-[70vh] w-full max-w-sm touch-none select-none"
+          horizontal
+          className="w-full max-w-2xl touch-none select-none"
           onPointerDown={onCourtDown}
           onPointerMove={onMove}
           onPointerUp={onUp}

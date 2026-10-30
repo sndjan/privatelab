@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpenIcon, CalendarCheckIcon, CalendarPlusIcon, ChevronLeftIcon, ChevronRightIcon, PalmtreeIcon, PencilIcon, PlusIcon, StarIcon, Trash2Icon, UsersIcon } from "lucide-react";
+import { BookOpenIcon, CalendarCheckIcon, CalendarPlusIcon, ChevronLeftIcon, ChevronRightIcon, ListChecksIcon, PalmtreeIcon, PencilIcon, PlusIcon, StarIcon, Trash2Icon, UsersIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import { FormPending } from "@/components/form-pending";
@@ -25,6 +25,7 @@ import {
   deleteStandIn,
   loadStarterExercises,
   saveExerciseNotes,
+  savePrinciples,
   saveSessionNotes,
   updateGroup,
 } from "./actions";
@@ -33,17 +34,23 @@ import { Attendance } from "./attendance";
 import { Court } from "./court";
 import {
   addDays,
+  agesLabel,
+  defaultPrinciples,
   emptyDiagram,
   formatClock,
   formatSessionDate,
   generatePlan,
+  hasVariations,
   holidayOn,
   isoWeekday,
   myTrainingDates,
   nextTrainingDate,
+  noVariations,
   parseDiagram,
   phaseName,
   playersLabel,
+  stageLabel,
+  stages,
   timeline,
   todayInGermany,
   weekdayNames,
@@ -61,6 +68,7 @@ import { PrintSheet } from "./print-sheet";
 import { LiveBadge, PrintButton, SessionPlan } from "./session-plan";
 import { starterExercises } from "./starter";
 import { useTennis } from "./use-tennis";
+import { VariationList } from "./variations";
 
 const PATH = "/m/tennis";
 
@@ -81,6 +89,7 @@ export function TennisApp() {
     );
   }
   if (param("holidays")) return <HolidaysView />;
+  if (param("principles")) return <PrinciplesView />;
   const sessionId = param("session");
   if (sessionId) return <SessionView key={sessionId} sessionId={sessionId} />;
   const exerciseId = param("exercise");
@@ -103,6 +112,7 @@ const newExercise = {
   diagram: emptyDiagram,
   playersMin: null,
   playersMax: null,
+  variations: noVariations,
 };
 
 const sessionEnd = (session: Session) => formatClock(timeline(session.startTime, session.plan).at(-1)?.end ?? 0);
@@ -127,6 +137,7 @@ function Overview() {
   const past = sessions.filter((session) => session.date < today).slice(0, 5);
   const groupName = (id: string | null) => groups.find((group) => group.id === id)?.name ?? "Ohne Gruppe";
   const playerCount = (groupId: string) => players.filter((player) => player.groupId === groupId).length;
+  const ages = (groupId: string) => agesLabel(players.filter((player) => player.groupId === groupId), today);
   const nextStandIn = (groupId: string) => standIns.find((standIn) => standIn.groupId === groupId)?.date;
   const currentHoliday = holidayOn(today, holidays);
   const nextHoliday = holidays.find((holiday) => holiday.startDate > today);
@@ -224,6 +235,8 @@ function Overview() {
                     group.coach && `Trainer:in ${group.coach}`,
                     group.coach && nextStandIn(group.id) && `ich helfe ${formatSessionDate(nextStandIn(group.id)!)} aus`,
                     playerCount(group.id) > 0 && `${playerCount(group.id)} Kinder`,
+                    ages(group.id),
+                    group.stage && stageLabel(group.stage),
                     group.note,
                   ]
                     .filter(Boolean)
@@ -257,6 +270,14 @@ function Overview() {
           <BookOpenIcon className="size-5 text-muted-foreground" />
           <span className="flex-1">Übungssammlung</span>
           <span className="font-mono text-sm text-muted-foreground">{exerciseCount ?? 0}</span>
+          <ChevronRightIcon className="size-4 text-muted-foreground" />
+        </Link>
+        <Link href={`${PATH}?principles=1`} className="flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 shadow-xs active:bg-accent">
+          <ListChecksIcon className="size-5 text-muted-foreground" />
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span>Grundsätze</span>
+            <span className="truncate text-xs text-muted-foreground">Woran sich die KI beim Planen hält, z. B. die 8-Sekunden-Regel</span>
+          </span>
           <ChevronRightIcon className="size-4 text-muted-foreground" />
         </Link>
         <Link href={`${PATH}?holidays=1`} className="flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 shadow-xs active:bg-accent">
@@ -294,6 +315,41 @@ const formatRange = (holiday: Holiday) =>
   holiday.startDate === holiday.endDate
     ? formatSessionDate(holiday.startDate)
     : `${formatSessionDate(holiday.startDate)} – ${formatSessionDate(holiday.endDate)}`;
+
+// --- Principles -----------------------------------------------------------------
+
+function PrinciplesView() {
+  const [principles] = useTennis("principles");
+  const text = principles || defaultPrinciples;
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-4">
+      <div className="-ml-2 flex items-center gap-1">
+        <BackLink />
+        <h2 className="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight">Grundsätze</h2>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Daran hält sich die KI, wenn sie Stunden plant oder Übungen erfindet. Ein Grundsatz pro Zeile. Vorgeschlagen sind die
+        Grundlagen aus der BTV-C-Trainer-Ausbildung (Stundenaufbau, Aufwärmen bei Kindern, Play+Stay) und die 8-Sekunden-Regel.
+      </p>
+      {/* The key resets the field when the saved text changes, e.g. after "Vorschlag wiederherstellen". */}
+      <form key={text} action={savePrinciples} className="space-y-3">
+        <Textarea name="principles" rows={16} maxLength={4000} defaultValue={text} aria-label="Grundsätze" />
+        <div className="flex flex-wrap gap-2">
+          <SubmitButton done="Grundsätze gespeichert">Speichern</SubmitButton>
+        </div>
+      </form>
+      {principles && (
+        <form action={savePrinciples}>
+          <input type="hidden" name="principles" value="" />
+          <SubmitButton variant="ghost" className="text-muted-foreground" done="Vorschlag wiederhergestellt">
+            Vorschlag wiederherstellen
+          </SubmitButton>
+        </form>
+      )}
+    </div>
+  );
+}
 
 // --- Holidays -------------------------------------------------------------------
 
@@ -581,6 +637,13 @@ function SessionView({ sessionId }: { sessionId: string }) {
 
 function LibraryView() {
   const [exercises, favorites] = useTennis("exercises", "favorites");
+  // Starter exercises that are missing, or there without the collection's variations.
+  const byName = new Map(exercises.map((exercise) => [exercise.name, exercise]));
+  const starterNew = starterExercises.filter((exercise) => !byName.has(exercise.name)).length;
+  const starterBare = starterExercises.filter((exercise) => {
+    const existing = byName.get(exercise.name);
+    return existing && !hasVariations(existing.variations) && hasVariations(exercise.variations);
+  }).length;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -593,10 +656,10 @@ function LibraryView() {
           <Link href={`${PATH}?exercise=new`}>+ Neue Übung</Link>
         </Button>
         <AiImport existing={exercises.map((exercise) => exercise.name)} />
-        {exercises.length < starterExercises.length && (
+        {(starterNew > 0 || starterBare > 0) && (
           <form action={loadStarterExercises}>
             <SubmitButton variant="ghost" className="text-muted-foreground" done="Starter-Sammlung ergänzt">
-              Starter-Sammlung ergänzen
+              {starterNew > 0 ? `${starterNew} neue Übungen laden` : `Variationen für ${starterBare} Übungen laden`}
             </SubmitButton>
           </form>
         )}
@@ -654,6 +717,12 @@ function ExerciseView({ exerciseId, edit }: { exerciseId: string; edit: boolean 
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+          {hasVariations(exercise.variations) && (
+            <div className="space-y-1.5">
+              <p className="text-sm text-muted-foreground">Variationen</p>
+              <VariationList variations={exercise.variations} />
             </div>
           )}
         </div>
@@ -829,11 +898,11 @@ function GroupView({ groupId }: { groupId: string }) {
             oft dran.
           </p>
         ) : (
-          <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+          <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {favorites.map((exercise) => (
               <li key={exercise.id}>
                 <Link href={`${PATH}?exercise=${exercise.id}`} className="block space-y-1">
-                  <Court diagram={parseDiagram(exercise.diagram)} className="w-full" />
+                  <Court diagram={parseDiagram(exercise.diagram)} horizontal className="w-full" />
                   <span className="block text-sm leading-tight">{exercise.name}</span>
                 </Link>
               </li>
@@ -891,6 +960,23 @@ function GroupView({ groupId }: { groupId: string }) {
                 <Label htmlFor="group-minutes">Minuten</Label>
                 <Input id="group-minutes" name="minutes" type="number" min={15} max={180} step={15} defaultValue={group.minutes} className="font-mono" />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="group-stage">Play+Stay-Stufe</Label>
+              <select
+                id="group-stage"
+                name="stage"
+                defaultValue={group.stage ?? ""}
+                className="h-9 w-full rounded-md border bg-transparent px-2 text-sm shadow-xs dark:bg-input/30"
+              >
+                <option value="">–</option>
+                {stages.map((stage) => (
+                  <option key={stage.id} value={stage.id}>
+                    {stage.name}: {stage.court}, {stage.ages}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">Ball, Schläger und Feldgröße. Die KI plant Übungen dafür.</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="group-coach">Wer trainiert die Gruppe normalerweise?</Label>
