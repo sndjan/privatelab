@@ -100,20 +100,20 @@ export function LogDialog({ entry, phases, today }: { entry: LogEntry; phases: P
           <input type="hidden" name="entryId" value={entry.id} />
           <LogFields entry={entry} phases={phases} today={today} defaultPhaseId={null} />
           <DialogFooter className="gap-2">
-            <SubmitButton
-              variant="ghost"
-              formAction={closingAfter(deleteLogEntry, close)}
-              formNoValidate
-              className="text-destructive hover:text-destructive sm:mr-auto"
-            >
-              Löschen
-            </SubmitButton>
             <DialogClose asChild>
               <Button type="button" variant="ghost">
                 Abbrechen
               </Button>
             </DialogClose>
             <SubmitButton>Speichern</SubmitButton>
+            <SubmitButton
+              variant="ghost"
+              formAction={closingAfter(deleteLogEntry, close)}
+              formNoValidate
+              className="text-destructive hover:text-destructive order-first sm:mr-auto"
+            >
+              Löschen
+            </SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>

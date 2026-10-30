@@ -58,22 +58,22 @@ export function PhaseDialog({ phase, defaultStart }: { phase?: Phase; defaultSta
             </Field>
           </div>
           <DialogFooter className="gap-2">
-            {phase && (
-              <SubmitButton
-                variant="ghost"
-                formAction={closingAfter(deletePhase, close)}
-                formNoValidate
-                className="text-destructive hover:text-destructive sm:mr-auto"
-              >
-                Löschen
-              </SubmitButton>
-            )}
             <DialogClose asChild>
               <Button type="button" variant="ghost">
                 Abbrechen
               </Button>
             </DialogClose>
             <SubmitButton>{phase ? "Speichern" : "Anlegen"}</SubmitButton>
+            {phase && (
+              <SubmitButton
+                variant="ghost"
+                formAction={closingAfter(deletePhase, close)}
+                formNoValidate
+                className="text-destructive hover:text-destructive order-first sm:mr-auto"
+              >
+                Löschen
+              </SubmitButton>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

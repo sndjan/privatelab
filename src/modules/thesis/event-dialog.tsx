@@ -103,22 +103,22 @@ export function EventDialog({
             <Textarea id="event-note" name="note" rows={2} maxLength={2000} defaultValue={event?.note ?? ""} />
           </Field>
           <DialogFooter className="gap-2">
-            {event && (
-              <SubmitButton
-                variant="ghost"
-                formAction={closingAfter(deleteEvent, close)}
-                formNoValidate
-                className="text-destructive hover:text-destructive sm:mr-auto"
-              >
-                Löschen
-              </SubmitButton>
-            )}
             <DialogClose asChild>
               <Button type="button" variant="ghost">
                 Abbrechen
               </Button>
             </DialogClose>
             <SubmitButton>{event ? "Speichern" : "Eintragen"}</SubmitButton>
+            {event && (
+              <SubmitButton
+                variant="ghost"
+                formAction={closingAfter(deleteEvent, close)}
+                formNoValidate
+                className="text-destructive hover:text-destructive order-first sm:mr-auto"
+              >
+                Löschen
+              </SubmitButton>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

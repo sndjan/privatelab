@@ -58,22 +58,22 @@ export function BreakDialog({ entry, today }: { entry?: Break; today: string }) 
             </Field>
           </div>
           <DialogFooter className="gap-2">
-            {entry && (
-              <SubmitButton
-                variant="ghost"
-                formAction={closingAfter(deleteBreak, close)}
-                formNoValidate
-                className="text-destructive hover:text-destructive sm:mr-auto"
-              >
-                Löschen
-              </SubmitButton>
-            )}
             <DialogClose asChild>
               <Button type="button" variant="ghost">
                 Abbrechen
               </Button>
             </DialogClose>
             <SubmitButton>{entry ? "Speichern" : "Einplanen"}</SubmitButton>
+            {entry && (
+              <SubmitButton
+                variant="ghost"
+                formAction={closingAfter(deleteBreak, close)}
+                formNoValidate
+                className="text-destructive hover:text-destructive order-first sm:mr-auto"
+              >
+                Löschen
+              </SubmitButton>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
@@ -115,22 +115,22 @@ export function MilestoneDialog({ milestone, defaultDate }: { milestone?: Milest
             </Field>
           </div>
           <DialogFooter className="gap-2">
-            {milestone && (
-              <SubmitButton
-                variant="ghost"
-                formAction={closingAfter(deleteMilestone, close)}
-                formNoValidate
-                className="text-destructive hover:text-destructive sm:mr-auto"
-              >
-                Löschen
-              </SubmitButton>
-            )}
             <DialogClose asChild>
               <Button type="button" variant="ghost">
                 Abbrechen
               </Button>
             </DialogClose>
             <SubmitButton>{milestone ? "Speichern" : "Anlegen"}</SubmitButton>
+            {milestone && (
+              <SubmitButton
+                variant="ghost"
+                formAction={closingAfter(deleteMilestone, close)}
+                formNoValidate
+                className="text-destructive hover:text-destructive order-first sm:mr-auto"
+              >
+                Löschen
+              </SubmitButton>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

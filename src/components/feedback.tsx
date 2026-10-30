@@ -140,10 +140,11 @@ export function Feedback() {
     <>
       {trigger}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+        {/* Compact, so it still fits above the on-screen keyboard. */}
+        <DialogContent className="gap-3 p-4 sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Feedback</DialogTitle>
-            <DialogDescription>Was funktioniert nicht, was fehlt dir, was wünschst du dir?</DialogDescription>
+            <DialogDescription className="sr-only">Was funktioniert nicht, was fehlt dir, was wünschst du dir?</DialogDescription>
           </DialogHeader>
           <FeedbackForm textarea={textarea} onSent={() => setOpen(false)} />
         </DialogContent>
@@ -152,8 +153,9 @@ export function Feedback() {
   );
 }
 
-// keepOpen: after sending, the field is emptied and keeps the focus for the
-// next one. Otherwise onSent is called (the dialog closes) and a toast thanks.
+// keepOpen (the desktop panel): after sending, the field is emptied and keeps
+// the focus for the next one. Otherwise (the phone dialog) the form is
+// compact, onSent is called (the dialog closes) and a toast thanks.
 function FeedbackForm({
   textarea,
   keepOpen = false,
@@ -271,8 +273,8 @@ function FeedbackForm({
           id="feedback-message"
           name="message"
           maxLength={4000}
-          rows={5}
-          className="min-h-32"
+          rows={keepOpen ? 5 : 3}
+          className={keepOpen ? "min-h-32" : "max-h-40 min-h-20"}
           value={message}
           placeholder={kind === "bug" ? "Was ist passiert, und was hättest du erwartet?" : "Erzähl …"}
           aria-autocomplete="list"
@@ -331,14 +333,12 @@ function FeedbackForm({
               {sent === 1 ? "Gesendet, danke!" : `${sent} gesendet, danke!`} Schreib ruhig weiter.
             </span>
           ) : (
-            <>
-              {keepOpen && (
-                <>
-                  <kbd className="font-mono">Strg/⌘</kbd>+<kbd className="font-mono">Enter</kbd> sendet ·{" "}
-                </>
-              )}
-              @Fehler, @Idee oder @Sonstiges setzt die Art
-            </>
+            keepOpen && (
+              <>
+                <kbd className="font-mono">Strg/⌘</kbd>+<kbd className="font-mono">Enter</kbd> sendet · @Fehler, @Idee oder
+                @Sonstiges setzt die Art
+              </>
+            )
           )}
         </p>
         <Button type="submit" disabled={pending}>

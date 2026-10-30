@@ -165,23 +165,23 @@ export function VacationDialog({ vacation, today, periods, settings, entries }: 
             </Label>
           </div>
           <DialogFooter className="gap-2">
-            {vacation && (
-              <SubmitButton
-                type="submit"
-                variant="ghost"
-                formAction={closingAfter(deleteVacation)}
-                formNoValidate
-                className="text-destructive hover:text-destructive sm:mr-auto"
-              >
-                Löschen
-              </SubmitButton>
-            )}
             <DialogClose asChild>
               <Button type="button" variant="ghost">
                 Abbrechen
               </Button>
             </DialogClose>
             <SubmitButton disabled={!valid}>{vacation ? "Speichern" : "Planen"}</SubmitButton>
+            {vacation && (
+              <SubmitButton
+                type="submit"
+                variant="ghost"
+                formAction={closingAfter(deleteVacation)}
+                formNoValidate
+                className="text-destructive hover:text-destructive order-first sm:mr-auto"
+              >
+                Löschen
+              </SubmitButton>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
