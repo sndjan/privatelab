@@ -3,7 +3,9 @@
 import type { Loader } from "@/lib/query/loaders";
 import { createClient } from "@/lib/supabase/server";
 import {
+  isStage,
   parseDiagram,
+  parseVariations,
   type Exercise,
   type Gender,
   type Group,
@@ -16,17 +18,18 @@ import {
 
 // --- Rows ---------------------------------------------------------------------
 
-const exerciseColumns = "id, name, phase, minutes, summary, description, tips, focus, diagram, notes, players_min, players_max";
-const groupColumns = "id, name, note, start_time, minutes, weekday, coach";
+// Exercises, groups and players are read with "*": before the migration
+// 20261116000000_tennis_variations_ages_principles.sql their new columns
+// (variations, stage, birth_year) don't exist yet.
 const standInColumns = "id, group_id, date, note";
 const sessionColumns = "id, group_id, date, start_time, minutes, focus, plan, notes, absent";
-const playerColumns = "id, group_id, name, gender";
 const holidayColumns = "id, name, start_date, end_date";
 
-type ExerciseRow = Omit<Exercise, "diagram" | "playersMin" | "playersMax"> & {
+type ExerciseRow = Omit<Exercise, "diagram" | "playersMin" | "playersMax" | "variations"> & {
   diagram: unknown;
   players_min: number | null;
   players_max: number | null;
+  variations?: unknown;
 };
 type GroupRow = {
   id: string;
@@ -36,9 +39,10 @@ type GroupRow = {
   minutes: number;
   weekday: number | null;
   coach: string | null;
+  stage?: string | null;
 };
 type StandInRow = { id: string; group_id: string; date: string; note: string };
-type PlayerRow = { id: string; group_id: string; name: string; gender: Gender | null };
+type PlayerRow = { id: string; group_id: string; name: string; gender: Gender | null; birth_year?: number | null };
 type HolidayRow = { id: string; name: string; start_date: string; end_date: string };
 type SessionRow = {
   id: string;
@@ -52,14 +56,29 @@ type SessionRow = {
   absent: string[] | null;
 };
 
-const toExercise = ({ players_min, players_max, ...row }: ExerciseRow): Exercise => ({
-  ...row,
+const toExercise = (row: ExerciseRow): Exercise => ({
+  id: row.id,
+  name: row.name,
+  phase: row.phase,
+  minutes: row.minutes,
+  summary: row.summary,
+  description: row.description,
+  tips: row.tips,
+  focus: row.focus,
   diagram: parseDiagram(row.diagram),
-  playersMin: players_min,
-  playersMax: players_max,
+  notes: row.notes,
+  playersMin: row.players_min,
+  playersMax: row.players_max,
+  variations: parseVariations(row.variations),
 });
 
-const toPlayer = (row: PlayerRow): Player => ({ id: row.id, groupId: row.group_id, name: row.name, gender: row.gender });
+const toPlayer = (row: PlayerRow): Player => ({
+  id: row.id,
+  groupId: row.group_id,
+  name: row.name,
+  gender: row.gender,
+  birthYear: row.birth_year ?? null,
+});
 
 const toHoliday = (row: HolidayRow): Holiday => ({ id: row.id, name: row.name, startDate: row.start_date, endDate: row.end_date });
 
@@ -71,6 +90,7 @@ const toGroup = (row: GroupRow): Group => ({
   minutes: row.minutes,
   weekday: row.weekday,
   coach: row.coach ?? "",
+  stage: isStage(row.stage) ? row.stage : null,
 });
 
 const toStandIn = (row: StandInRow): StandIn => ({ id: row.id, groupId: row.group_id, date: row.date, note: row.note });
@@ -96,12 +116,12 @@ function toSession(row: SessionRow): Session {
 export const tennisLoaders = {
   groups: async () => {
     const supabase = await createClient();
-    const { data } = await supabase.from("tennis_groups").select(groupColumns).order("name");
+    const { data } = await supabase.from("tennis_groups").select("*").order("name");
     return ((data ?? []) as GroupRow[]).map(toGroup);
   },
   exercises: async () => {
     const supabase = await createClient();
-    const { data } = await supabase.from("tennis_exercises").select(exerciseColumns).order("name");
+    const { data } = await supabase.from("tennis_exercises").select("*").order("name");
     return ((data ?? []) as ExerciseRow[]).map(toExercise);
   },
   // Newest first.
@@ -116,7 +136,7 @@ export const tennisLoaders = {
   },
   players: async () => {
     const supabase = await createClient();
-    const { data } = await supabase.from("tennis_players").select(playerColumns).order("name");
+    const { data } = await supabase.from("tennis_players").select("*").order("name");
     return ((data ?? []) as PlayerRow[]).map(toPlayer);
   },
   holidays: async () => {
@@ -128,6 +148,13 @@ export const tennisLoaders = {
     const supabase = await createClient();
     const { data } = await supabase.from("tennis_stand_ins").select(standInColumns).order("date");
     return ((data ?? []) as StandInRow[]).map(toStandIn);
+  },
+  // The coach's principles for the AI; "" = the defaults. Before the
+  // migration 20261116000000 the table doesn't exist; then also "".
+  principles: async () => {
+    const supabase = await createClient();
+    const { data } = await supabase.from("tennis_settings").select("principles").maybeSingle();
+    return (data?.principles as string | undefined) ?? "";
   },
   // "groupId:exerciseId"
   favorites: async () => {

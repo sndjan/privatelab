@@ -340,10 +340,10 @@ export function Planner({
                 <button
                   type="button"
                   onClick={() => setPicking({ index, phase: exercise.phase })}
-                  className="w-16 shrink-0 cursor-pointer"
+                  className="w-24 shrink-0 cursor-pointer self-start"
                   aria-label={`${exercise.name} austauschen`}
                 >
-                  <Court diagram={exercise.diagram} className="w-full" />
+                  <Court diagram={exercise.diagram} horizontal className="w-full" />
                 </button>
                 <div className="min-w-0 flex-1 space-y-1">
                   <p className="text-xs text-muted-foreground">
@@ -501,7 +501,7 @@ function ExercisePicker({
                   !fitsPlayers(exercise, kids) && "opacity-50",
                 )}
               >
-                <Court diagram={exercise.diagram} className="w-10 shrink-0" />
+                <Court diagram={exercise.diagram} horizontal className="w-16 shrink-0 self-start" />
                 <span className="min-w-0 space-y-0.5">
                   <span className="flex items-center gap-1 font-medium">
                     {isFavorite(exercise.id) && <StarIcon className="size-3.5 fill-amber-400 text-amber-500" />}

@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { Court } from "./court";
-import { formatClock, liveState, phaseName, timeline, type Exercise, type LiveState } from "./data";
+import { formatClock, hasVariations, liveState, phaseName, timeline, type Exercise, type LiveState } from "./data";
+import { VariationList } from "./variations";
 
 const PATH = "/m/tennis";
 const TICK_MS = 15_000;
@@ -83,6 +84,15 @@ export function SessionPlan({ date, startTime, items }: { date: string; startTim
                         Ablauf
                       </summary>
                       <p className="mt-1 whitespace-pre-line">{exercise.description}</p>
+                    </details>
+                  )}
+                  {hasVariations(exercise.variations) && (
+                    <details className="group text-sm">
+                      <summary className="flex cursor-pointer list-none items-center gap-1 text-muted-foreground [&::-webkit-details-marker]:hidden">
+                        <ChevronRightIcon className="size-4 transition-transform group-open:rotate-90" />
+                        Variationen
+                      </summary>
+                      <VariationList variations={exercise.variations} className="mt-1" />
                     </details>
                   )}
                   {exercise.tips.length > 0 && (

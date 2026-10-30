@@ -4,18 +4,20 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { askForPlan } from "./ai-plan";
+import { askForExercises, askForPlan } from "./ai-plan";
 import {
   cleanExercise,
+  defaultPrinciples,
   focusTags,
-  parseDiagram,
+  hasVariations,
+  isStage,
+  parseVariations,
   replan,
   todayInGermany,
-  type Exercise,
   type ExerciseInput,
-  type Group,
   type PlanItem,
 } from "./data";
+import { tennisLoaders } from "./loaders";
 import { starterExercises } from "./starter";
 
 // All writes go through the user's own Supabase client, so RLS enforces
@@ -55,16 +57,27 @@ function toRow(input: ExerciseInput) {
     diagram: input.diagram,
     players_min: input.playersMin,
     players_max: input.playersMax,
+    variations: input.variations,
   };
 }
 
 // --- Exercises --------------------------------------------------------------
 
+// Adds the starter exercises that are missing (by name). Starter exercises
+// already there get the collection's variations if they have none yet;
+// everything else the user may have changed stays.
 export async function loadStarterExercises() {
   const supabase = await db();
-  const existing = new Set(check(await supabase.from("tennis_exercises").select("name")).map((row) => row.name));
+  const existing = new Map(
+    check(await supabase.from("tennis_exercises").select("id, name, variations")).map((row) => [row.name as string, row]),
+  );
   const rows = starterExercises.filter((exercise) => !existing.has(exercise.name)).map(toRow);
   if (rows.length > 0) check(await supabase.from("tennis_exercises").insert(rows));
+  for (const exercise of starterExercises) {
+    const row = existing.get(exercise.name);
+    if (!row || hasVariations(parseVariations(row.variations))) continue;
+    check(await supabase.from("tennis_exercises").update({ variations: exercise.variations }).eq("id", row.id));
+  }
   revalidatePath(PATH);
 }
 
@@ -83,7 +96,24 @@ export async function saveExercise(id: string | null, input: ExerciseInput) {
   redirect(`${PATH}?exercise=${savedId}`);
 }
 
-// Exercises pasted from an AI chat. Returns how many were added.
+// New exercises written by Claude for a wish like "5 Volley-Spiele für 6
+// Kinder". They are only shown; importExercises saves the ones the coach keeps.
+export async function inventExercisesWithAi(request: string): Promise<{ exercises: ExerciseInput[] } | { error: string }> {
+  const wish = request.trim().slice(0, 1000);
+  if (!wish) return { error: "Schreib kurz, was du brauchst." };
+  await db();
+  const [exercises, groups, players, principles] = await Promise.all([
+    tennisLoaders.exercises(),
+    tennisLoaders.groups(),
+    tennisLoaders.players(),
+    tennisLoaders.principles(),
+  ]);
+  const answer = await askForExercises({ request: wish, today: todayInGermany(), exercises, groups, players, principles });
+  if ("error" in answer) return answer;
+  return { exercises: answer.exercises.map(cleanExercise).filter((entry): entry is ExerciseInput => entry !== null).slice(0, 10) };
+}
+
+// Exercises from the AI or pasted from an AI chat. Returns how many were added.
 export async function importExercises(inputs: ExerciseInput[]) {
   const rows = inputs
     .slice(0, 50)
@@ -142,6 +172,7 @@ function groupValues(formData: FormData) {
     ...(isTime(startTime) && { start_time: startTime }),
     ...(minutes >= 15 && minutes <= 180 && { minutes }),
     ...(formData.has("weekday") && { weekday: Number.isInteger(weekday) && weekday >= 1 && weekday <= 7 ? weekday : null }),
+    ...(formData.has("stage") && { stage: isStage(formData.get("stage")) ? String(formData.get("stage")) : null }),
   };
 }
 
@@ -173,12 +204,28 @@ export async function deleteGroup(formData: FormData) {
 
 const gender = (value: FormDataEntryValue | null) => (value === "m" || value === "f" ? value : null);
 
+function birthYear(value: unknown) {
+  const year = Number(value);
+  return Number.isInteger(year) && year >= 1990 && year <= 2030 ? year : null;
+}
+
 export async function addPlayer(formData: FormData) {
   const name = text(formData, "name", 60);
   const groupId = String(formData.get("groupId"));
   if (!name || !isId(groupId)) return;
+  const year = birthYear(formData.get("birthYear"));
   const supabase = await db();
-  check(await supabase.from("tennis_players").insert({ group_id: groupId, name, gender: gender(formData.get("gender")) }));
+  check(
+    await supabase
+      .from("tennis_players")
+      .insert({ group_id: groupId, name, gender: gender(formData.get("gender")), ...(year && { birth_year: year }) }),
+  );
+  revalidatePath(PATH);
+}
+
+export async function setPlayerBirthYear(playerId: string, value: number | null) {
+  const supabase = await db();
+  check(await supabase.from("tennis_players").update({ birth_year: birthYear(value) }).eq("id", playerId));
   revalidatePath(PATH);
 }
 
@@ -231,6 +278,21 @@ export async function deleteStandIn(formData: FormData) {
 export async function deleteHoliday(formData: FormData) {
   const supabase = await db();
   check(await supabase.from("tennis_holidays").delete().eq("id", String(formData.get("holidayId"))));
+  revalidatePath(PATH);
+}
+
+// --- Principles -------------------------------------------------------------
+
+// The coach's rules for the AI; the default text counts as "", so later
+// improvements to the defaults reach everyone who never changed them.
+export async function savePrinciples(formData: FormData) {
+  const value = String(formData.get("principles") ?? "").replace(/\r\n/g, "\n").trim().slice(0, 4000);
+  const supabase = await db();
+  check(
+    await supabase
+      .from("tennis_settings")
+      .upsert({ principles: value === defaultPrinciples ? "" : value, updated_at: new Date().toISOString() }, { onConflict: "user_id" }),
+  );
   revalidatePath(PATH);
 }
 
@@ -300,8 +362,8 @@ export async function replanSession(sessionId: string, { from = 0, all = false }
   );
   const plan = (Array.isArray(session.plan) ? session.plan : []) as PlanItem[];
   const absent = new Set((session.absent ?? []) as string[]);
-  const [exerciseRows, players, favorites, recentSessions] = await Promise.all([
-    supabase.from("tennis_exercises").select("id, name, phase, minutes, focus, players_min, players_max"),
+  const [exercises, players, favorites, recentSessions] = await Promise.all([
+    tennisLoaders.exercises(),
     session.group_id ? supabase.from("tennis_players").select("id").eq("group_id", session.group_id) : Promise.resolve({ data: [], error: null }),
     session.group_id
       ? supabase.from("tennis_favorites").select("exercise_id").eq("group_id", session.group_id)
@@ -316,22 +378,6 @@ export async function replanSession(sessionId: string, { from = 0, all = false }
           .limit(2)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  const exercises = check(exerciseRows).map(
-    (row): Exercise => ({
-      id: row.id,
-      name: row.name,
-      phase: row.phase,
-      minutes: row.minutes,
-      focus: row.focus ?? [],
-      playersMin: row.players_min,
-      playersMax: row.players_max,
-      summary: "",
-      description: "",
-      tips: [],
-      diagram: parseDiagram(null),
-      notes: "",
-    }),
-  );
   const groupPlayers = check(players) as { id: string }[];
   const present = groupPlayers.length > 0 ? groupPlayers.filter((player) => !absent.has(player.id)).length : null;
   const result = replan(
@@ -385,32 +431,14 @@ export async function planWithAi(request: string, groupId: string | null, date: 
   const wish = request.trim().slice(0, 1000);
   if (!wish) return { error: "Schreib kurz, was du planen willst." };
   const supabase = await db();
-  const [groupRows, exerciseRows, favoriteRows, sessionRows, playerRows] = await Promise.all([
-    supabase.from("tennis_groups").select("id, name, note, start_time, minutes, weekday, coach").order("name"),
-    supabase.from("tennis_exercises").select("id, name, phase, minutes, summary, focus, players_min, players_max").order("name"),
+  const [groups, exercises, players, principles, favoriteRows, sessionRows] = await Promise.all([
+    tennisLoaders.groups(),
+    tennisLoaders.exercises(),
+    tennisLoaders.players(),
+    tennisLoaders.principles(),
     supabase.from("tennis_favorites").select("group_id, exercise_id"),
     supabase.from("tennis_sessions").select("group_id, plan").order("date", { ascending: false }).limit(60),
-    supabase.from("tennis_players").select("group_id"),
   ]);
-  const groups = check(groupRows).map(
-    (row): Group => ({ id: row.id, name: row.name, note: row.note, startTime: row.start_time.slice(0, 5), minutes: row.minutes, weekday: row.weekday, coach: row.coach ?? "" }),
-  );
-  const exercises = check(exerciseRows).map(
-    (row): Exercise => ({
-      id: row.id,
-      name: row.name,
-      phase: row.phase,
-      minutes: row.minutes,
-      summary: row.summary,
-      focus: row.focus ?? [],
-      playersMin: row.players_min,
-      playersMax: row.players_max,
-      description: "",
-      tips: [],
-      diagram: parseDiagram(null),
-      notes: "",
-    }),
-  );
   const favorites: Record<string, string[]> = {};
   for (const row of check(favoriteRows)) (favorites[row.group_id] ??= []).push(row.exercise_id);
   const recent: Record<string, string[]> = {};
@@ -419,9 +447,6 @@ export async function planWithAi(request: string, groupId: string | null, date: 
     if (!row.group_id || (seen[row.group_id] = (seen[row.group_id] ?? 0) + 1) > 2) continue;
     (recent[row.group_id] ??= []).push(...((Array.isArray(row.plan) ? row.plan : []) as PlanItem[]).map((item) => item.exerciseId));
   }
-  const kids: Record<string, number> = {};
-  for (const row of check(playerRows)) kids[row.group_id] = (kids[row.group_id] ?? 0) + 1;
-
   const answer = await askForPlan({
     request: wish,
     today: todayInGermany(),
@@ -431,21 +456,13 @@ export async function planWithAi(request: string, groupId: string | null, date: 
     exercises,
     favorites,
     recent,
-    kids,
+    players,
+    principles,
   });
   if ("error" in answer) return { error: answer.error };
 
   // New exercises first, so the plan can point at them.
-  const fresh = answer.new_exercises
-    .slice(0, 6)
-    .map((entry) =>
-      cleanExercise({
-        ...entry,
-        playersMin: Number(entry.players_min) || null,
-        playersMax: Number(entry.players_max) || null,
-        diagram: { items: (Array.isArray(entry.diagram) ? entry.diagram : []).map((item) => ({ ...item, label: item.label || undefined })) },
-      }),
-    );
+  const fresh = answer.new_exercises.slice(0, 6).map(cleanExercise);
   const createdIds: (string | null)[] = [];
   for (const input of fresh) {
     if (!input) {

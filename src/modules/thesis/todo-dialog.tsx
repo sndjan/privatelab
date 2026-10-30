@@ -103,22 +103,22 @@ export function TodoDialog({ todo, phases, people, defaultPhaseId, protocolId, t
             <Textarea id="todo-note" name="note" rows={3} maxLength={2000} defaultValue={todo?.note ?? ""} />
           </Field>
           <DialogFooter className="gap-2">
-            {todo && (
-              <SubmitButton
-                variant="ghost"
-                formAction={closingAfter(deleteTodo, close)}
-                formNoValidate
-                className="text-destructive hover:text-destructive sm:mr-auto"
-              >
-                Löschen
-              </SubmitButton>
-            )}
             <DialogClose asChild>
               <Button type="button" variant="ghost">
                 Abbrechen
               </Button>
             </DialogClose>
             <SubmitButton>{todo ? "Speichern" : "Anlegen"}</SubmitButton>
+            {todo && (
+              <SubmitButton
+                variant="ghost"
+                formAction={closingAfter(deleteTodo, close)}
+                formNoValidate
+                className="text-destructive hover:text-destructive order-first sm:mr-auto"
+              >
+                Löschen
+              </SubmitButton>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

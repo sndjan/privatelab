@@ -52,7 +52,7 @@ export function AccountDialog({ account }: { account?: Account }) {
         )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-sm">
-        <form action={closingAfter(account ? updateAccount : addAccount)} className="space-y-4">
+        <form action={closingAfter(account ? updateAccount : addAccount)} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>{account ? "Konto bearbeiten" : "Konto hinzufügen"}</DialogTitle>
           </DialogHeader>
@@ -88,6 +88,15 @@ export function AccountDialog({ account }: { account?: Account }) {
               </SelectContent>
             </Select>
           </div>
+          {/* Comes before the archive buttons, so Enter saves instead of archiving. */}
+          <DialogFooter className="order-last">
+            <DialogClose asChild>
+              <Button type="button" variant="ghost">
+                Abbrechen
+              </Button>
+            </DialogClose>
+            <SubmitButton>{account ? "Speichern" : "Hinzufügen"}</SubmitButton>
+          </DialogFooter>
           {account && (
             <div className="flex flex-wrap gap-2 border-t pt-4">
               <SubmitButton
@@ -116,14 +125,6 @@ export function AccountDialog({ account }: { account?: Account }) {
               dem Archivieren.
             </p>
           )}
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="ghost">
-                Abbrechen
-              </Button>
-            </DialogClose>
-            <SubmitButton>{account ? "Speichern" : "Hinzufügen"}</SubmitButton>
-          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

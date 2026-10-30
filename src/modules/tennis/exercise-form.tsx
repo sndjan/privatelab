@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { saveExercise } from "./actions";
-import { focusTags, phases, type Diagram, type ExerciseInput, type Phase } from "./data";
+import { focusTags, phases, variationKinds, type Diagram, type ExerciseInput, type Phase, type Variations } from "./data";
 import { DiagramEditor } from "./diagram-editor";
 
 const PATH = "/m/tennis";
@@ -28,6 +28,7 @@ export function ExerciseForm({ id, initial }: { id: string | null; initial: Exer
   const [diagram, setDiagram] = useState<Diagram>(initial.diagram);
   const [playersMin, setPlayersMin] = useState(initial.playersMin === null ? "" : String(initial.playersMin));
   const [playersMax, setPlayersMax] = useState(initial.playersMax === null ? "" : String(initial.playersMax));
+  const [variations, setVariations] = useState<Variations>(initial.variations);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +48,7 @@ export function ExerciseForm({ id, initial }: { id: string | null; initial: Exer
           diagram,
           playersMin: playersMin ? Number(playersMin) : null,
           playersMax: playersMax ? Number(playersMax) : null,
+          variations,
         });
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "Speichern fehlgeschlagen.");
@@ -170,6 +172,30 @@ export function ExerciseForm({ id, initial }: { id: string | null; initial: Exer
               placeholder={"Früh ausholen!\nTreffpunkt vor dem Körper"}
             />
           </div>
+
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">Variationen</legend>
+            <p className="text-xs text-muted-foreground">
+              Damit die Übung nicht langweilig wird und zu jeder Gruppe passt. Steht beim Planen und in der Stunde dabei.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {variationKinds.map((kind) => (
+                <div key={kind.id} className="space-y-1">
+                  <Label htmlFor={`exercise-variation-${kind.id}`} className="text-xs text-muted-foreground">
+                    {kind.name}
+                  </Label>
+                  <Textarea
+                    id={`exercise-variation-${kind.id}`}
+                    rows={2}
+                    maxLength={300}
+                    value={variations[kind.id]}
+                    onChange={(event) => setVariations({ ...variations, [kind.id]: event.target.value })}
+                    className="min-h-14"
+                  />
+                </div>
+              ))}
+            </div>
+          </fieldset>
 
           <div className="space-y-2">
             <span className="text-sm font-medium">Schwerpunkt</span>

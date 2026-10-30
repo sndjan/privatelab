@@ -39,7 +39,31 @@ export type Exercise = {
   // How many kids the exercise works for; null = no limit.
   playersMin: number | null;
   playersMax: number | null;
+  // How to make it easier or harder, or fit fewer or more kids ("" = none).
+  variations: Variations;
 };
+
+export const variationKinds = [
+  { id: "easier", name: "Leichter" },
+  { id: "harder", name: "Schwerer" },
+  { id: "fewer", name: "Weniger Kinder" },
+  { id: "more", name: "Mehr Kinder" },
+] as const;
+
+export type VariationKind = (typeof variationKinds)[number]["id"];
+export type Variations = Record<VariationKind, string>;
+
+export const noVariations: Variations = { easier: "", harder: "", fewer: "", more: "" };
+
+export const hasVariations = (variations: Variations) => variationKinds.some((kind) => variations[kind.id]);
+
+// Reads variations from the database or an AI's JSON.
+export function parseVariations(value: unknown): Variations {
+  const raw = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  return Object.fromEntries(
+    variationKinds.map((kind) => [kind.id, typeof raw[kind.id] === "string" ? (raw[kind.id] as string).trim().slice(0, 300) : ""]),
+  ) as Variations;
+}
 
 export type Group = {
   id: string;
@@ -52,6 +76,24 @@ export type Group = {
   // Who usually coaches it; "" = me. For someone else's group only the
   // stand-in dates are my training days.
   coach: string;
+  // Play+Stay stage: ball, racket and court size; null = not set.
+  stage: Stage | null;
+};
+
+// The DTB/BTV Play+Stay stages, by age (6-13 years over 3-4 years).
+export const stages = [
+  { id: "red", name: "Rot", court: "Kleinfeld", ages: "bis ca. 8 Jahre" },
+  { id: "orange", name: "Orange", court: "Midcourt", ages: "ca. 8–10 Jahre" },
+  { id: "green", name: "Grün", court: "Großfeld", ages: "ca. 9–11 Jahre" },
+  { id: "yellow", name: "Gelb", court: "Großfeld", ages: "ab ca. 11 Jahren" },
+] as const;
+
+export type Stage = (typeof stages)[number]["id"];
+
+export const isStage = (value: unknown): value is Stage => stages.some((stage) => stage.id === value);
+export const stageLabel = (stage: Stage) => {
+  const entry = stages.find((candidate) => candidate.id === stage)!;
+  return `${entry.name} (${entry.court})`;
 };
 
 // A date I stand in for a group's regular coach.
@@ -59,7 +101,19 @@ export type StandIn = { id: string; groupId: string; date: string; note: string 
 
 export type Gender = "m" | "f";
 
-export type Player = { id: string; groupId: string; name: string; gender: Gender | null };
+export type Player = { id: string; groupId: string; name: string; gender: Gender | null; birthYear: number | null };
+
+// The age a kid turns this year: what clubs go by ("Jahrgang").
+export const ageOf = (birthYear: number, today: string) => Number(today.slice(0, 4)) - birthYear;
+
+// "7–9 Jahre" for the kids whose year is known, null if none is.
+export function agesLabel(players: Pick<Player, "birthYear">[], today: string) {
+  const ages = players.flatMap((player) => (player.birthYear ? [ageOf(player.birthYear, today)] : []));
+  if (ages.length === 0) return null;
+  const min = Math.min(...ages);
+  const max = Math.max(...ages);
+  return min === max ? `${min} Jahre` : `${min}–${max} Jahre`;
+}
 
 export const genderName = { m: "Junge", f: "Mädchen" } as const;
 
@@ -145,14 +199,15 @@ export type Slot = { phase: Phase; minutes: number };
 
 const round5 = (value: number) => Math.max(5, Math.round(value / 5) * 5);
 
-// The shape of a session: warm-up, one technique block per ~15 minutes, a
-// game and (from 45 minutes on) a short finish. 60 minutes = 10 + 15 + 15 + 15 + 5.
+// The shape of a session: warm-up, one technique block per ~10 minutes (kids
+// keep their focus better with short blocks), a game and (from 45 minutes on)
+// a short finish. 60 minutes = 10 + 10 + 10 + 10 + 15 + 5.
 export function slotsFor(total: number): Slot[] {
   const warmup = round5(total * 0.17);
   const game = round5(total * 0.25);
   const cooldown = total >= 90 ? 10 : total >= 45 ? 5 : 0;
   const rest = Math.max(5, total - warmup - game - cooldown);
-  const blocks = Math.max(1, Math.round(rest / 15));
+  const blocks = Math.max(1, Math.floor(rest / 10));
   const each = round5(rest / blocks);
   const technique = Array.from({ length: blocks }, (_, index) =>
     index === blocks - 1 ? Math.max(5, rest - each * (blocks - 1)) : each,
@@ -411,6 +466,7 @@ export function cleanExercise(value: Record<string, unknown>): ExerciseInput | n
     diagram: parseDiagram(value.diagram),
     playersMin,
     playersMax: playersMin !== null && playersMax !== null && playersMax < playersMin ? null : playersMax,
+    variations: parseVariations(value.variations),
   };
 }
 
@@ -445,7 +501,7 @@ export function parseExercises(input: string): { exercises: ExerciseInput[]; err
 
 // A prompt for any AI chat (free Claude or ChatGPT is enough). The answer is
 // pasted back into the import dialog.
-export function aiPrompt(wish: string, existing: string[]) {
+export function aiPrompt(wish: string, existing: string[], principles: string) {
   return `Du bist ein erfahrener Tennistrainer für Kinder und Jugendliche (Anfänger bis Mittelstufe, Verein, C-Trainer-Niveau). Erfinde Übungen, die vor allem Spaß machen und nebenbei besser machen. Der Trainer steht meist mit dem Ballkorb auf der einen Seite und spielt zu; Übungen, die ohne ständiges Zuspiel laufen (Stationen, Spiele untereinander), sind besonders willkommen.
 
 Wunsch: ${wish.trim() || "5 abwechslungsreiche, lustige Übungen für eine Gruppe von 4–8 Kindern"}
@@ -463,12 +519,21 @@ ${existing.length > 0 ? `Diese Übungen habe ich schon, bitte nichts Gleiches:\n
     "focus": ["Vorhand"],
     "playersMin": 2,
     "playersMax": null,
+    "variations": {
+      "easier": "Wie es leichter wird, z. B. zuwerfen statt zuspielen, größeres Ziel",
+      "harder": "Wie es schwerer wird, z. B. kleineres Ziel, nur Rückhand, auf Zeit",
+      "fewer": "Anpassung für weniger Kinder",
+      "more": "Anpassung für mehr Kinder, z. B. zweite Station"
+    },
     "diagram": { "items": [ ... ] }
   }
 ]
 
 "focus" nur aus: ${focusTags.join(", ")}.
 "playersMin"/"playersMax": für wie viele Kinder die Übung mindestens/höchstens funktioniert (z. B. 4 für Teams 2 gegen 2), null wenn egal.
+"variations": je ein Satz, damit die Übung über 10 Minuten nicht langweilig wird und zu jeder Gruppe passt; "" wenn es nichts gibt.
+
+${principlesForPrompt(principles)}
 
 Das Diagramm zeigt den Platz von oben, Koordinaten in Metern ab der Netzmitte:
 - x quer zum Platz: Doppel-Seitenlinien bei -5.49 und 5.49, Einzel-Seitenlinien bei -4.12 und 4.12, Mittellinie bei 0. Erlaubt: -8 bis 8.
@@ -484,4 +549,29 @@ Elemente:
 - {"type": "run", "x": -2, "y": 10, "x2": 2, "y2": 8}  Laufweg (gestrichelter Pfeil)
 - {"type": "shot", "x": 0, "y": -9, "x2": -2, "y2": 8}  Ballweg (Pfeil)
 Nimm 3–12 Elemente, so dass man die Übung auf einen Blick versteht.`;
+}
+
+// --- Principles ----------------------------------------------------------------
+
+// Rules every plan and every new exercise should follow, from the BTV
+// C-Trainer training (Lehrgangsskripte CP1/CP2, Planung von
+// Trainingseinheiten, Aufwärmen). The coach can change them; the AI reads them.
+export const defaultPrinciples = `Niemand steht lange: spätestens nach ca. 8 Sekunden ist jedes Kind wieder dran. Höchstens 2–3 Kinder pro Reihe, sonst Zusatzaufgabe auf dem Rückweg (Ball sammeln, Koordinationsleiter, Netzpfosten berühren) oder zweite Station.
+Kleine Kinder (bis ca. 8 Jahre) sind immer in Bewegung: kurze, einfache Aufgaben, schnelle Wechsel, in kleine Geschichten verpackt, Ballspiele statt Erklärungen.
+Kurze Blöcke: eine Übungsform dauert 5–10 Minuten; was länger läuft, bekommt nach ein paar Minuten eine Variation oder Steigerung.
+Aufwärmen bei Kindern: spielerisch, ca. 5–10 Minuten, Bewegungsdrang abbauen und Koordination schulen (kleine Ballspiele, Fang- und Abwurfspiele, Staffeln). Staffeln erst nach den Ballspielen, Teams immer gleich stark einteilen. Keine feste Aufwärmroutine bis ca. 10 Jahre.
+Aufbau einer Stunde: ca. 10 Min. Einstimmen/Aufwärmen, Hauptteil mit 2–4 aufeinander aufbauenden Übungsblöcken (Koordination vor Technik vor Taktik vor Kondition), ca. 10 Min. Abschlussspiel oder spielerischer Ausklang.
+Jede Übungsform hat ein konkretes Teilziel (z. B. „Treffpunkt vor dem Körper“), das zum Stundenziel passt.
+Spielformen statt reines Üben: Ballwechsel, miteinander oder gegeneinander, mit Punkten, Rekorden oder Teamwettkampf. Einfache, lösbare Aufgaben schaffen Erfolgserlebnisse.
+Feld, Schläger und Bälle passen zur Play+Stay-Stufe: Rot im Kleinfeld, Orange im Midcourt, Grün im Großfeld.
+Viele Übungen ohne ständiges Zuspiel des Trainers (Stationen, Spiele untereinander), damit der Trainer beobachten und korrigieren kann.`;
+
+export function principlesForPrompt(principles: string) {
+  const text = principles.trim() || defaultPrinciples;
+  return `Grundsätze des Trainers (immer beachten):\n${text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => `- ${line}`)
+    .join("\n")}`;
 }
