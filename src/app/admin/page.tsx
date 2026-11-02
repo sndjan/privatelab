@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 import { modules } from "@/modules/registry";
 import { deleteFeedback, setFeedbackStatus } from "../feedback/actions";
 import { inviteUser, removeUser, setModuleAccess, setModuleVisibility } from "./actions";
+import { PushTest } from "./push-test";
 
 const feedbackKinds: Record<string, string> = { bug: "Fehler", idea: "Idee", other: "Sonstiges" };
 
@@ -216,6 +217,21 @@ async function AdminContent() {
               );
             })}
           </ul>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h2>Push-Nachrichten testen</h2>
+          </CardTitle>
+          <CardDescription>
+            Nur zum Ausprobieren: schickt eine Benachrichtigung an dieses Gerät. „In 10 Sekunden“ zeigt, ob sie auch bei
+            geschlossener App oder gesperrtem Handy ankommt.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PushTest />
         </CardContent>
       </Card>
 
