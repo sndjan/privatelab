@@ -52,6 +52,10 @@ Pages read their data through TanStack Query (`src/lib/query/`). A module's serv
 
 The module is then served at `/m/<id>` and appears on the dashboard and admin page.
 
+## Push notifications (test)
+
+`/admin` has a "Push-Nachrichten testen" card: allow notifications on the current device, then send a real web push through the server, either right away or in 10 seconds (close the app or lock the phone in between to check it arrives in the background). "Lokal anzeigen" only checks the display, without the server. It needs a VAPID key pair: run `npx web-push generate-vapid-keys` once and set `NEXT_PUBLIC_VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (see `.env.example`). Keep the pair, because new keys invalidate every subscription. On an iPhone, push only works from the app added to the home screen (iOS 16.4+). Nothing is stored yet: the browser sends its subscription with each test (`src/app/admin/push-actions.ts`), and `public/sw.js` shows the notification and opens its page on tap.
+
 ## Feedback
 
 Signed-in users can send feedback (Fehler / Idee / Sonstiges) from the header (needs the `20261028000000_feedback.sql` migration); the page they were on is saved with it. On a desktop it opens as a panel in the bottom right that leaves the page usable; `F` (outside text fields) or `Alt+Shift+F` jumps into it, `Strg/⌘+Enter` sends and keeps the field focused for the next one, and `@Fehler`, `@Idee` or `@Sonstiges` in the text sets the kind (Tab completes it). On phones it stays a dialog. Admins see it at the bottom of `/admin`. To pull it from Supabase, e.g. in the SQL editor:
