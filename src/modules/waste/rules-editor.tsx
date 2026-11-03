@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeftIcon, Loader2Icon } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -64,6 +64,10 @@ export function RulesEditor({
       return { ...bin, extraYesText: bin.extraYes.join("\n"), extraNoText: bin.extraNo.join("\n") };
     }),
   );
+  // Opens from the bottom of the rules page; start at the top.
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, []);
   const update = (id: string, change: Partial<(typeof bins)[number]>) =>
     setBins((current) => current.map((bin) => (bin.id === id ? { ...bin, ...change } : bin)));
 
@@ -97,7 +101,10 @@ export function RulesEditor({
         <Button type="button" variant="ghost" size="icon" className="size-10 text-muted-foreground" onClick={onDone} aria-label="Abbrechen">
           <ChevronLeftIcon className="size-5" />
         </Button>
-        <h2 className="truncate text-xl font-semibold tracking-tight">Regeln für {place.name} bearbeiten</h2>
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold tracking-tight">Regeln bearbeiten</h2>
+          <p className="truncate text-sm text-muted-foreground">{place.name}</p>
+        </div>
       </div>
 
       <div className="space-y-4 rounded-xl border bg-card p-4">
@@ -192,7 +199,7 @@ export function RulesEditor({
         );
       })}
 
-      <div className="sticky bottom-4 flex gap-2">
+      <div className="sticky bottom-0 -mx-4 flex gap-2 border-t bg-background/95 px-4 py-3 backdrop-blur">
         <Button type="submit" size="lg" className="h-12 flex-1" disabled={pending}>
           {pending && <Loader2Icon className="animate-spin" />} Speichern
         </Button>

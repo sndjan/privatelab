@@ -134,7 +134,7 @@ export function Sorter({ placeId, bins }: { placeId: string; bins: EffectiveBin[
             value={text}
             onChange={(event) => setText(event.target.value)}
             maxLength={500}
-            placeholder="Oder beschreiben, z. B. fettiger Pizzakarton"
+            placeholder="Oder beschreiben, z. B. Pizzakarton"
             aria-label="Gegenstand beschreiben"
             enterKeyHint="search"
             className="h-11"
@@ -181,18 +181,27 @@ export function Sorter({ placeId, bins }: { placeId: string; bins: EffectiveBin[
         </>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <Button className="h-11 flex-1" onClick={() => { reset(); cameraInput.current?.click(); }} disabled={pending}>
+      <div className="space-y-2">
+        <Button
+          className="h-12 w-full"
+          onClick={() => {
+            reset();
+            cameraInput.current?.click();
+          }}
+          disabled={pending}
+        >
           <CameraIcon /> Nächstes Foto
         </Button>
-        {photo && (
-          <Button variant="outline" className="h-11" onClick={() => cameraInput.current?.click()} disabled={pending}>
-            <RotateCcwIcon /> Foto wiederholen
+        <div className="flex gap-2">
+          {photo && (
+            <Button variant="outline" className="h-11 flex-1" onClick={() => cameraInput.current?.click()} disabled={pending}>
+              <RotateCcwIcon /> Foto wiederholen
+            </Button>
+          )}
+          <Button variant="outline" className="h-11 flex-1" onClick={reset} disabled={pending}>
+            Fertig
           </Button>
-        )}
-        <Button variant="ghost" className="h-11" onClick={reset} disabled={pending}>
-          Fertig
-        </Button>
+        </div>
       </div>
     </section>
     );

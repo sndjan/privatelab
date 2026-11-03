@@ -144,7 +144,10 @@ export async function lookUpRules(place: PlaceCandidate): Promise<{ rules: Local
     const messages: Anthropic.Beta.BetaMessageParam[] = [
       { role: "user", content: `Municipality: ${where}, Germany. What are its waste separation rules?` },
     ];
+    // A continued turn returns only the new blocks, so the text and citations
+    // of every round are collected.
     let research: Anthropic.Beta.BetaMessage | null = null;
+    const blocks: Anthropic.Beta.BetaContentBlock[] = [];
     for (let round = 0; round < 4; round++) {
       research = await client().beta.messages.create({
         ...FALLBACK,
@@ -157,11 +160,13 @@ export async function lookUpRules(place: PlaceCandidate): Promise<{ rules: Local
         ],
         messages,
       });
+      blocks.push(...research.content);
       if (research.stop_reason !== "pause_turn") break;
       messages.push({ role: "assistant", content: research.content });
     }
     if (!research || research.stop_reason === "refusal") throw new Error("Die KI hat die Recherche abgelehnt.");
-    const findings = research.content
+    if (research.stop_reason === "pause_turn") throw new Error("Die Recherche hat zu lange gedauert.");
+    const findings = blocks
       .filter((block) => block.type === "text")
       .map((block) => block.text)
       .join("")
@@ -170,7 +175,7 @@ export async function lookUpRules(place: PlaceCandidate): Promise<{ rules: Local
 
     // Sources: what the findings cite, else the first search results.
     const sources = new Map<string, Source>();
-    for (const block of research.content) {
+    for (const block of blocks) {
       if (block.type !== "text") continue;
       for (const citation of block.citations ?? []) {
         if (citation.type === "web_search_result_location" && httpUrl(citation.url)) {
@@ -179,7 +184,7 @@ export async function lookUpRules(place: PlaceCandidate): Promise<{ rules: Local
       }
     }
     if (sources.size === 0) {
-      for (const block of research.content) {
+      for (const block of blocks) {
         if (block.type !== "web_search_tool_result" || !Array.isArray(block.content)) continue;
         for (const result of block.content.slice(0, 3)) sources.set(result.url, { title: result.title || result.url, url: result.url });
       }

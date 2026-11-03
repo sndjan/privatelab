@@ -33,7 +33,8 @@ export function WasteApp() {
 function Home() {
   const { data } = useHome();
   const place = data.places[0];
-  const bins = effectiveBins(data.rules?.status === "ready" ? data.rules.rules : null);
+  // The last good rules stay in use while a refresh runs or after one failed.
+  const bins = effectiveBins(data.rules?.rules ?? null);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -105,7 +106,7 @@ function PlaceBar({ places }: { places: Place[] }) {
 // One line about the current place's rules, with the way to all of them.
 function RulesStatus({ place, rules }: { place: Place; rules: Rules | null }) {
   const href = `${PATH}?view=rules`;
-  if (rules?.status === "ready") {
+  if (rules?.status === "ready" || (rules?.rules && rules.status === "failed")) {
     return (
       <Link href={href} className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3 active:bg-accent">
         <span className="min-w-0 flex-1">

@@ -17,7 +17,7 @@ import type { Scan } from "./loaders";
 export function HistoryView() {
   const { data: scans } = useSuspenseQuery(dataQuery("waste", "history"));
   const { data: home } = useHome();
-  const bins = effectiveBins(home.rules?.status === "ready" ? home.rules.rules : null);
+  const bins = effectiveBins(home.rules?.rules ?? null);
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="-ml-2 flex items-center gap-1">

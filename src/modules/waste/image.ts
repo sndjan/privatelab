@@ -36,7 +36,8 @@ export async function preparePhoto(file: File): Promise<PreparedPhoto> {
   canvas.getContext("2d")!.drawImage(image, 0, 0, canvas.width, canvas.height);
   let photo = await toBlob(canvas, "image/jpeg", 0.85);
   if (photo && photo.size > 900_000) photo = await toBlob(canvas, "image/jpeg", 0.6);
-  if (!photo) throw new Error("Das Foto konnte nicht verarbeitet werden.");
+  // Server actions take at most 1 MB per request, thumbnail included.
+  if (!photo || photo.size > 900_000) throw new Error("Das Foto konnte nicht verarbeitet werden.");
 
   // Square from the middle. Browsers without WebP encoding (older Safari)
   // return PNG instead; then JPEG.

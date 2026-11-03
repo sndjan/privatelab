@@ -1,8 +1,9 @@
 "use client";
 
-import { CameraIcon, ChevronLeftIcon, ExternalLinkIcon, Loader2Icon, PencilIcon, RefreshCwIcon } from "lucide-react";
+import { CameraIcon, ChevronDownIcon, ChevronLeftIcon, ExternalLinkIcon, Loader2Icon, PencilIcon, RefreshCwIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ViewLink as Link } from "@/lib/query/view-link";
 import { retryRules } from "./actions";
@@ -16,7 +17,8 @@ import { RulesEditor } from "./rules-editor";
 // what doesn't, local notes, the date and sources of the lookup.
 export function RulesView({ place, rules, isAdmin }: { place: Place; rules: Rules | null; isAdmin: boolean }) {
   const [editing, setEditing] = useState(false);
-  const local = rules?.status === "ready" ? rules.rules : null;
+  // The last good rules stay visible while a refresh runs or after one failed.
+  const local = rules?.rules ?? null;
   const bins = effectiveBins(local);
   const updated = rules?.editedAt && (!rules.fetchedAt || rules.editedAt > rules.fetchedAt) ? rules.editedAt : rules?.fetchedAt;
 
@@ -58,7 +60,7 @@ export function RulesView({ place, rules, isAdmin }: { place: Place; rules: Rule
             )}
             <p className="text-muted-foreground">
               Allgemeine Regeln für Deutschland plus die Besonderheiten vor Ort, von der KI recherchiert
-              {updated ? `, Stand ${formatDate(updated)}` : ""}. Fett: Besonderheiten vor Ort. Im Zweifel gilt die Website deines
+              {updated ? `, Stand ${formatDate(updated)}` : ""}. Tippe auf eine Tonne für Details; fett = Besonderheit vor Ort. Im Zweifel gilt die Website deines
               Abfallbetriebs.
             </p>
           </>
@@ -147,16 +149,30 @@ function BinCard({ bin }: { bin: EffectiveBin }) {
   }
   const yes = [...bin.yes, ...bin.extraYes];
   const no = [...bin.no, ...bin.extraNo];
+  const local = bin.extraYes.length > 0 || bin.extraNo.length > 0 || Boolean(bin.note);
+  // Folded by default, so all bins fit on a phone screen; the summary already
+  // says what matters most (the local note, else the general hint).
   return (
-    <div className="overflow-hidden rounded-xl border bg-card">
-      <div className="flex items-center gap-3 border-b px-4 py-3" style={{ borderLeft: `6px solid ${bin.color}` }}>
+    <details className="group overflow-hidden rounded-xl border bg-card">
+      <summary
+        className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 active:bg-accent [&::-webkit-details-marker]:hidden"
+        style={{ borderLeft: `6px solid ${bin.color}` }}
+      >
         <BinIcon color={bin.color} container={bin.container} className="size-11" />
-        <div className="min-w-0">
-          <p className="font-semibold">{bin.name}</p>
-          <p className="text-sm text-muted-foreground">{bin.note || bin.hint}</p>
-        </div>
-      </div>
-      <div className="grid gap-3 px-4 py-3 text-sm sm:grid-cols-2">
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-x-2 font-semibold">
+            {bin.name}
+            {local && (
+              <Badge variant="outline" className="font-normal">
+                vor Ort anders
+              </Badge>
+            )}
+          </span>
+          <span className="line-clamp-2 text-sm text-muted-foreground">{bin.note || bin.hint}</span>
+        </span>
+        <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="grid gap-3 border-t px-4 py-3 text-sm sm:grid-cols-2">
         <div>
           <p className="mb-1 font-medium text-green-700 dark:text-green-400">Ja</p>
           <ul className="space-y-0.5">
@@ -181,7 +197,7 @@ function BinCard({ bin }: { bin: EffectiveBin }) {
         )}
       </div>
       {bin.note && <p className="border-t px-4 py-2 text-xs text-muted-foreground">{bin.hint}</p>}
-    </div>
+    </details>
   );
 }
 

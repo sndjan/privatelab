@@ -76,7 +76,10 @@ export async function locatePlace(lat: number, lon: number): Promise<Result<{ pl
 
 // Runs the lookup after the response, so the user can go on while Claude
 // searches (a minute or two); the browser polls the rules row meanwhile.
-function scheduleLookup(key: string, place: PlaceCandidate) {
+// startedAt identifies this lookup: if it was taken over (stale reclaim) or an
+// admin saved the rules meanwhile, started_at has moved on and the result is
+// dropped instead of overwriting the newer state.
+function scheduleLookup(key: string, startedAt: string, place: PlaceCandidate) {
   after(async () => {
     const admin = createAdminClient();
     try {
@@ -84,29 +87,54 @@ function scheduleLookup(key: string, place: PlaceCandidate) {
       await admin
         .from("waste_rules")
         .update({ status: "ready", rules, sources, error: null, fetched_at: new Date().toISOString() })
-        .eq("key", key);
+        .eq("key", key)
+        .eq("started_at", startedAt);
     } catch (error) {
       console.error(`Waste rules lookup for ${key} failed`, error);
       const message = error instanceof Error ? error.message : "Die Recherche ist fehlgeschlagen.";
-      await admin.from("waste_rules").update({ status: "failed", error: message.slice(0, 500) }).eq("key", key);
+      await admin
+        .from("waste_rules")
+        .update({ status: "failed", error: message.slice(0, 500) })
+        .eq("key", key)
+        .eq("started_at", startedAt);
     }
   });
 }
 
+// New municipalities a user (not an admin) may have looked up per day. Each
+// lookup costs several web searches and two Opus calls, and the place comes
+// from the browser, so this keeps a misbehaving client from running up costs.
+const LOOKUPS_PER_DAY = 5;
+
 // Makes sure the municipality has a rules row and starts the lookup for a new
 // one. Two users adding the same place at once start only one lookup.
-async function ensureRules(place: PlaceCandidate) {
+async function ensureRules(place: PlaceCandidate, user: { id: string; isAdmin: boolean }): Promise<Result<{ key: string }>> {
   const key = rulesKey(place);
   const admin = createAdminClient();
+  const known = check(await admin.from("waste_rules").select("key").eq("key", key).maybeSingle());
+  if (!known && !user.isAdmin) {
+    const since = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
+    const { count } = await admin
+      .from("waste_rules")
+      .select("key", { count: "exact", head: true })
+      .eq("requested_by", user.id)
+      .gt("created_at", since);
+    if ((count ?? 0) >= LOOKUPS_PER_DAY) {
+      return { error: `Du hast heute schon ${LOOKUPS_PER_DAY} neue Orte angelegt. Bitte morgen weitermachen.` };
+    }
+  }
   const inserted = check(
     await admin
       .from("waste_rules")
-      .upsert({ key, name: place.name, district: place.district, state: place.state }, { onConflict: "key", ignoreDuplicates: true })
-      .select("key"),
+      .upsert(
+        { key, name: place.name, district: place.district, state: place.state, requested_by: user.id },
+        { onConflict: "key", ignoreDuplicates: true },
+      )
+      .select("started_at"),
   );
-  if (inserted.length > 0) scheduleLookup(key, place);
+  if (inserted.length > 0) scheduleLookup(key, inserted[0].started_at, place);
   else await claimLookup(key, false);
-  return key;
+  return { key };
 }
 
 // Starts the lookup again: for a failed or stuck one, anyone; for one that
@@ -114,18 +142,19 @@ async function ensureRules(place: PlaceCandidate) {
 async function claimLookup(key: string, refresh: boolean) {
   const admin = createAdminClient();
   const stale = new Date(Date.now() - STALE_PENDING_MS).toISOString();
+  const startedAt = new Date().toISOString();
   const allowed = [`status.eq.failed`, `and(status.eq.pending,started_at.lt."${stale}")`, ...(refresh ? ["status.eq.ready"] : [])];
   const claimed = check(
     await admin
       .from("waste_rules")
-      .update({ status: "pending", error: null, started_at: new Date().toISOString() })
+      .update({ status: "pending", error: null, started_at: startedAt })
       .eq("key", key)
       .or(allowed.join(","))
       .select("name, district, state"),
   );
   if (claimed.length === 0) return false;
   const postcode = check(await admin.from("waste_places").select("postcode").eq("rules_key", key).limit(1)).at(0)?.postcode ?? "";
-  scheduleLookup(key, { ...claimed[0], postcode });
+  scheduleLookup(key, startedAt, { ...claimed[0], postcode });
   return true;
 }
 
@@ -135,15 +164,18 @@ export async function retryRules(key: string): Promise<Result> {
   return {};
 }
 
-// Hand edits by the admin (e.g. after checking the authority's website).
+// Hand edits by the admin (e.g. after checking the authority's website). Moving
+// started_at on makes a lookup still running drop its result (see
+// scheduleLookup), so it can't overwrite the edits.
 export async function saveRules(key: string, rules: LocalRules): Promise<Result> {
   const { user } = await requireAccess();
   if (!user.isAdmin) return { error: "Nur Admins können die Regeln bearbeiten." };
   const admin = createAdminClient();
+  const now = new Date().toISOString();
   check(
     await admin
       .from("waste_rules")
-      .update({ rules: cleanRules(rules), status: "ready", error: null, edited_at: new Date().toISOString() })
+      .update({ rules: cleanRules(rules), status: "ready", error: null, edited_at: now, started_at: now })
       .eq("key", text(key, 300)),
   );
   return {};
@@ -152,24 +184,24 @@ export async function saveRules(key: string, rules: LocalRules): Promise<Result>
 // --- Places ---------------------------------------------------------------------
 
 export async function addPlace(input: PlaceCandidate, label: string): Promise<Result<{ id: string }>> {
-  const { supabase } = await requireAccess();
+  const { user, supabase } = await requireAccess();
   const place = cleanCandidate(input);
   if (!place) return { error: "Dieser Ort ist unvollständig." };
-  const key = await ensureRules(place);
-  const existing = check(await supabase.from("waste_places").select("id").eq("rules_key", key).limit(1)).at(0);
-  if (existing) {
-    // Already saved: just switch to it.
-    check(await supabase.from("waste_places").update({ selected_at: new Date().toISOString() }).eq("id", existing.id));
-    return { id: existing.id };
-  }
-  const created = check(
-    await supabase
-      .from("waste_places")
-      .insert({ ...place, label: text(label, 40), rules_key: key })
-      .select("id")
-      .single(),
-  );
-  return { id: created.id };
+  const rules = await ensureRules(place, user);
+  if (rules.error !== undefined) return rules;
+  const { key } = rules;
+  const { data: created, error } = await supabase
+    .from("waste_places")
+    .insert({ ...place, label: text(label, 40), rules_key: key })
+    .select("id")
+    .single();
+  if (created) return { id: created.id };
+  // 23505: the user saved this place already (unique per user and place), so
+  // just switch to it.
+  if (error?.code !== "23505") throw new Error(error?.message ?? "Insert failed");
+  const existing = check(await supabase.from("waste_places").select("id").eq("rules_key", key).single());
+  check(await supabase.from("waste_places").update({ selected_at: new Date().toISOString() }).eq("id", existing.id));
+  return { id: existing.id };
 }
 
 export async function selectPlace(id: string) {
@@ -206,7 +238,7 @@ export async function sortThing(formData: FormData): Promise<Result<{ scanId: st
 
   const image =
     photo instanceof File && photo.size > 0
-      ? (PHOTO_TYPES as readonly string[]).includes(photo.type) && photo.size <= 1_500_000
+      ? (PHOTO_TYPES as readonly string[]).includes(photo.type) && photo.size <= 1_000_000
         ? { data: Buffer.from(await photo.arrayBuffer()).toString("base64"), mediaType: photo.type as (typeof PHOTO_TYPES)[number] }
         : null
       : null;
@@ -252,13 +284,13 @@ export async function sortThing(formData: FormData): Promise<Result<{ scanId: st
     const { error } = await supabase.storage.from(BUCKET).upload(path, thumb, { contentType: thumb.type });
     if (!error) thumbPath = path;
   }
-  const created = check(
-    await supabase
-      .from("waste_scans")
-      .insert({ place_id: place.id, place_name: place.label || place.name, input, result: verdict, thumb_path: thumbPath })
-      .select("id")
-      .single(),
-  );
+  const inserted = await supabase
+    .from("waste_scans")
+    .insert({ place_id: place.id, place_name: place.label || place.name, input, result: verdict, thumb_path: thumbPath })
+    .select("id")
+    .single();
+  if (inserted.error && thumbPath) await supabase.storage.from(BUCKET).remove([thumbPath]);
+  const created = check(inserted);
   return { scanId: created.id, verdict };
 }
 
