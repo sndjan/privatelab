@@ -6,6 +6,7 @@ import type { ComponentType } from "react";
 import type { CurrentUser } from "@/lib/auth";
 import FireModule from "./fire";
 import { moduleMeta, type ModuleMeta } from "./meta";
+import NochmalModule from "./nochmal";
 import PackingModule from "./packing";
 import TennisModule from "./tennis";
 import ThesisModule from "./thesis";
@@ -28,6 +29,7 @@ export type ModuleDefinition = ModuleMeta & {
 
 const pages: Record<string, ComponentType<ModulePageProps>> = {
   fire: FireModule,
+  nochmal: NochmalModule,
   packing: PackingModule,
   tennis: TennisModule,
   thesis: ThesisModule,
