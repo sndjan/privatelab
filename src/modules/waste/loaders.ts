@@ -27,6 +27,8 @@ export type Rules = {
   error: string | null;
   fetchedAt: string | null;
   editedAt: string | null;
+  // What the AI lookup cost; null when the rules were entered by hand.
+  costUsd: number | null;
 };
 
 export type Scan = {
@@ -36,6 +38,8 @@ export type Scan = {
   verdict: Verdict;
   thumbUrl: string | null;
   createdAt: string;
+  // The scan and its corrections; null for scans from before costs were kept.
+  costUsd: number | null;
 };
 
 type PlaceRow = { id: string; label: string; name: string; district: string; state: string; postcode: string; rules_key: string };
@@ -48,15 +52,27 @@ type RulesRow = {
   started_at: string;
   fetched_at: string | null;
   edited_at: string | null;
+  cost_usd: number | string | null;
 };
-type ScanRow = { id: string; place_name: string; input: string; result: Verdict; thumb_path: string | null; created_at: string };
+type ScanRow = {
+  id: string;
+  place_name: string;
+  input: string;
+  result: Verdict;
+  thumb_path: string | null;
+  created_at: string;
+  cost_usd: number | string | null;
+};
+
+// numeric comes back as a string from PostgREST.
+const money = (value: number | string | null) => (value === null ? null : Number(value));
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
 async function loadScans(supabase: Supabase, limit: number): Promise<Scan[]> {
   const { data } = await supabase
     .from("waste_scans")
-    .select("id, place_name, input, result, thumb_path, created_at")
+    .select("id, place_name, input, result, thumb_path, created_at, cost_usd")
     .order("created_at", { ascending: false })
     .limit(limit);
   const rows = (data ?? []) as ScanRow[];
@@ -73,6 +89,7 @@ async function loadScans(supabase: Supabase, limit: number): Promise<Scan[]> {
     verdict: row.result,
     thumbUrl: row.thumb_path ? (urls.get(row.thumb_path) ?? null) : null,
     createdAt: row.created_at,
+    costUsd: money(row.cost_usd),
   }));
 }
 
@@ -103,7 +120,7 @@ export const wasteLoaders = {
     if (places[0]) {
       const { data } = await supabase
         .from("waste_rules")
-        .select("key, status, rules, sources, error, started_at, fetched_at, edited_at")
+        .select("key, status, rules, sources, error, started_at, fetched_at, edited_at, cost_usd")
         .eq("key", places[0].rulesKey)
         .maybeSingle<RulesRow>();
       if (data) {
@@ -116,6 +133,7 @@ export const wasteLoaders = {
           error: data.error,
           fetchedAt: data.fetched_at,
           editedAt: data.edited_at,
+          costUsd: money(data.cost_usd),
         };
       }
     }
