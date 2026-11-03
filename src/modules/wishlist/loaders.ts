@@ -11,6 +11,9 @@ type ItemRow = WishRow & { received_at: string | null; received_from: string[] }
 
 export type OwnerWish = Wish & { receivedAt: string | null; receivedFrom: string[] };
 
+// A note for a wish that isn't decided yet. Only the owner sees ideas.
+export type Idea = { id: string; text: string };
+
 export const wishlistLoaders = {
   // Every list with the number of open wishes.
   lists: async () => {
@@ -24,22 +27,24 @@ export const wishlistLoaders = {
       open: (itemRows ?? []).filter((row) => row.list_id === list.id).length,
     }));
   },
-  // One list with all its wishes, newest first.
+  // One list with all its wishes, newest first, and its ideas, oldest first.
   list: async ({ id }) => {
     const supabase = await createClient();
-    const [{ data: list }, { data: itemRows }] = await Promise.all([
+    const [{ data: list }, { data: itemRows }, { data: ideaRows }] = await Promise.all([
       supabase.from("wishlist_lists").select("id, name, occasion_date, share_token").eq("id", id).maybeSingle<List>(),
       supabase
         .from("wishlist_items")
         .select(`${wishColumns}, received_at, received_from`)
         .eq("list_id", id)
         .order("created_at", { ascending: false }),
+      supabase.from("wishlist_ideas").select("id, text").eq("list_id", id).order("created_at"),
     ]);
     return {
       list: list ?? null,
       wishes: ((itemRows ?? []) as ItemRow[]).map(
         (row): OwnerWish => ({ ...toWish(row), receivedAt: row.received_at, receivedFrom: row.received_from ?? [] }),
       ),
+      ideas: (ideaRows ?? []) as Idea[],
     };
   },
 } satisfies Record<string, Loader>;
