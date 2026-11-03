@@ -4,12 +4,14 @@
 // column and the points for completed columns and colours. Shared by the
 // browser (generator, editor) and the server (actions clean what they store).
 
+// fill: the box, soft: the lighter "later" bonus tile, edge: outlines of
+// stars on the box, ink: text on the box colour.
 export const colors = [
-  { name: "Grün", fill: "#62b85c", ink: "#ffffff" },
-  { name: "Gelb", fill: "#f4cf3c", ink: "#3b2f00" },
-  { name: "Blau", fill: "#4aa0dc", ink: "#ffffff" },
-  { name: "Rosa", fill: "#ee8db4", ink: "#ffffff" },
-  { name: "Orange", fill: "#f29a3a", ink: "#ffffff" },
+  { name: "Grün", fill: "#8cc63f", soft: "#c3e39a", edge: "#5f8f22", ink: "#ffffff" },
+  { name: "Gelb", fill: "#ffcf2e", soft: "#ffe58f", edge: "#c79a00", ink: "#7a5c00" },
+  { name: "Blau", fill: "#5cc6f0", soft: "#a9e1f7", edge: "#2a93bd", ink: "#ffffff" },
+  { name: "Rosa", fill: "#ef3f80", soft: "#f6a2c2", edge: "#b81d57", ink: "#ffffff" },
+  { name: "Orange", fill: "#f7941d", soft: "#fbc382", edge: "#c2680a", ink: "#ffffff" },
 ] as const;
 
 export type Sheet = {
@@ -97,7 +99,7 @@ export const variants: Variant[] = [
     id: "klassisch",
     name: "Noch mal!",
     hint: "Das Original: Spalten, Farben, Sterne, 8 Joker",
-    options: { cols: 15, rows: 7, blockStyle: "gemischt", maxBlock: 6, starsPerColumn: 1, jokers: 8 },
+    options: { cols: 15, rows: 7, maxBlock: 6, starsPerColumn: 1, jokers: 8 },
     rows: false,
     hearts: 0,
     gold: 0,
@@ -112,7 +114,7 @@ export const variants: Variant[] = [
     id: "sogut",
     name: "Noch mal so gut!",
     hint: "Zeilen P–V, Herzen, goldene Würfelfelder, Sonderwürfel, 6 Joker",
-    options: { cols: 15, rows: 7, blockStyle: "gemischt", maxBlock: 6, starsPerColumn: 1, jokers: 6 },
+    options: { cols: 15, rows: 7, maxBlock: 6, starsPerColumn: 1, jokers: 6 },
     rows: true,
     hearts: 5,
     gold: 8,
@@ -127,7 +129,7 @@ export const variants: Variant[] = [
     id: "xmal",
     name: "Noch X-Mal!",
     hint: "Mit Diamanten, Pass-Leiste und 10 X-Chips (Regeln nicht geprüft)",
-    options: { cols: 15, rows: 7, blockStyle: "gemischt", maxBlock: 6, starsPerColumn: 1, jokers: 8 },
+    options: { cols: 15, rows: 7, maxBlock: 6, starsPerColumn: 1, jokers: 8 },
     rows: false,
     hearts: 0,
     gold: 0,
@@ -142,7 +144,7 @@ export const variants: Variant[] = [
     id: "kids",
     name: "Kids",
     hint: "Weniger, größere Kästchen, Gehege mit Tieren",
-    options: { cols: 9, rows: 6, blockStyle: "klein", maxBlock: 4, starsPerColumn: 1, jokers: 4 },
+    options: { cols: 9, rows: 6, maxBlock: 4, starsPerColumn: 1, jokers: 4 },
     rows: false,
     hearts: 0,
     gold: 0,
@@ -201,19 +203,10 @@ export function columnPoints(cols: number, start: number): [number, number][] {
 
 // --- Generator ----------------------------------------------------------------
 
-export type BlockStyle = "klein" | "gemischt" | "gross";
-
-export const blockStyles: { id: BlockStyle; name: string; hint: string; weights: number[] }[] = [
-  { id: "klein", name: "Viele kleine", hint: "Leichter, schnell viele Kreuze", weights: [3, 4, 3, 2, 1, 0.5] },
-  { id: "gemischt", name: "Gemischt", hint: "Wie man es kennt", weights: [1.2, 2, 3, 3, 2, 1] },
-  { id: "gross", name: "Große Blöcke", hint: "Schwerer, mehr Planung", weights: [0.4, 1, 2, 3, 3, 3] },
-];
-
 export type GeneratorOptions = {
   variant: VariantId;
   cols: number;
   rows: number;
-  blockStyle: BlockStyle;
   maxBlock: number;
   starsPerColumn: number;
   jokers: number;
@@ -224,7 +217,6 @@ export const defaultOptions: GeneratorOptions = {
   variant: "klassisch",
   cols: 15,
   rows: 7,
-  blockStyle: "gemischt",
   maxBlock: 6,
   starsPerColumn: 1,
   jokers: 8,
@@ -263,94 +255,127 @@ function neighbours(cols: number, rows: number, cell: number) {
   return result;
 }
 
-function pickSize(weights: number[], maxBlock: number, rand: () => number) {
-  const usable = weights.slice(0, maxBlock);
-  const total = usable.reduce((sum, weight) => sum + weight, 0);
-  let roll = rand() * total;
-  for (let i = 0; i < usable.length; i++) {
-    roll -= usable[i];
-    if (roll <= 0) return i + 1;
+// The blocks every colour gets. Like the original sheet (one block each of
+// 1, 2, 3, 4, 5 and 6 boxes per colour = 21 boxes, ×5 = 105 = 15×7): full sets
+// 1…maxBlock while they fit, then distinct sizes for the rest (a set 1…m with
+// the largest ones one bigger), e.g. 9 boxes → 2+3+4, 13 → 1+3+4+5.
+export function blockPlan(boxes: number, maxBlock: number): number[] {
+  const sizes: number[] = [];
+  const full = (maxBlock * (maxBlock + 1)) / 2;
+  let left = boxes;
+  while (left >= full) {
+    for (let size = maxBlock; size >= 1; size--) sizes.push(size);
+    left -= full;
   }
-  return usable.length;
+  if (left > 0) {
+    let m = 0;
+    while (((m + 1) * (m + 2)) / 2 <= left) m++;
+    const part = Array.from({ length: m }, (_, i) => i + 1);
+    let rest = left - (m * (m + 1)) / 2;
+    for (let i = part.length - 1; rest > 0 && i >= 0; i--, rest--) part[i]++;
+    if (rest > 0) part.push(rest);
+    sizes.push(...part.reverse());
+  }
+  return sizes;
 }
 
-// Splits the grid into connected blocks: start at a random free box and grow
-// at random until the block has the size rolled for it. A lone box left over
-// joins a neighbouring block that still has room.
-function partition(cols: number, rows: number, weights: number[], maxBlock: number, rand: () => number) {
+// Lays the planned blocks onto the grid: fill the first empty box (row by
+// row) with a block of a size and colour still to place, grown at random
+// from there; touching blocks never share a colour (they would merge).
+// Depth first with backtracking and a step budget.
+function tile(cols: number, rows: number, plan: { color: number; size: number }[], rand: () => number) {
   const total = cols * rows;
+  const cells = new Array<number>(total).fill(-1);
   const blockOf = new Array<number>(total).fill(-1);
+  const used = new Array<boolean>(plan.length).fill(false);
   const blocks: number[][] = [];
-  for (const seedCell of shuffle(
-    Array.from({ length: total }, (_, i) => i),
-    rand,
-  )) {
-    if (blockOf[seedCell] !== -1) continue;
-    const size = pickSize(weights, maxBlock, rand);
-    const block = [seedCell];
-    blockOf[seedCell] = blocks.length;
+  let budget = 6000;
+
+  const touchesColour = (cell: number, color: number) =>
+    neighbours(cols, rows, cell).some((next) => cells[next] === color);
+
+  // A random block of `size` boxes containing `at`, or null.
+  function grow(at: number, size: number, color: number): number[] | null {
+    const block = [at];
+    const inBlock = new Set(block);
     while (block.length < size) {
-      const frontier = block.flatMap((cell) => neighbours(cols, rows, cell)).filter((cell) => blockOf[cell] === -1);
-      if (frontier.length === 0) break;
+      const frontier: number[] = [];
+      for (const cell of block)
+        for (const next of neighbours(cols, rows, cell))
+          if (cells[next] === -1 && !inBlock.has(next) && !frontier.includes(next) && !touchesColour(next, color)) frontier.push(next);
+      if (frontier.length === 0) return null;
       const next = frontier[Math.floor(rand() * frontier.length)];
-      blockOf[next] = blocks.length;
       block.push(next);
+      inBlock.add(next);
     }
-    blocks.push(block);
+    return block;
   }
-  // Merge lone boxes the weights did not ask for.
-  const singles = weights[0] / weights.slice(0, maxBlock).reduce((sum, weight) => sum + weight, 0);
-  blocks.forEach((block, id) => {
-    if (block.length !== 1 || rand() < singles) return;
-    const target = shuffle(neighbours(cols, rows, block[0]), rand)
-      .map((cell) => blockOf[cell])
-      .find((other) => other !== id && blocks[other].length > 0 && blocks[other].length < maxBlock);
-    if (target === undefined) return;
-    blocks[target].push(block[0]);
-    blockOf[block[0]] = target;
-    block.length = 0;
-  });
-  const kept = blocks.filter((block) => block.length > 0);
-  kept.forEach((block, id) => block.forEach((cell) => (blockOf[cell] = id)));
-  return { blocks: kept, blockOf };
-}
 
-// Colours the blocks so that every colour has (almost) the same number of
-// boxes and touching blocks never share a colour (they would merge into one
-// bigger block). Backtracking, biggest blocks first.
-function colour(cols: number, rows: number, blocks: number[][], blockOf: number[], rand: () => number) {
-  const total = cols * rows;
-  const quota = colors.map((_, c) => Math.floor(total / colors.length) + (c < total % colors.length ? 1 : 0));
-  const touching = blocks.map((block, id) => {
-    const set = new Set<number>();
-    for (const cell of block) for (const next of neighbours(cols, rows, cell)) if (blockOf[next] !== id) set.add(blockOf[next]);
-    return [...set];
-  });
-  const order = blocks.map((_, id) => id).sort((a, b) => blocks[b].length - blocks[a].length || rand() - 0.5);
-  const assigned = new Array<number>(blocks.length).fill(-1);
-  const left = [...quota];
-  let budget = 40000;
+  // Every empty area must still take at least the smallest block left.
+  function holesOk() {
+    const left = plan.filter((_, i) => !used[i]).map((piece) => piece.size);
+    if (left.length === 0) return true;
+    const smallest = Math.min(...left);
+    const seen = new Array<boolean>(total).fill(false);
+    for (let cell = 0; cell < total; cell++) {
+      if (cells[cell] !== -1 || seen[cell]) continue;
+      let count = 0;
+      const stack = [cell];
+      seen[cell] = true;
+      while (stack.length) {
+        const current = stack.pop()!;
+        count++;
+        for (const next of neighbours(cols, rows, current))
+          if (cells[next] === -1 && !seen[next]) {
+            seen[next] = true;
+            stack.push(next);
+          }
+      }
+      if (count < smallest) return false;
+    }
+    return true;
+  }
 
-  function place(at: number): boolean {
-    if (at === order.length) return true;
+  function step(): boolean {
+    const at = cells.indexOf(-1);
+    if (at === -1) return true;
     if (--budget < 0) return false;
-    const id = order[at];
-    const size = blocks[id].length;
-    for (const c of shuffle([0, 1, 2, 3, 4], rand)) {
-      if (left[c] < size || touching[id].some((other) => assigned[other] === c)) continue;
-      assigned[id] = c;
-      left[c] -= size;
-      if (place(at + 1)) return true;
-      assigned[id] = -1;
-      left[c] += size;
+    const tried = new Set<string>();
+    // Bigger blocks first (with some chance), so the small ones are left to
+    // fill the gaps at the end.
+    const order = plan
+      .map((piece, i) => ({ i, weight: piece.size + rand() * 3 }))
+      .sort((a, b) => b.weight - a.weight)
+      .map(({ i }) => i);
+    for (const i of order) {
+      if (used[i]) continue;
+      const { color, size } = plan[i];
+      const key = `${color}-${size}`;
+      if (tried.has(key) || touchesColour(at, color)) continue;
+      tried.add(key);
+      for (let shapeTry = 0; shapeTry < 3; shapeTry++) {
+        const block = grow(at, size, color);
+        if (!block) break;
+        for (const cell of block) {
+          cells[cell] = color;
+          blockOf[cell] = blocks.length;
+        }
+        blocks.push(block);
+        used[i] = true;
+        if (holesOk() && step()) return true;
+        used[i] = false;
+        blocks.pop();
+        for (const cell of block) {
+          cells[cell] = -1;
+          blockOf[cell] = -1;
+        }
+        if (budget < 0) return false;
+      }
     }
     return false;
   }
 
-  if (!place(0)) return null;
-  const cells = new Array<number>(total);
-  blocks.forEach((block, id) => block.forEach((cell) => (cells[cell] = assigned[id])));
-  return cells;
+  return step() ? { cells, blockOf, blocks } : null;
 }
 
 // Per column `perColumn` stars on different rows, spread evenly over the
@@ -402,8 +427,6 @@ function placeGold(cols: number, rows: number, stars: number[], blockOf: number[
     const col = cell % cols;
     if (usedCols.has(col) || stars.includes(cell) || usedBlocks.has(blockOf[cell])) continue;
     usedCols.add(col);
-    if (col > 0) usedCols.add(col - 1);
-    if (col < cols - 1) usedCols.add(col + 1);
     usedBlocks.add(blockOf[cell]);
     result.push(cell);
   }
@@ -439,18 +462,23 @@ export function generate(options: GeneratorOptions): Sheet {
   const cols = clamp(Math.round(options.cols), limits.cols.min, limits.cols.max);
   const rows = clamp(Math.round(options.rows), limits.rows.min, limits.rows.max);
   const maxBlock = clamp(Math.round(options.maxBlock), 2, 6);
-  const weights = (blockStyles.find((style) => style.id === options.blockStyle) ?? blockStyles[1]).weights;
+  const total = cols * rows;
+  const plan = colors.flatMap((_, color) =>
+    blockPlan(Math.floor(total / colors.length) + (color < total % colors.length ? 1 : 0), maxBlock).map((size) => ({ color, size })),
+  );
   const start = Math.floor(cols / 2);
   const starsPerColumn = clamp(Math.round(options.starsPerColumn), 0, Math.min(2, rows));
 
-  // Try new partitions until the colouring works out and the start column
-  // shows enough different colours.
+  // Try new layouts until one works out and the start column shows enough
+  // different colours.
   let fallback: Sheet | null = null;
-  for (let attempt = 0; attempt < 60; attempt++) {
+  let fallbackScore = -1;
+  let tiledCount = 0;
+  for (let attempt = 0; attempt < 80; attempt++) {
     const rand = random(options.seed * 7919 + attempt);
-    const { blocks, blockOf } = partition(cols, rows, weights, maxBlock, rand);
-    const cells = colour(cols, rows, blocks, blockOf, rand);
-    if (!cells) continue;
+    const tiled = tile(cols, rows, plan, rand);
+    if (!tiled) continue;
+    const { cells, blockOf, blocks } = tiled;
     const stars = placeStars(cols, rows, cells, blockOf, starsPerColumn, rand);
     const variant = variantOf(options.variant);
     const sheet: Sheet = {
@@ -480,7 +508,13 @@ export function generate(options: GeneratorOptions): Sheet {
     const startColours = new Set(Array.from({ length: rows }, (_, row) => cells[row * cols + start])).size;
     const starsOk = starsPerColumn === 0 || stars.length === cols * starsPerColumn;
     if (startColours >= Math.min(colors.length, rows) - 1 && starsOk) return sheet;
-    fallback ??= sheet;
+    // Tiling is the slow part: after a few layouts take the best one so far.
+    const score = startColours + (starsOk ? 10 : 0);
+    if (!fallback || score > fallbackScore) {
+      fallback = sheet;
+      fallbackScore = score;
+    }
+    if (++tiledCount >= 4) return fallback;
   }
   return fallback ?? emptySheet(cols, rows);
 }
@@ -546,6 +580,16 @@ export function checks(sheet: Sheet): Check[] {
   const counts = colors.map((_, c) => sheet.cells.filter((value) => value === c).length);
   const blocks = blocksOf(sheet);
   const biggest = Math.max(...blocks.map((block) => block.cells.length));
+  const sizesBy = colors.map((_, c) =>
+    blocks
+      .filter((block) => block.color === c)
+      .map((block) => block.cells.length)
+      .sort((a, b) => b - a),
+  );
+  // Equal block sizes per colour (a colour with one box more may have one
+  // block that is one bigger).
+  const sameBlocks = sizesBy.every((sizes) => sizes.length === sizesBy[0].length) &&
+    sizesBy.every((sizes) => sizes.every((size, i) => Math.abs(size - sizesBy[0][i]) <= 1));
   const startColours = new Set(Array.from({ length: sheet.rows }, (_, row) => sheet.cells[index(sheet, sheet.start, row)])).size;
   const starColours = colors.map((_, c) => sheet.stars.filter((cell) => sheet.cells[cell] === c).length);
   const starColumns = new Set(sheet.stars.map((cell) => cell % sheet.cols)).size;
@@ -561,7 +605,13 @@ export function checks(sheet: Sheet): Check[] {
       text:
         biggest <= 6
           ? `Größter Block: ${biggest} Kästchen`
-          : `Ein Block hat ${biggest} Kästchen – mehr als 6 ist mit den Würfeln sehr zäh`,
+          : `Ein Block hat ${biggest} Kästchen – mehr als 6 geht mit den Würfeln nicht`,
+    },
+    {
+      ok: sameBlocks,
+      text: sameBlocks
+        ? `Jede Farbe hat dieselben Blöcke: ${sizesBy[0].join(" + ")}`
+        : `Blöcke je Farbe: ${sizesBy.map((sizes, c) => `${colors[c].name} ${sizes.join("+")}`).join(", ")}`,
     },
     {
       ok: startColours >= Math.min(colors.length, sheet.rows) - 1,
