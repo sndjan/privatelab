@@ -1,7 +1,7 @@
 "use client";
 
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { ArchiveIcon, ChevronLeftIcon, ChevronRightIcon, ExternalLinkIcon, PencilIcon, PlusIcon } from "lucide-react";
+import { ArchiveIcon, ChevronLeftIcon, ChevronRightIcon, ExternalLinkIcon, LightbulbIcon, PencilIcon, PlusIcon, XIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { FormPending } from "@/components/form-pending";
@@ -14,7 +14,9 @@ import { Label } from "@/components/ui/label";
 import { dataQuery } from "@/lib/query/data";
 import { useViewNavigate, ViewLink as Link } from "@/lib/query/view-link";
 import {
+  addIdea,
   createList,
+  deleteIdea,
   deleteList,
   deleteWish,
   markReceived,
@@ -23,7 +25,7 @@ import {
   updateList,
 } from "./actions";
 import { formatDate, formatPrice, joinNames, sortWishes, type Wish } from "./data";
-import type { List } from "./loaders";
+import type { Idea, List } from "./loaders";
 import { FavoriteBadge } from "./favorite-badge";
 import { ShareLink } from "./share-link";
 import { WishEditor } from "./wish-editor";
@@ -40,7 +42,17 @@ export function WishlistApp() {
   // From the share target in manifest.ts (Android: "Teilen" in the Amazon app
   // → Private Lab). Apps put the link in url or text, the title in title or text.
   const shared = param("shared") ?? ([param("shared_title"), param("shared_text"), param("shared_url")].filter(Boolean).join(" ") || undefined);
-  if (listId && wishId) return <WishView key={`${listId}-${wishId}`} listId={listId} wishId={wishId} sharedText={shared?.slice(0, 3000)} />;
+  if (listId && wishId) {
+    return (
+      <WishView
+        key={`${listId}-${wishId}`}
+        listId={listId}
+        wishId={wishId}
+        ideaId={param("idea")}
+        sharedText={shared?.slice(0, 3000)}
+      />
+    );
+  }
   if (listId) return <ListView key={listId} listId={listId} />;
   if (shared) return <PickList shared={shared.slice(0, 3000)} />;
   return <Overview />;
@@ -126,7 +138,7 @@ function Overview() {
 
 function ListView({ listId }: { listId: string }) {
   const {
-    data: { list, wishes },
+    data: { list, wishes, ideas },
   } = useSuspenseQuery(dataQuery("wishlist", "list", { id: listId }));
   if (!list) return <Gone />;
 
@@ -164,6 +176,8 @@ function ListView({ listId }: { listId: string }) {
           ))}
         </ul>
       )}
+
+      <Ideas listId={list.id} ideas={ideas} />
 
       <Card>
         <CardHeader>
@@ -210,6 +224,64 @@ function ListView({ listId }: { listId: string }) {
 
       <ListSettings list={list} />
     </div>
+  );
+}
+
+// Notes for wishes that aren't decided yet, e.g. "Rasierer, noch einen
+// aussuchen". Only the owner sees them; "Als Wunsch" opens the wish editor
+// with the idea as the title, and saving the wish removes the idea.
+function Ideas({ listId, ideas }: { listId: string; ideas: Idea[] }) {
+  return (
+    <section aria-labelledby="ideas-title" className="space-y-1.5">
+      <div className="px-1">
+        <h3 id="ideas-title" className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <LightbulbIcon className="size-4" /> Ideen
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          Für Wünsche, bei denen du noch nicht weißt, welcher es genau wird. Nur du siehst sie, nicht deine Gäste.
+        </p>
+      </div>
+      <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+        {ideas.map((idea) => (
+          <li key={idea.id} className="flex min-h-12 items-center gap-2 py-1 pr-1 pl-4">
+            <span className="min-w-0 flex-1 text-sm break-words whitespace-pre-line">{idea.text}</span>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`${PATH}?list=${listId}&wish=new&idea=${idea.id}`}>
+                <PlusIcon /> Als Wunsch
+              </Link>
+            </Button>
+            <form action={deleteIdea}>
+              <input type="hidden" name="ideaId" value={idea.id} />
+              <SubmitButton
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-destructive"
+                aria-label={`Idee „${idea.text}“ löschen`}
+                done="Idee gelöscht"
+              >
+                <XIcon />
+              </SubmitButton>
+            </form>
+          </li>
+        ))}
+        <li>
+          <form action={addIdea} className="relative">
+            <input type="hidden" name="listId" value={listId} />
+            <Input
+              name="text"
+              required
+              maxLength={200}
+              aria-label="Neue Idee"
+              placeholder="+ Idee, z. B. Rasierer (noch einen aussuchen)"
+              enterKeyHint="enter"
+              autoComplete="off"
+              className="h-12 rounded-none border-0 px-4 shadow-none focus-visible:ring-0"
+            />
+            <FormPending />
+          </form>
+        </li>
+      </ul>
+    </section>
   );
 }
 
@@ -265,12 +337,15 @@ function OwnerWishCard({ listId, wish }: { listId: string; wish: Wish }) {
 
 // --- Add or edit a wish -------------------------------------------------------
 
-function WishView({ listId, wishId, sharedText }: { listId: string; wishId: string; sharedText?: string }) {
+function WishView({ listId, wishId, ideaId, sharedText }: { listId: string; wishId: string; ideaId?: string; sharedText?: string }) {
   const {
-    data: { list, wishes },
+    data: { list, wishes, ideas },
   } = useSuspenseQuery(dataQuery("wishlist", "list", { id: listId }));
   if (!list) return <Gone />;
-  if (wishId === "new") return <WishEditor listId={listId} sharedText={sharedText} />;
+  if (wishId === "new") {
+    const idea = ideas.find((entry) => entry.id === ideaId);
+    return <WishEditor listId={listId} idea={idea} sharedText={sharedText} />;
+  }
   const wish = wishes.find((entry) => entry.id === wishId);
   if (!wish) return <Gone />;
   return <WishEditor key={wish.id} listId={listId} wish={wish} />;

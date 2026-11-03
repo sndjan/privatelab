@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeftIcon, CropIcon, HeartIcon, ImagePlusIcon, Loader2Icon, ScanIcon, SparklesIcon, XIcon } from "lucide-react";
+import { ChevronLeftIcon, CropIcon, HeartIcon, ImagePlusIcon, LightbulbIcon, Loader2Icon, ScanIcon, SparklesIcon, XIcon } from "lucide-react";
 import { ViewLink as Link } from "@/lib/query/view-link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { Area } from "react-easy-crop";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { prefillFromLink, prefillFromScreenshot, saveWish, uploadWishImage } from "./actions";
 import type { Wish, WishInput } from "./data";
 import { ImageCropper } from "./image-cropper";
+import type { Idea } from "./loaders";
 import type { ImageBox } from "./screenshot-import";
 import { WishImage } from "./wish-image";
 
@@ -98,12 +99,14 @@ async function squareArea(src: string, box: ImageBox): Promise<Area> {
 
 // The page for a new wish (paste a link or pick a screenshot, the AI fills in
 // the rest) or for editing one. A page rather than a dialog, so it works well
-// on phones. sharedText comes from the app's share target (Android).
-export function WishEditor({ listId, wish, sharedText }: { listId: string; wish?: Wish; sharedText?: string }) {
+// on phones. sharedText comes from the app's share target (Android). idea:
+// the idea the wish is made from (its text is the title until a link is
+// read); saving removes the idea.
+export function WishEditor({ listId, wish, idea, sharedText }: { listId: string; wish?: Wish; idea?: Idea; sharedText?: string }) {
   const [link, setLink] = useState(sharedText ?? "");
-  const [fields, setFields] = useState<Fields>(toFields(wish ?? empty));
+  const [fields, setFields] = useState<Fields>(toFields(wish ?? (idea ? { ...empty, title: idea.text } : empty)));
   // A new wish shows the form once a link was read or "ohne Link" was chosen.
-  const [showForm, setShowForm] = useState(Boolean(wish));
+  const [showForm, setShowForm] = useState(Boolean(wish || idea));
   const [images, setImages] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -224,7 +227,7 @@ export function WishEditor({ listId, wish, sharedText }: { listId: string; wish?
           note: fields.note,
           quantity: Number(fields.quantity) || 1,
           favorite: fields.favorite,
-        });
+        }, idea?.id);
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "Speichern fehlgeschlagen.");
       }
@@ -243,6 +246,16 @@ export function WishEditor({ listId, wish, sharedText }: { listId: string; wish?
           {wish ? "Wunsch bearbeiten" : "Neuer Wunsch"}
         </h2>
       </div>
+
+      {idea && (
+        <p className="flex items-start gap-2 rounded-lg border border-brand/30 bg-brand/5 px-4 py-3 text-sm">
+          <LightbulbIcon className="mt-0.5 size-4 shrink-0" />
+          <span>
+            Aus deiner Idee „{idea.text}“. Hast du etwas Passendes gefunden, füge den Link ein; beim Speichern verschwindet
+            die Idee von der Liste.
+          </span>
+        </p>
+      )}
 
       {!wish && (
         <Card>

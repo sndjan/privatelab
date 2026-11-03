@@ -173,8 +173,9 @@ export async function uploadWishImage(formData: FormData): Promise<{ url: string
 // --- Saving -------------------------------------------------------------------
 
 // input comes straight from the form (price as typed, e.g. "29,99").
+// ideaId: the idea the new wish was made from, which is then done.
 // Goes back to the list afterwards.
-export async function saveWish(listId: string, id: string | null, input: WishFields) {
+export async function saveWish(listId: string, id: string | null, input: WishFields, ideaId?: string) {
   const cleaned = cleanWish(input);
   if (!cleaned) throw new Error("Titel fehlt");
   const wish = { ...cleaned, url: cleaned.url && (await expandShortLink(cleaned.url)) };
@@ -186,6 +187,7 @@ export async function saveWish(listId: string, id: string | null, input: WishFie
     refresh(own.shareToken);
   } else {
     check(await supabase.from("wishlist_items").insert({ ...toRow(wish), list_id: listId }));
+    if (ideaId) check(await supabase.from("wishlist_ideas").delete().eq("id", ideaId).eq("list_id", listId));
     const list = check(await supabase.from("wishlist_lists").select("share_token").eq("id", listId).single());
     refresh(list.share_token);
   }
@@ -229,4 +231,23 @@ export async function unmarkReceived(formData: FormData) {
   const own = await ownWish(supabase, String(formData.get("wishId")));
   check(await supabase.from("wishlist_items").update({ received_at: null, received_from: [] }).eq("id", own.id));
   refresh(own.shareToken);
+}
+
+// --- Ideas ----------------------------------------------------------------------
+
+// Notes for wishes that aren't decided yet. Only the owner sees them, so the
+// share page doesn't need refreshing.
+export async function addIdea(formData: FormData) {
+  const listId = String(formData.get("listId"));
+  const idea = text(formData, "text", 200);
+  if (!idea) return;
+  const supabase = await db();
+  check(await supabase.from("wishlist_ideas").insert({ list_id: listId, text: idea }));
+  revalidatePath(PATH);
+}
+
+export async function deleteIdea(formData: FormData) {
+  const supabase = await db();
+  check(await supabase.from("wishlist_ideas").delete().eq("id", String(formData.get("ideaId"))));
+  revalidatePath(PATH);
 }
