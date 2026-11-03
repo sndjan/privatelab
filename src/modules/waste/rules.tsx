@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ViewLink as Link } from "@/lib/query/view-link";
 import { retryRules } from "./actions";
 import { BinIcon } from "./bin-icon";
-import { effectiveBins, formatDate, placeLabel, type EffectiveBin } from "./bins";
+import { effectiveBins, formatCost, formatDate, placeLabel, type EffectiveBin } from "./bins";
 import { PATH, useRefresh } from "./hooks";
 import type { Place, Rules } from "./loaders";
 import { RulesEditor } from "./rules-editor";
@@ -59,7 +59,8 @@ export function RulesView({ place, rules, isAdmin }: { place: Place; rules: Rule
               </p>
             )}
             <p className="text-muted-foreground">
-              Allgemeine Regeln für Deutschland plus die Besonderheiten vor Ort, von der KI recherchiert
+              Allgemeine Regeln für Deutschland plus die Besonderheiten vor Ort,{" "}
+              {rules?.costUsd != null ? `von der KI recherchiert (${formatCost(rules.costUsd)})` : "von Hand eingetragen"}
               {updated ? `, Stand ${formatDate(updated)}` : ""}. Tippe auf eine Tonne für Details; fett = Besonderheit vor Ort. Im Zweifel gilt die Website deines
               Abfallbetriebs.
             </p>

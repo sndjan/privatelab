@@ -10,11 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { sortThing } from "./actions";
 import { BinIcon } from "./bin-icon";
-import { confidenceLabel, type EffectiveBin, type Verdict } from "./bins";
+import { confidenceLabel, formatCost, type EffectiveBin, type Verdict } from "./bins";
 import { useRefresh } from "./hooks";
 import { preparePhoto, type PreparedPhoto } from "./image";
 
-type Answer = { scanId: string; verdict: Verdict };
+type Answer = { scanId: string; verdict: Verdict; costUsd: number; totalUsd: number };
 
 // Take a photo (or pick one, or describe the thing), the AI says where it
 // goes. Its description comes first, so the user can check it looked at the
@@ -178,6 +178,10 @@ export function Sorter({ placeId, bins }: { placeId: string; bins: EffectiveBin[
             onCorrect={(correction) => run({ photo, text, correction, previous: answer })}
           />
           <Result verdict={answer.verdict} bins={bins} />
+          <p className="text-xs text-muted-foreground">
+            KI-Kosten dieser Anfrage: {formatCost(answer.costUsd)}
+            {answer.totalUsd > answer.costUsd + 0.00001 && ` · mit Korrekturen ${formatCost(answer.totalUsd)}`}
+          </p>
         </>
       )}
 

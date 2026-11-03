@@ -83,10 +83,10 @@ function scheduleLookup(key: string, startedAt: string, place: PlaceCandidate) {
   after(async () => {
     const admin = createAdminClient();
     try {
-      const { rules, sources } = await lookUpRules(place);
+      const { rules, sources, costUsd } = await lookUpRules(place);
       await admin
         .from("waste_rules")
-        .update({ status: "ready", rules, sources, error: null, fetched_at: new Date().toISOString() })
+        .update({ status: "ready", rules, sources, error: null, fetched_at: new Date().toISOString(), cost_usd: costUsd })
         .eq("key", key)
         .eq("started_at", startedAt);
     } catch (error) {
@@ -109,9 +109,16 @@ const LOOKUPS_PER_DAY = 5;
 // Makes sure the municipality has a rules row and starts the lookup for a new
 // one. Two users adding the same place at once start only one lookup.
 async function ensureRules(place: PlaceCandidate, user: { id: string; isAdmin: boolean }): Promise<Result<{ key: string }>> {
-  const key = rulesKey(place);
   const admin = createAdminClient();
-  const known = check(await admin.from("waste_rules").select("key").eq("key", key).maybeSingle());
+  // The geocoder doesn't always name the district the same way ("Alb-Donau-
+  // Kreis" or "Landkreis Alb-Donau-Kreis"), so rules already looked up for a
+  // municipality of the same name in the same state are reused instead of
+  // paying for a second lookup.
+  const sameTown = check(
+    await admin.from("waste_rules").select("key").ilike("name", place.name).ilike("state", place.state).limit(1),
+  ).at(0);
+  const key = sameTown?.key ?? rulesKey(place);
+  const known = sameTown ?? check(await admin.from("waste_rules").select("key").eq("key", key).maybeSingle());
   if (!known && !user.isAdmin) {
     const since = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
     const { count } = await admin
@@ -227,7 +234,7 @@ const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 // The browser sends the photo scaled down for the AI and a small thumbnail
 // for the history. With scanId, the user corrected an earlier answer: the
 // same scan is updated instead of adding a new one.
-export async function sortThing(formData: FormData): Promise<Result<{ scanId: string; verdict: Verdict }>> {
+export async function sortThing(formData: FormData): Promise<Result<{ scanId: string; verdict: Verdict; costUsd: number; totalUsd: number }>> {
   const { user, supabase } = await requireAccess();
   const photo = formData.get("photo");
   const thumb = formData.get("thumb");
@@ -257,8 +264,9 @@ export async function sortThing(formData: FormData): Promise<Result<{ scanId: st
   const rules = (rulesRow?.rules ?? null) as LocalRules | null;
 
   let verdict: Verdict;
+  let costUsd: number;
   try {
-    verdict = await classify({
+    ({ verdict, costUsd } = await classify({
       image,
       text: description,
       correction,
@@ -266,15 +274,18 @@ export async function sortThing(formData: FormData): Promise<Result<{ scanId: st
       bins: effectiveBins(rules),
       rules,
       placeName: `${place.name}, ${place.district === place.name ? "" : `${place.district}, `}${place.state}`,
-    });
+    }));
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Die Erkennung hat nicht geklappt." };
   }
 
   const input = [description, correction && `Korrektur: ${correction}`].filter(Boolean).join(" · ").slice(0, 1000);
   if (scanId) {
-    check(await supabase.from("waste_scans").update({ result: verdict, input }).eq("id", scanId));
-    return { scanId, verdict };
+    // A correction is another request for the same thing: its cost adds up.
+    const before = check(await supabase.from("waste_scans").select("cost_usd").eq("id", scanId).single());
+    const total = Number(before.cost_usd ?? 0) + costUsd;
+    check(await supabase.from("waste_scans").update({ result: verdict, input, cost_usd: total }).eq("id", scanId));
+    return { scanId, verdict, costUsd, totalUsd: total };
   }
 
   // A missing thumbnail only costs the picture in the history.
@@ -286,12 +297,12 @@ export async function sortThing(formData: FormData): Promise<Result<{ scanId: st
   }
   const inserted = await supabase
     .from("waste_scans")
-    .insert({ place_id: place.id, place_name: place.label || place.name, input, result: verdict, thumb_path: thumbPath })
+    .insert({ place_id: place.id, place_name: place.label || place.name, input, result: verdict, thumb_path: thumbPath, cost_usd: costUsd })
     .select("id")
     .single();
   if (inserted.error && thumbPath) await supabase.storage.from(BUCKET).remove([thumbPath]);
   const created = check(inserted);
-  return { scanId: created.id, verdict };
+  return { scanId: created.id, verdict, costUsd, totalUsd: costUsd };
 }
 
 export async function deleteScan(id: string) {

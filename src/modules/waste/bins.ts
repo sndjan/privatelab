@@ -244,3 +244,12 @@ export const confidenceLabel: Record<Confidence, string> = {
 export const placeLabel = (place: { label: string; name: string }) => place.label || place.name;
 
 export const formatDate = (iso: string) => new Intl.DateTimeFormat("de-DE", { dateStyle: "medium" }).format(new Date(iso));
+
+// An AI cost in US dollars as the app shows it: "ca. 2,1 Cent" below a
+// dollar, "ca. 1,23 $" above. The API bills in dollars, so it says Cent, not
+// Euro-Cent; at today's rates the two are close.
+export function formatCost(usd: number) {
+  if (usd >= 1) return `ca. ${usd.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+  const cents = usd * 100;
+  return `ca. ${cents.toLocaleString("de-DE", { maximumFractionDigits: cents < 10 ? 1 : 0 })} Cent`;
+}

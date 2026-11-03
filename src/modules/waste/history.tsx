@@ -9,7 +9,7 @@ import { dataQuery } from "@/lib/query/data";
 import { ViewLink as Link } from "@/lib/query/view-link";
 import { deleteScan } from "./actions";
 import { BinIcon } from "./bin-icon";
-import { effectiveBins, formatDate, type EffectiveBin } from "./bins";
+import { effectiveBins, formatCost, formatDate, type EffectiveBin } from "./bins";
 import { PATH, useHome, useRefresh } from "./hooks";
 import type { Scan } from "./loaders";
 
@@ -17,6 +17,7 @@ import type { Scan } from "./loaders";
 export function HistoryView() {
   const { data: scans } = useSuspenseQuery(dataQuery("waste", "history"));
   const { data: home } = useHome();
+  const total = scans.reduce((sum, scan) => sum + (scan.costUsd ?? 0), 0);
   const bins = effectiveBins(home.rules?.rules ?? null);
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -31,7 +32,12 @@ export function HistoryView() {
       {scans.length === 0 ? (
         <p className="text-center text-sm text-muted-foreground">Noch nichts sortiert.</p>
       ) : (
-        <HistoryList scans={scans} bins={bins} deletable />
+        <>
+          <HistoryList scans={scans} bins={bins} deletable />
+          <p className="px-1 text-sm text-muted-foreground">
+            KI-Kosten für diese {scans.length} {scans.length === 1 ? "Anfrage" : "Anfragen"}: {formatCost(total)}
+          </p>
+        </>
       )}
     </div>
   );
@@ -81,6 +87,7 @@ function ScanRow({ scan, bins, deletable }: { scan: Scan; bins: EffectiveBin[]; 
         <p className="truncate text-xs text-muted-foreground">
           {formatDate(scan.createdAt)}
           {scan.placeName && ` · ${scan.placeName}`}
+          {scan.costUsd !== null && ` · ${formatCost(scan.costUsd)}`}
         </p>
       </div>
       {deletable && (

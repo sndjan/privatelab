@@ -27,6 +27,22 @@ const client = () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export const hasAiKey = () => Boolean(process.env.ANTHROPIC_API_KEY);
 
+// What a request cost, from the usage the API reports, in US dollars (the API
+// bills in dollars). Claude Opus 5.5 list prices per million tokens; web
+// search is $10 per 1,000 searches. Thinking counts as output. If a refusal
+// was answered by a fallback model, its price may differ a little, so this
+// is an estimate ("ca.") rather than the invoice.
+const PRICE = { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2, search: 0.01 };
+
+export function costOf(usage: Anthropic.Beta.BetaUsage) {
+  const tokens =
+    usage.input_tokens * PRICE.input +
+    usage.output_tokens * PRICE.output +
+    (usage.cache_creation_input_tokens ?? 0) * PRICE.cacheWrite +
+    (usage.cache_read_input_tokens ?? 0) * PRICE.cacheRead;
+  return tokens / 1_000_000 + (usage.server_tool_use?.web_search_requests ?? 0) * PRICE.search;
+}
+
 // German message for a failed request.
 function aiError(error: unknown) {
   if (error instanceof Anthropic.RateLimitError) return "Die KI ist gerade ausgelastet. Versuch es gleich noch einmal.";
@@ -135,7 +151,7 @@ export function cleanRules(input: LocalRules): LocalRules {
   };
 }
 
-export async function lookUpRules(place: PlaceCandidate): Promise<{ rules: LocalRules; sources: Source[] }> {
+export async function lookUpRules(place: PlaceCandidate): Promise<{ rules: LocalRules; sources: Source[]; costUsd: number }> {
   if (!hasAiKey()) throw new Error("Für die lokalen Regeln braucht es einen ANTHROPIC_API_KEY.");
   const where = `${place.name}${place.postcode ? ` (${place.postcode})` : ""}, ${place.district === place.name ? "kreisfreie Stadt" : `Landkreis ${place.district}`}, ${place.state}`;
   try {
@@ -148,6 +164,7 @@ export async function lookUpRules(place: PlaceCandidate): Promise<{ rules: Local
     // of every round are collected.
     let research: Anthropic.Beta.BetaMessage | null = null;
     const blocks: Anthropic.Beta.BetaContentBlock[] = [];
+    let costUsd = 0;
     for (let round = 0; round < 4; round++) {
       research = await client().beta.messages.create({
         ...FALLBACK,
@@ -161,6 +178,7 @@ export async function lookUpRules(place: PlaceCandidate): Promise<{ rules: Local
         messages,
       });
       blocks.push(...research.content);
+      costUsd += costOf(research.usage);
       if (research.stop_reason !== "pause_turn") break;
       messages.push({ role: "assistant", content: research.content });
     }
@@ -203,7 +221,8 @@ export async function lookUpRules(place: PlaceCandidate): Promise<{ rules: Local
         baselineSummary,
       messages: [{ role: "user", content: `Municipality: ${where}\n\nResearch notes:\n${findings}` }],
     });
-    return { rules: cleanRules(parseJson<LocalRules>(structured)), sources: [...sources.values()].slice(0, 8) };
+    costUsd += costOf(structured.usage);
+    return { rules: cleanRules(parseJson<LocalRules>(structured)), sources: [...sources.values()].slice(0, 8), costUsd };
   } catch (error) {
     throw new Error(aiError(error));
   }
@@ -271,7 +290,7 @@ export type ClassifyInput = {
   placeName: string;
 };
 
-export async function classify(input: ClassifyInput): Promise<Verdict> {
+export async function classify(input: ClassifyInput): Promise<{ verdict: Verdict; costUsd: number }> {
   if (!hasAiKey()) throw new Error("Für die Erkennung braucht es einen ANTHROPIC_API_KEY.");
   const lines = [
     `Municipality: ${input.placeName}`,
@@ -286,6 +305,7 @@ export async function classify(input: ClassifyInput): Promise<Verdict> {
   content.push({ type: "text", text: lines.join("\n\n") });
 
   let answer: Verdict;
+  let costUsd = 0;
   try {
     const response = await client().beta.messages.create({
       ...FALLBACK,
@@ -295,11 +315,12 @@ export async function classify(input: ClassifyInput): Promise<Verdict> {
       system: classifySystem,
       messages: [{ role: "user", content }],
     });
+    costUsd = costOf(response.usage);
     answer = parseJson<Verdict>(response);
   } catch (error) {
     throw new Error(aiError(error));
   }
-  return cleanVerdict(answer);
+  return { verdict: cleanVerdict(answer), costUsd };
 }
 
 const isBin = (value: unknown): value is (typeof binIds)[number] => (binIds as readonly unknown[]).includes(value);
