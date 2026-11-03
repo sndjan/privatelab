@@ -151,6 +151,14 @@ export const moduleMeta: ModuleMeta[] = [
 
   // Spiele
   {
+    id: "nochmal",
+    name: "Noch-mal-Blätter",
+    description: "Eigene Spielblätter für das Würfelspiel „Noch mal!“ generieren, von Hand anpassen und ausdrucken, klein oder groß.",
+    icon: "🎲",
+    category: "spiele",
+    status: "live",
+  },
+  {
     id: "games-olympics",
     name: "Spiele-Olympiade",
     description: "Turnier mit Freunden: Disziplinen, Teams, Punkte und Rangliste.",
