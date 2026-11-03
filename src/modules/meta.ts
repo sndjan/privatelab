@@ -57,6 +57,14 @@ export const moduleMeta: ModuleMeta[] = [
     status: "live",
   },
   {
+    id: "waste",
+    name: "Mülltrenn-Hilfe",
+    description: "Foto machen, die KI sagt, in welche Tonne es gehört, nach den Regeln deines Wohnorts.",
+    icon: "♻️",
+    category: "alltag",
+    status: "live",
+  },
+  {
     id: "health",
     name: "Gesundheit-Dashboard",
     description: "Schlaf, Sport, Gewicht und andere Gesundheitswerte im Überblick.",

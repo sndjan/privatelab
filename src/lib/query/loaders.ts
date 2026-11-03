@@ -3,6 +3,7 @@ import { fireLoaders } from "@/modules/fire/loaders";
 import { packingLoaders } from "@/modules/packing/loaders";
 import { tennisLoaders } from "@/modules/tennis/loaders";
 import { thesisLoaders } from "@/modules/thesis/loaders";
+import { wasteLoaders } from "@/modules/waste/loaders";
 import { wishlistLoaders } from "@/modules/wishlist/loaders";
 import { worktimeLoaders } from "@/modules/worktime/loaders";
 
@@ -16,6 +17,7 @@ export const loaders = {
   packing: packingLoaders,
   tennis: tennisLoaders,
   thesis: thesisLoaders,
+  waste: wasteLoaders,
   wishlist: wishlistLoaders,
   worktime: worktimeLoaders,
 } satisfies Record<string, Record<string, Loader>>;

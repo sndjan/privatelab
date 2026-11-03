@@ -9,6 +9,7 @@ import { moduleMeta, type ModuleMeta } from "./meta";
 import PackingModule from "./packing";
 import TennisModule from "./tennis";
 import ThesisModule from "./thesis";
+import WasteModule from "./waste";
 import WishlistModule from "./wishlist";
 import WorktimeModule from "./worktime";
 
@@ -30,6 +31,7 @@ const pages: Record<string, ComponentType<ModulePageProps>> = {
   packing: PackingModule,
   tennis: TennisModule,
   thesis: ThesisModule,
+  waste: WasteModule,
   wishlist: WishlistModule,
   worktime: WorktimeModule,
 };
