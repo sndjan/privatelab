@@ -1,5 +1,5 @@
-import type { PointerEvent, ReactNode, Ref, SVGProps } from "react";
-import { blocksOf, colors, letter, rowLetter, type RowBonus, type Sheet } from "./data";
+import { useId, type PointerEvent, type ReactNode, type Ref, type SVGProps } from "react";
+import { blocksOf, colors, EMPTY, letter, rowLetter, type RowBonus, type Sheet } from "./data";
 
 // The score sheet as SVG, in the look of the game's own sheets: a card with
 // white letter tiles (the start column's letter red and the column framed),
@@ -8,6 +8,8 @@ import { blocksOf, colors, letter, rowLetter, type RowBonus, type Sheet } from "
 // so gut!" adds the row bonuses and hearts on the left, rows P–V on the
 // right, golden dice boxes, a heart row and the special dice; "Noch X-Mal!"
 // diamonds, a pass bar and X-chips; Kids framed enclosures with animals.
+// Own pictures (sheet.art) replace the star, golden die and diamond, and can
+// fill the card's background. Boxes without a colour yet are drawn dashed.
 // Units: one box is 10. Fixed colours (it is a picture).
 
 const U = 10;
@@ -15,6 +17,8 @@ const T = 9.1; // tile size inside a box
 const headH = 8.4;
 const display = "var(--font-display), 'Lilita One', system-ui, sans-serif";
 const red = "#e5333b";
+// Outline colour of marks on a box without a colour.
+const blank = { edge: "#6f7881" };
 
 type Theme = { card: string; tile: string; ink: string; label: string; line: string };
 
@@ -97,6 +101,8 @@ export function SheetSvg({
 } & SVGProps<SVGSVGElement>) {
   const theme = themes[sheet.variant];
   const L = sheetLayout(sheet);
+  const art = sheet.art;
+  const clipId = useId();
   const stars = new Set(sheet.stars);
   const gold = new Set(sheet.gold);
   const diamonds = new Set(sheet.diamonds);
@@ -108,6 +114,25 @@ export function SheetSvg({
   return (
     <svg ref={svgRef} viewBox={`0 0 ${L.width} ${L.height}`} xmlns="http://www.w3.org/2000/svg" fontFamily={display} {...props}>
       <rect x={0} y={0} width={L.width} height={L.height} rx={7} fill={theme.card} />
+      {art.background && (
+        <>
+          <clipPath id={clipId}>
+            <rect x={0} y={0} width={L.width} height={L.height} rx={7} />
+          </clipPath>
+          <image
+            href={art.background}
+            x={0}
+            y={0}
+            width={L.width}
+            height={L.height}
+            preserveAspectRatio="xMidYMid slice"
+            clipPath={`url(#${clipId})`}
+            pointerEvents="none"
+          />
+          {/* A veil of the card colour keeps the labels readable on busy pictures. */}
+          <rect x={0} y={0} width={L.width} height={L.height} rx={7} fill={theme.card} fillOpacity={0.25} pointerEvents="none" />
+        </>
+      )}
 
       {/* Column letters. */}
       {Array.from({ length: sheet.cols }, (_, col) => (
@@ -125,16 +150,33 @@ export function SheetSvg({
         const row = Math.floor(cell / sheet.cols);
         const x = at(col);
         const y = L.gridY + row * U + (U - T) / 2;
-        const color = colors[value];
+        const color = value === EMPTY ? blank : colors[value];
         const icon = icons.get(cell);
         return (
           <g key={cell} data-cell={cell} onPointerDown={onCellDown && ((event) => onCellDown(cell, event))}>
-            <rect x={x} y={y} width={T} height={T} rx={1.7} fill={color.fill} />
-            <circle cx={x + T / 2} cy={y + T / 2} r={T * 0.3} fill="#ffffff" fillOpacity={0.22} />
-            {stars.has(cell) && !icon && <Star cx={x + T / 2} cy={y + T / 2 + 0.2} r={3.6} edge={color.edge} />}
-            {stars.has(cell) && icon && <Star cx={x + T - 2.2} cy={y + 2.2} r={1.9} edge={color.edge} />}
-            {gold.has(cell) && <GoldDie x={x + T / 2} y={y + T / 2} size={6.2} />}
-            {diamonds.has(cell) && <Diamond cx={x + T / 2} cy={y + T / 2} r={3.4} edge={color.edge} />}
+            {value === EMPTY ? (
+              <rect
+                x={x + 0.25}
+                y={y + 0.25}
+                width={T - 0.5}
+                height={T - 0.5}
+                rx={1.6}
+                fill="#ffffff"
+                fillOpacity={0.92}
+                stroke="#9aa39e"
+                strokeWidth={0.5}
+                strokeDasharray="1.2 0.9"
+              />
+            ) : (
+              <>
+                <rect x={x} y={y} width={T} height={T} rx={1.7} fill={colors[value].fill} />
+                <circle cx={x + T / 2} cy={y + T / 2} r={T * 0.3} fill="#ffffff" fillOpacity={0.22} />
+              </>
+            )}
+            {stars.has(cell) && !icon && <Star cx={x + T / 2} cy={y + T / 2 + 0.2} r={3.6} edge={color.edge} image={art.star} />}
+            {stars.has(cell) && icon && <Star cx={x + T - 2.2} cy={y + 2.2} r={1.9} edge={color.edge} image={art.star} />}
+            {gold.has(cell) && <GoldDie x={x + T / 2} y={y + T / 2} size={6.2} image={art.gold} />}
+            {diamonds.has(cell) && <Diamond cx={x + T / 2} cy={y + T / 2} r={3.4} edge={color.edge} image={art.diamond} />}
             {icon && (
               <text x={x + T / 2} y={y + T / 2 + 0.4} fontSize={5.6} textAnchor="middle" dominantBaseline="middle" fontFamily="system-ui">
                 {icon}
@@ -173,7 +215,7 @@ export function SheetSvg({
                 {sheet.rowScore}
               </Label>
               <Tile x={L.pad + 8.6} y={y} w={T} h={T} fill={theme.tile} />
-              <RowBonusIcon kind={bonus} cx={L.pad + 8.6 + T / 2} cy={y + T / 2} />
+              <RowBonusIcon kind={bonus} cx={L.pad + 8.6 + T / 2} cy={y + T / 2} gold={art.gold} />
               <Tile x={L.gridX + L.gridW + 1} y={y} w={7.8} h={T} fill={theme.tile} />
               <Label x={L.gridX + L.gridW + 4.9} y={y + T / 2} size={5.4} fill={theme.ink}>
                 {rowLetter(sheet, row)}
@@ -226,7 +268,7 @@ export function SheetSvg({
           return (
             <g key={i}>
               {i === 0 && <circle cx={cx} cy={cy} r={4.9} fill="none" stroke={theme.ink} strokeWidth={0.7} />}
-              <GoldDie x={cx} y={cy} size={6.6} />
+              <GoldDie x={cx} y={cy} size={6.6} image={art.gold} />
             </g>
           );
         })}
@@ -351,7 +393,13 @@ function Label({ x, y, size, fill, children }: { x: number; y: number; size: num
   );
 }
 
-function Star({ cx, cy, r, edge }: { cx: number; cy: number; r: number; edge: string }) {
+// An own picture in place of a drawn mark, centred and fitted into a square.
+function Picture({ href, cx, cy, size }: { href: string; cx: number; cy: number; size: number }) {
+  return <image href={href} x={cx - size / 2} y={cy - size / 2} width={size} height={size} preserveAspectRatio="xMidYMid meet" pointerEvents="none" />;
+}
+
+function Star({ cx, cy, r, edge, image }: { cx: number; cy: number; r: number; edge: string; image?: string }) {
+  if (image) return <Picture href={image} cx={cx} cy={cy - 0.2} size={r * 2.1} />;
   const points: string[] = [];
   for (let i = 0; i < 10; i++) {
     const radius = i % 2 === 0 ? r : r * 0.47;
@@ -361,7 +409,8 @@ function Star({ cx, cy, r, edge }: { cx: number; cy: number; r: number; edge: st
   return <path d={`M${points.join("L")}Z`} fill="#ffffff" stroke={edge} strokeWidth={0.45} strokeLinejoin="round" />;
 }
 
-function Diamond({ cx, cy, r, edge }: { cx: number; cy: number; r: number; edge: string }) {
+function Diamond({ cx, cy, r, edge, image }: { cx: number; cy: number; r: number; edge: string; image?: string }) {
+  if (image) return <Picture href={image} cx={cx} cy={cy} size={r * 2.1} />;
   return (
     <path
       d={`M${cx} ${cy - r}L${cx + r * 0.85} ${cy - r * 0.2}L${cx} ${cy + r}L${cx - r * 0.85} ${cy - r * 0.2}Z`}
@@ -386,7 +435,8 @@ function Heart({ cx, cy, size, fill, stroke }: { cx: number; cy: number; size: n
   );
 }
 
-function GoldDie({ x, y, size }: { x: number; y: number; size: number }) {
+function GoldDie({ x, y, size, image }: { x: number; y: number; size: number; image?: string }) {
+  if (image) return <Picture href={image} cx={x} cy={y} size={size * 1.15} />;
   const h = size / 2;
   return (
     <g>
@@ -406,10 +456,10 @@ function Bomb({ cx, cy }: { cx: number; cy: number }) {
   );
 }
 
-function RowBonusIcon({ kind, cx, cy }: { kind: RowBonus; cx: number; cy: number }) {
+function RowBonusIcon({ kind, cx, cy, gold }: { kind: RowBonus; cx: number; cy: number; gold?: string }) {
   if (kind === "bombe") return <Bomb cx={cx} cy={cy} />;
   if (kind === "herz") return <Heart cx={cx} cy={cy} size={7} fill={red} />;
-  return <GoldDie x={cx} y={cy} size={6} />;
+  return <GoldDie x={cx} y={cy} size={6} image={gold} />;
 }
 
 function Jokers({ x, y, count, ink }: { x: number; y: number; count: number; ink: string }) {

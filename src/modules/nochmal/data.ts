@@ -20,7 +20,8 @@ export type Sheet = {
   rows: number;
   // Column index where the first cross has to go (H on the original sheet).
   start: number;
-  // Colour index (0–4) of every box, row by row.
+  // Colour index (0–4) of every box, row by row; −1 for a box that has no
+  // colour yet (sheets made from scratch).
   cells: number[];
   // Indexes of the boxes with a star (−2 if still empty at the end).
   stars: number[];
@@ -55,7 +56,30 @@ export type Sheet = {
   outlines: boolean;
   // The boxes for the final score at the bottom.
   scoring: boolean;
+  // Own pictures instead of the drawn star, golden die and diamond, and a
+  // background for the card: public URLs in the nochmal-images bucket.
+  art: Art;
 };
+
+export type ArtSlot = "star" | "gold" | "diamond" | "background";
+export type Art = Partial<Record<ArtSlot, string>>;
+export const artSlots: ArtSlot[] = ["star", "gold", "diamond", "background"];
+export const EMPTY = -1;
+
+export const IMAGE_BUCKET = "nochmal-images";
+const imagePrefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${IMAGE_BUCKET}/`;
+
+// Only our own uploads (random names in the user's folder) are kept.
+function cleanArt(value: unknown): Art {
+  const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const art: Art = {};
+  for (const slot of artSlots) {
+    const url = raw[slot];
+    if (typeof url === "string" && url.length <= 300 && url.startsWith(imagePrefix) && /^[\w-]+\/[\w-]+\.(webp|png|jpg)$/.test(url.slice(imagePrefix.length)))
+      art[slot] = url;
+  }
+  return art;
+}
 
 export const limits = {
   cols: { min: 5, max: 25 },
@@ -482,6 +506,7 @@ export function generate(options: GeneratorOptions): Sheet {
     const stars = placeStars(cols, rows, cells, blockOf, starsPerColumn, rand);
     const variant = variantOf(options.variant);
     const sheet: Sheet = {
+      ...variantParts(variant, rows),
       version: 1,
       cols,
       rows,
@@ -492,18 +517,9 @@ export function generate(options: GeneratorOptions): Sheet {
       bonus: [5, 3],
       jokers: clamp(Math.round(options.jokers), limits.jokers.min, limits.jokers.max),
       starPenalty: 2,
-      variant: variant.id,
-      rowBonuses: variant.rows ? rowBonuses(rows) : [],
-      rowScore: 5,
-      hearts: variant.hearts,
       gold: placeGold(cols, rows, stars, blockOf, variant.gold, rand),
-      specials: variant.specials,
       diamonds: placeDiamonds(cols, rows, stars, Math.min(variant.diamonds, cols), rand),
-      passes: variant.passes,
-      chips: variant.chips,
       icons: variant.kids ? placeAnimals(blocks, stars, rand) : [],
-      outlines: variant.kids,
-      scoring: variant.scoring,
     };
     const startColours = new Set(Array.from({ length: rows }, (_, row) => cells[row * cols + start])).size;
     const starsOk = starsPerColumn === 0 || stars.length === cols * starsPerColumn;
@@ -517,6 +533,47 @@ export function generate(options: GeneratorOptions): Sheet {
     if (++tiledCount >= 4) return fallback;
   }
   return fallback ?? emptySheet(cols, rows);
+}
+
+// What a variant adds to a sheet, without the parts placed on boxes.
+function variantParts(variant: Variant, rows: number) {
+  return {
+    variant: variant.id,
+    rowBonuses: variant.rows ? rowBonuses(rows) : [],
+    rowScore: 5,
+    hearts: variant.hearts,
+    specials: variant.specials,
+    passes: variant.passes,
+    chips: variant.chips,
+    outlines: variant.kids,
+    scoring: variant.scoring,
+    art: {},
+  };
+}
+
+// A sheet to make from scratch: the size and parts of the chosen game, but
+// every box still without a colour and no stars or other marks. The editor
+// then paints the boxes and sets the stars.
+export function blankSheet(options: GeneratorOptions): Sheet {
+  const cols = clamp(Math.round(options.cols), limits.cols.min, limits.cols.max);
+  const rows = clamp(Math.round(options.rows), limits.rows.min, limits.rows.max);
+  const start = Math.floor(cols / 2);
+  return {
+    version: 1,
+    cols,
+    rows,
+    start,
+    cells: new Array<number>(cols * rows).fill(EMPTY),
+    stars: [],
+    points: columnPoints(cols, start),
+    bonus: [5, 3],
+    jokers: clamp(Math.round(options.jokers), limits.jokers.min, limits.jokers.max),
+    starPenalty: 2,
+    ...variantParts(variantOf(options.variant), rows),
+    gold: [],
+    diamonds: [],
+    icons: [],
+  };
 }
 
 export function emptySheet(cols: number, rows: number): Sheet {
@@ -544,6 +601,7 @@ export function emptySheet(cols: number, rows: number): Sheet {
     icons: [],
     outlines: false,
     scoring: true,
+    art: {},
   };
 }
 
@@ -551,12 +609,13 @@ export function emptySheet(cols: number, rows: number): Sheet {
 
 export type Block = { color: number; cells: number[] };
 
-// The blocks as a player sees them: touching boxes of the same colour.
+// The blocks as a player sees them: touching boxes of the same colour (boxes
+// without a colour belong to none).
 export function blocksOf(sheet: Sheet): Block[] {
   const seen = new Array<boolean>(sheet.cells.length).fill(false);
   const result: Block[] = [];
   for (let cell = 0; cell < sheet.cells.length; cell++) {
-    if (seen[cell]) continue;
+    if (seen[cell] || sheet.cells[cell] === EMPTY) continue;
     const color = sheet.cells[cell];
     const cells = [cell];
     seen[cell] = true;
@@ -579,7 +638,8 @@ export type Check = { ok: boolean; text: string };
 export function checks(sheet: Sheet): Check[] {
   const counts = colors.map((_, c) => sheet.cells.filter((value) => value === c).length);
   const blocks = blocksOf(sheet);
-  const biggest = Math.max(...blocks.map((block) => block.cells.length));
+  const biggest = Math.max(0, ...blocks.map((block) => block.cells.length));
+  const empty = sheet.cells.filter((value) => value === EMPTY).length;
   const sizesBy = colors.map((_, c) =>
     blocks
       .filter((block) => block.color === c)
@@ -590,12 +650,17 @@ export function checks(sheet: Sheet): Check[] {
   // block that is one bigger).
   const sameBlocks = sizesBy.every((sizes) => sizes.length === sizesBy[0].length) &&
     sizesBy.every((sizes) => sizes.every((size, i) => Math.abs(size - sizesBy[0][i]) <= 1));
-  const startColours = new Set(Array.from({ length: sheet.rows }, (_, row) => sheet.cells[index(sheet, sheet.start, row)])).size;
+  const startColours = new Set(
+    Array.from({ length: sheet.rows }, (_, row) => sheet.cells[index(sheet, sheet.start, row)]).filter((value) => value !== EMPTY),
+  ).size;
   const starColours = colors.map((_, c) => sheet.stars.filter((cell) => sheet.cells[cell] === c).length);
   const starColumns = new Set(sheet.stars.map((cell) => cell % sheet.cols)).size;
   const spread = Math.max(...counts) - Math.min(...counts);
 
   return [
+    ...(empty > 0
+      ? [{ ok: false, text: `${empty} von ${sheet.cells.length} Kästchen haben noch keine Farbe` }]
+      : []),
     {
       ok: spread <= 1,
       text: `Felder pro Farbe: ${counts.map((count, c) => `${colors[c].name} ${count}`).join(", ")}`,
@@ -610,7 +675,9 @@ export function checks(sheet: Sheet): Check[] {
     {
       ok: sameBlocks,
       text: sameBlocks
-        ? `Jede Farbe hat dieselben Blöcke: ${sizesBy[0].join(" + ")}`
+        ? sizesBy[0].length === 0
+          ? "Noch keine Farbblöcke"
+          : `Jede Farbe hat dieselben Blöcke: ${sizesBy[0].join(" + ")}`
         : `Blöcke je Farbe: ${sizesBy.map((sizes, c) => `${colors[c].name} ${sizes.join("+")}`).join(", ")}`,
     },
     {
@@ -654,11 +721,11 @@ export function cleanSheet(input: unknown): Sheet {
   const total = cols * rows;
   const start = int(raw.start, 0, cols - 1, Math.floor(cols / 2));
   const rawCells = Array.isArray(raw.cells) ? raw.cells : [];
-  const cells = Array.from({ length: total }, (_, i) => int(rawCells[i], 0, colors.length - 1, (i % cols) % colors.length));
+  const cells = Array.from({ length: total }, (_, i) => int(rawCells[i], EMPTY, colors.length - 1, (i % cols) % colors.length));
   const stars = [...new Set((Array.isArray(raw.stars) ? raw.stars : []).map((cell) => int(cell, -1, total - 1, -1)))]
     .filter((cell) => cell >= 0)
     .sort((a, b) => a - b);
-    const rawPoints = Array.isArray(raw.points) ? raw.points : [];
+  const rawPoints = Array.isArray(raw.points) ? raw.points : [];
   const defaults = columnPoints(cols, start);
   const points = defaults.map((fallback, col): [number, number] => {
     const pair = Array.isArray(rawPoints[col]) ? rawPoints[col] : fallback;
@@ -703,6 +770,7 @@ export function cleanSheet(input: unknown): Sheet {
     icons,
     outlines: raw.outlines === true,
     scoring: raw.scoring !== false,
+    art: cleanArt(raw.art),
   };
 }
 

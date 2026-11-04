@@ -5,9 +5,9 @@ import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { fontVariables } from "./fonts";
 
-// The module's own look: a dark "game table" with chunky rounded controls,
-// orange accents and a round display face. Fixed colours, the same in light
-// and dark mode, like a game box.
+// The module's own look: a "game table" with chunky rounded controls,
+// orange accents and a round display face. Light like the rest of the app,
+// a dark table in dark mode (the --nm-* colours in globals.css).
 
 export const display = "font-[family-name:var(--font-display)] font-normal tracking-wide";
 
@@ -16,7 +16,7 @@ export function Table({ children, className }: { children: ReactNode; className?
     <div
       className={cn(
         fontVariables,
-        "-mx-4 -my-8 min-h-[calc(100vh-3.5rem)] bg-[#111417] px-4 py-6 font-[family-name:var(--font-body)] text-[#f2f4f5] sm:mx-0 sm:my-0 sm:min-h-0 sm:rounded-3xl sm:p-8 print:hidden",
+        "nochmal-theme -mx-4 -my-8 min-h-[calc(100vh-3.5rem)] bg-(--nm-table) px-4 py-6 font-[family-name:var(--font-body)] text-(--nm-text) sm:mx-0 sm:my-0 sm:min-h-0 sm:rounded-3xl sm:border sm:border-(--nm-line) sm:p-8 print:hidden",
         className,
       )}
     >
@@ -26,7 +26,7 @@ export function Table({ children, className }: { children: ReactNode; className?
 }
 
 export function Panel({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("rounded-[22px] border border-[#2a3036] bg-[#1b1f23] p-5", className)}>{children}</div>;
+  return <div className={cn("rounded-[22px] border border-(--nm-line) bg-(--nm-panel) p-5", className)}>{children}</div>;
 }
 
 export function Heading({ children, className, as: Tag = "h2" }: { children: ReactNode; className?: string; as?: "h2" | "h3" }) {
@@ -34,7 +34,7 @@ export function Heading({ children, className, as: Tag = "h2" }: { children: Rea
 }
 
 export function Muted({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn("text-sm font-bold text-[#b4bcc4]", className)}>{children}</p>;
+  return <p className={cn("text-sm font-bold text-(--nm-muted)", className)}>{children}</p>;
 }
 
 // A selectable card or chip (aria-pressed), orange border when chosen.
@@ -45,7 +45,7 @@ export function Choice({ active, className, ...props }: ComponentProps<"button">
       aria-pressed={active}
       className={cn(
         "flex min-h-11 cursor-pointer flex-col items-start gap-0.5 rounded-[14px] border-2 px-3 py-2 text-left transition-colors",
-        active ? "border-[#ff9a2e] bg-[#2a2117]" : "border-[#2a3036] bg-[#15191c] hover:border-[#3a424a]",
+        active ? "border-[#ff9a2e] bg-(--nm-chosen)" : "border-(--nm-line) bg-(--nm-field) hover:border-(--nm-line-hover)",
         className,
       )}
       {...props}
@@ -66,8 +66,8 @@ export function Segmented({
 }) {
   return (
     <div className="space-y-1.5">
-      {label && <p className="text-sm font-bold text-[#b4bcc4]">{label}</p>}
-      <div className="grid gap-1 rounded-xl bg-[#111417] p-1" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
+      {label && <p className="text-sm font-bold text-(--nm-muted)">{label}</p>}
+      <div className="grid gap-1 rounded-xl bg-(--nm-sunken) p-1" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
         {options.map((option) => (
           <button
             key={option.id}
@@ -76,7 +76,7 @@ export function Segmented({
             onClick={() => onChange(option.id)}
             className={cn(
               "min-h-11 cursor-pointer rounded-[9px] px-2 text-sm font-extrabold transition-colors",
-              value === option.id ? "bg-[#ff9a2e] text-[#1a1205]" : "text-[#dfe4e8] hover:bg-[#1f2428]",
+              value === option.id ? "bg-[#ff9a2e] text-[#1a1205]" : "text-(--nm-text-soft) hover:bg-(--nm-hover)",
             )}
           >
             {option.name}
@@ -103,10 +103,10 @@ export function Stepper({
   onChange: (value: number) => void;
 }) {
   const button =
-    "flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-[#2f363d] bg-[#15191c] text-[#f2f4f5] hover:bg-[#1f2428] disabled:cursor-default disabled:opacity-40 [&_svg]:size-4";
+    "flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-(--nm-line-strong) bg-(--nm-field) text-(--nm-text) hover:bg-(--nm-hover) disabled:cursor-default disabled:opacity-40 [&_svg]:size-4";
   return (
     <div className="space-y-1.5">
-      <p className="text-sm font-bold text-[#b4bcc4]">{label}</p>
+      <p className="text-sm font-bold text-(--nm-muted)">{label}</p>
       <div className="flex items-center gap-1.5">
         <button type="button" className={button} aria-label={`${label} weniger`} disabled={value <= min} onClick={() => onChange(value - 1)}>
           <MinusIcon />
@@ -128,8 +128,8 @@ export function BigButton({ tone = "orange", className, ...props }: ComponentPro
         display,
         "inline-flex h-[52px] cursor-pointer items-center justify-center gap-2.5 rounded-full px-6 text-lg transition-colors disabled:cursor-default disabled:opacity-60 [&_svg]:size-5",
         tone === "orange" && "bg-[#ff9a2e] text-[#1a1205] hover:bg-[#ffab52]",
-        tone === "white" && "bg-white text-[#111417] hover:bg-[#e9edf0]",
-        tone === "ghost" && "border border-[#2f363d] bg-[#1b1f23] text-[#dfe4e8] hover:bg-[#232a30]",
+        tone === "white" && "bg-(--nm-contrast) text-(--nm-contrast-ink) hover:bg-(--nm-contrast-hover)",
+        tone === "ghost" && "border border-(--nm-line-strong) bg-(--nm-panel) text-(--nm-text-soft) hover:bg-(--nm-hover)",
         className,
       )}
       {...props}
@@ -142,7 +142,7 @@ export function SmallButton({ className, ...props }: ComponentProps<"button">) {
     <button
       type="button"
       className={cn(
-        "inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-[#2f363d] bg-[#1b1f23] px-4 text-sm font-extrabold text-[#dfe4e8] hover:bg-[#232a30] [&_svg]:size-4",
+        "inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-(--nm-line-strong) bg-(--nm-panel) px-4 text-sm font-extrabold text-(--nm-text-soft) hover:bg-(--nm-hover) [&_svg]:size-4",
         className,
       )}
       {...props}
@@ -153,10 +153,10 @@ export function SmallButton({ className, ...props }: ComponentProps<"button">) {
 export function TextField({ label, className, ...props }: ComponentProps<"input"> & { label: string }) {
   return (
     <label className="block space-y-1.5">
-      <span className="text-sm font-bold text-[#b4bcc4]">{label}</span>
+      <span className="text-sm font-bold text-(--nm-muted)">{label}</span>
       <input
         className={cn(
-          "h-12 w-full rounded-xl border-2 border-[#2f363d] bg-[#111417] px-3.5 text-base font-bold text-[#f2f4f5] outline-none placeholder:text-[#6f7881] focus:border-[#ff9a2e]",
+          "h-12 w-full rounded-xl border-2 border-(--nm-line-strong) bg-(--nm-field) px-3.5 text-base font-bold text-(--nm-text) outline-none placeholder:text-(--nm-faint) focus:border-[#ff9a2e]",
           className,
         )}
         {...props}
