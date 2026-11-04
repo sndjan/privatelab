@@ -214,6 +214,17 @@ export const moduleMeta: ModuleMeta[] = [
     category: "spiele",
     status: "planned",
   },
+  {
+    // Idea: meals take different focus times (e.g. Salat 15 min, Lasagne
+    // 50 min); finished and served meals earn money to grow the restaurant.
+    // The 2D cooking animations are meant to be shared with Tischlein Plan dich.
+    id: "pomodoro-restaurant",
+    name: "Pomodoro-Restaurant",
+    description: "Pomodoro-Timer als Restaurant: Gerichte mit eigener Kochzeit starten, mit 2D-Animation zubereiten, servieren, Geld verdienen und das Restaurant ausbauen.",
+    icon: "🍝",
+    category: "spiele",
+    status: "planned",
+  },
 
   // Lernen & Wissen
   {
