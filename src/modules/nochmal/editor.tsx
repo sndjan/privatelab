@@ -3,7 +3,8 @@
 import { Redo2Icon, Undo2Icon } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { cn } from "@/lib/utils";
-import { blocksOf, checks, colors, columnPoints, letter, limits, maxScore, type Sheet } from "./data";
+import { ArtPanel } from "./art";
+import { blocksOf, checks, colors, columnPoints, EMPTY, letter, limits, maxScore, type ArtSlot, type Sheet } from "./data";
 import { SheetSvg } from "./sheet-svg";
 import { display, Heading, Panel, Stepper } from "./ui";
 
@@ -26,8 +27,8 @@ const marks: { id: Mark; name: string; hint: string; show: (sheet: Sheet) => boo
   },
 ];
 
-// Paint boxes by hand: pick a colour and tap or drag over boxes, or a mark
-// (star, golden die, diamond) to set and remove it. Tapping a column letter
+// Paint boxes by hand: pick a colour (or "Ohne Farbe" to clear) and tap or
+// drag over boxes, or a mark (star, golden die, diamond) to set and remove it. Tapping a column letter
 // makes it the start column. The panel says whether the sheet still plays well.
 export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (sheet: Sheet) => void }) {
   const [tool, setTool] = useState<Tool>(0);
@@ -135,14 +136,20 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
   const toolButton = (active: boolean) =>
     cn(
       "flex h-[46px] cursor-pointer items-center gap-2 rounded-xl border-2 pr-3.5 pl-2 text-sm font-extrabold transition-colors",
-      active ? "border-[#ff9a2e] bg-[#2a2117]" : "border-[#2a3036] bg-[#15191c] hover:border-[#3a424a]",
+      active ? "border-[#ff9a2e] bg-(--nm-chosen)" : "border-(--nm-line) bg-(--nm-field) hover:border-(--nm-line-hover)",
     );
   const set = (patch: Partial<Sheet>) => commit({ ...sheet, ...patch });
+  const artSlots: ArtSlot[] = [
+    "star",
+    ...(marks[1].show(sheet) ? (["gold"] as const) : []),
+    ...(marks[2].show(sheet) ? (["diamond"] as const) : []),
+    "background",
+  ];
 
   return (
     <div className="flex flex-wrap items-start gap-5">
       <div className="flex min-w-0 flex-[999_1_640px] flex-col gap-3.5">
-        <div className="flex flex-wrap items-center gap-2 rounded-[18px] border border-[#2a3036] bg-[#1b1f23] p-2.5">
+        <div className="flex flex-wrap items-center gap-2 rounded-[18px] border border-(--nm-line) bg-(--nm-panel) p-2.5">
           <div role="toolbar" aria-label="Werkzeuge" className="flex flex-wrap gap-2">
             {colors.map((color, c) => (
               <button key={color.name} type="button" aria-pressed={tool === c} onClick={() => setTool(c)} className={toolButton(tool === c)}>
@@ -150,6 +157,10 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
                 {color.name}
               </button>
             ))}
+            <button type="button" aria-pressed={tool === EMPTY} onClick={() => setTool(EMPTY)} className={toolButton(tool === EMPTY)}>
+              <span className="size-7 rounded-[7px] border-2 border-dashed border-(--nm-faint) bg-white" />
+              Ohne Farbe
+            </button>
             {marks
               .filter((mark) => mark.show(sheet))
               .map((mark) => (
@@ -171,7 +182,7 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-[22px] border border-[#2a3036] bg-[#0d1013] p-3 sm:p-5">
+        <div className="overflow-x-auto rounded-[22px] border border-(--nm-line) bg-(--nm-well) p-3 sm:p-5">
           <SheetSvg
             sheet={sheet}
             highlight={tooBig}
@@ -184,8 +195,12 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
             onPointerCancel={onUp}
           />
         </div>
-        <p className="text-sm font-semibold text-[#b4bcc4]">
-          {typeof tool === "number" ? "Farbe wählen und über Kästchen wischen." : marks.find((mark) => mark.id === tool)!.hint} Ein Buchstabe oben
+        <p className="text-sm font-semibold text-(--nm-muted)">
+          {tool === EMPTY
+            ? "Über Kästchen wischen nimmt ihnen die Farbe."
+            : typeof tool === "number"
+              ? "Farbe wählen und über Kästchen wischen."
+              : marks.find((mark) => mark.id === tool)!.hint} Ein Buchstabe oben
           macht die Spalte zur Startspalte (Punkte passen sich an). Zu große Blöcke sind rot umrandet.
         </p>
       </div>
@@ -207,7 +222,7 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
                 {result.text}
               </li>
             ))}
-            <li className="text-sm font-bold text-[#b4bcc4]">
+            <li className="text-sm font-bold text-(--nm-muted)">
               Startspalte {letter(sheet.start)} · höchstens {maxScore(sheet)} Punkte
             </li>
           </ul>
@@ -217,9 +232,9 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
           <Heading className="mb-3">Farben</Heading>
           <div className="grid grid-cols-5 gap-1.5">
             {colors.map((color, c) => (
-              <div key={color.name} className="flex flex-col items-center gap-1.5 rounded-xl bg-[#15191c] py-2.5">
+              <div key={color.name} className="flex flex-col items-center gap-1.5 rounded-xl bg-(--nm-field) py-2.5">
                 <span className="size-[26px] rounded-[7px]" style={{ background: color.fill }} />
-                <span className={cn(display, "text-xl", Math.abs(counts[c] - fair) > 1 && "text-[#ffcf2e]")}>{counts[c]}</span>
+                <span className={cn(display, "text-xl", Math.abs(counts[c] - fair) > 1 && "text-(--nm-warn)")}>{counts[c]}</span>
               </div>
             ))}
           </div>
@@ -244,13 +259,15 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
             </>
           )}
         </Panel>
+
+        <ArtPanel sheet={sheet} slots={artSlots} onChange={(next) => commit(next)} />
       </aside>
     </div>
   );
 }
 
 const historyButton =
-  "flex size-[46px] cursor-pointer items-center justify-center rounded-xl border border-[#2f363d] bg-[#15191c] text-[#dfe4e8] hover:bg-[#1f2428] disabled:cursor-default disabled:text-[#5b636b] [&_svg]:size-5";
+  "flex size-[46px] cursor-pointer items-center justify-center rounded-xl border border-(--nm-line-strong) bg-(--nm-field) text-(--nm-text-soft) hover:bg-(--nm-hover) disabled:cursor-default disabled:text-(--nm-faint) [&_svg]:size-5";
 
 function MarkIcon({ mark }: { mark: Mark }) {
   if (mark === "gold")

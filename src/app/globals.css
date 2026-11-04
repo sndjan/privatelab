@@ -157,3 +157,62 @@
     transform: scaleX(0.9);
   }
 }
+
+/* Noch-mal-Blätter (src/modules/nochmal/ui.tsx): the module's own colours,
+   light like the rest of the app and a dark game table in dark mode. The
+   sheets themselves keep their fixed colours (they are pictures). */
+.nochmal-theme {
+  --nm-table: #ffffff;
+  --nm-panel: #f6f7f4;
+  --nm-field: #ffffff;
+  --nm-sunken: #eef0ec;
+  --nm-chip: #eef0ec;
+  --nm-hover: #e4e8e2;
+  --nm-line: #dde1dc;
+  --nm-line-strong: #c9cfca;
+  --nm-line-hover: #a9b2ac;
+  --nm-text: #16201c;
+  --nm-text-soft: #2c3832;
+  --nm-muted: #5b6660;
+  --nm-faint: #9aa39e;
+  --nm-chosen: #fff1e1;
+  --nm-well: #eef0ec;
+  --nm-danger: #b42318;
+  --nm-ok: #3f7a12;
+  --nm-warn: #8a6100;
+  --nm-contrast: #16201c;
+  --nm-contrast-hover: #2c3832;
+  --nm-contrast-ink: #ffffff;
+  --nm-stage: radial-gradient(circle at 30% 20%, #ffffff 0%, #e9ece6 70%);
+  --nm-stage-line: #dde1dc;
+  --nm-shadow: rgba(22, 32, 28, 0.2);
+}
+
+@media screen {
+  [data-theme="dark"] .nochmal-theme {
+    --nm-table: #111417;
+    --nm-panel: #1b1f23;
+    --nm-field: #15191c;
+    --nm-sunken: #111417;
+    --nm-chip: #1f2428;
+    --nm-hover: #262d33;
+    --nm-line: #2a3036;
+    --nm-line-strong: #2f363d;
+    --nm-line-hover: #3a424a;
+    --nm-text: #f2f4f5;
+    --nm-text-soft: #d3d9de;
+    --nm-muted: #b4bcc4;
+    --nm-faint: #5b636b;
+    --nm-chosen: #2a2117;
+    --nm-well: #0d1013;
+    --nm-danger: #ff8a8a;
+    --nm-ok: #9fd36a;
+    --nm-warn: #ffe08a;
+    --nm-contrast: #ffffff;
+    --nm-contrast-hover: #e9edf0;
+    --nm-contrast-ink: #111417;
+    --nm-stage: radial-gradient(circle at 30% 20%, #134034 0%, #0b2a22 60%);
+    --nm-stage-line: #1d4a3d;
+    --nm-shadow: rgba(0, 0, 0, 0.45);
+  }
+}

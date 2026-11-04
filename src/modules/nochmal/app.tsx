@@ -11,6 +11,7 @@ import { ViewLink as Link, useViewNavigate } from "@/lib/query/view-link";
 import { cn } from "@/lib/utils";
 import { createSheet, deleteSheet, duplicateSheet, saveSheet } from "./actions";
 import {
+  blankSheet,
   blockPlan,
   defaultOptions,
   generate,
@@ -65,10 +66,10 @@ function Home() {
             <a href="#neu" className="rounded-full bg-[#ff9a2e] px-4 py-2.5 font-extrabold text-[#1a1205]">
               Neues Blatt
             </a>
-            <a href="#meine" className="rounded-full bg-[#1f2428] px-4 py-2.5 font-bold text-[#dfe4e8] hover:bg-[#283037]">
+            <a href="#meine" className="rounded-full bg-(--nm-chip) px-4 py-2.5 font-bold text-(--nm-text-soft) hover:bg-(--nm-hover)">
               Meine Blätter
             </a>
-            <a href="#regeln" className="rounded-full bg-[#1f2428] px-4 py-2.5 font-bold text-[#dfe4e8] hover:bg-[#283037]">
+            <a href="#regeln" className="rounded-full bg-(--nm-chip) px-4 py-2.5 font-bold text-(--nm-text-soft) hover:bg-(--nm-hover)">
               Kurzregeln
             </a>
           </nav>
@@ -84,7 +85,7 @@ function Home() {
             </Muted>
           </div>
           {sheets.length === 0 ? (
-            <div className="rounded-[20px] border-2 border-dashed border-[#2a3036] p-8 text-center font-bold text-[#b4bcc4]">
+            <div className="rounded-[20px] border-2 border-dashed border-(--nm-line) p-8 text-center font-bold text-(--nm-muted)">
               Noch kein Blatt. Würfel oben eins zusammen und leg es an.
             </div>
           ) : (
@@ -109,15 +110,15 @@ function SheetCard({ entry }: { entry: SheetEntry }) {
   return (
     <Link
       href={`${PATH}?sheet=${entry.id}`}
-      className="flex flex-col overflow-hidden rounded-[20px] border border-[#2a3036] bg-[#1b1f23] transition-colors hover:border-[#ff9a2e]"
+      className="flex flex-col overflow-hidden rounded-[20px] border border-(--nm-line) bg-(--nm-panel) transition-colors hover:border-[#ff9a2e]"
     >
-      <div className="bg-[#0d1013] p-3">
+      <div className="bg-(--nm-well) p-3">
         <SheetSvg sheet={entry.sheet} className="block h-auto w-full" />
       </div>
       <div className="flex items-center justify-between gap-2 px-4 py-3.5">
         <div className="min-w-0">
           <p className={cn(display, "truncate text-lg")}>{entry.name}</p>
-          <p className="text-[13px] font-bold text-[#b4bcc4]">
+          <p className="text-[13px] font-bold text-(--nm-muted)">
             {entry.sheet.cols} × {entry.sheet.rows} · {new Date(entry.updatedAt).toLocaleDateString("de-DE")}
           </p>
         </div>
@@ -136,10 +137,13 @@ function Generator() {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [options, setOptions] = useState<GeneratorOptions>(() => ({ ...defaultOptions, seed: Math.floor(Math.random() * 1e9) }));
+  // "random": a generated plan; "blank": every box set by hand in the editor.
+  const [start, setStart] = useState<"random" | "blank">("random");
   const [pending, startTransition] = useTransition();
   // Big sheets take a moment to lay out; the controls stay quick meanwhile.
   const deferred = useDeferredValue(options);
-  const preview = useMemo(() => generate(deferred), [deferred]);
+  const blank = start === "blank";
+  const preview = useMemo(() => (blank ? blankSheet(deferred) : generate(deferred)), [deferred, blank]);
   const set = (patch: Partial<GeneratorOptions>) => setOptions((current) => ({ ...current, ...patch }));
 
   function pickVariant(id: VariantId) {
@@ -149,7 +153,7 @@ function Generator() {
 
   function create() {
     startTransition(async () => {
-      const id = await createSheet(name || `Blatt ${new Date().toLocaleDateString("de-DE")}`, generate(options));
+      const id = await createSheet(name || `Blatt ${new Date().toLocaleDateString("de-DE")}`, blank ? blankSheet(options) : generate(options));
       await queryClient.invalidateQueries({ queryKey: ["nochmal"] });
       navigate(`${PATH}?sheet=${id}`);
     });
@@ -162,6 +166,20 @@ function Generator() {
     <section id="neu" className="flex scroll-mt-6 flex-wrap items-start gap-6">
       <Panel className="flex max-w-[460px] flex-[1_1_380px] flex-col gap-6">
         <div className="space-y-2.5">
+          <Heading>Wie anfangen?</Heading>
+          <div className="grid grid-cols-2 gap-2">
+            <Choice active={!blank} onClick={() => setStart("random")}>
+              <span className="text-sm font-extrabold">Zufällig würfeln</span>
+              <span className="text-xs text-(--nm-muted)">Fertiger Plan zum Anpassen</span>
+            </Choice>
+            <Choice active={blank} onClick={() => setStart("blank")}>
+              <span className="text-sm font-extrabold">Von Grund auf</span>
+              <span className="text-xs text-(--nm-muted)">Leere Kästchen, alles selbst setzen</span>
+            </Choice>
+          </div>
+        </div>
+
+        <div className="space-y-2.5">
           <Heading>Welches Spiel?</Heading>
           <div className="grid grid-cols-2 gap-2">
             {variants.map((variant) => (
@@ -172,7 +190,7 @@ function Generator() {
                   ))}
                 </span>
                 <span className={cn(display, "text-[17px]")}>{variant.name}</span>
-                <span className="text-[12.5px] leading-snug text-[#b4bcc4]">{variant.hint}</span>
+                <span className="text-[12.5px] leading-snug text-(--nm-muted)">{variant.hint}</span>
               </Choice>
             ))}
           </div>
@@ -188,7 +206,7 @@ function Generator() {
                 onClick={() => set({ cols: preset.cols, rows: preset.rows })}
               >
                 <span className="text-sm font-extrabold">{preset.name}</span>
-                <span className="text-xs text-[#b4bcc4]">
+                <span className="text-xs text-(--nm-muted)">
                   {preset.cols} × {preset.rows}
                 </span>
               </Choice>
@@ -200,52 +218,69 @@ function Generator() {
           </div>
         </div>
 
-        <div className="space-y-2.5">
-          <Heading>Farbblöcke</Heading>
-          <Segmented
-            label="Größter Block"
-            value={String(options.maxBlock)}
-            options={[4, 5, 6].map((n) => ({ id: String(n), name: `${n} Kästchen` }))}
-            onChange={(value) => set({ maxBlock: Number(value) })}
-          />
-          <Muted className="font-semibold">Jede Farbe bekommt dieselben Blöcke: {plan.join(" + ")}.</Muted>
-        </div>
+        {blank ? (
+          <>
+            <Muted className="font-semibold leading-relaxed">
+              Im Editor malst du jedes Kästchen in einer der fünf Farben an und setzt die Sterne selbst. Gut spielbar wird es mit{" "}
+              {plan.join(" + ")} Kästchen großen Blöcken je Farbe; die Prüfliste dort hilft dabei.
+            </Muted>
+            <Stepper label="Joker" value={options.jokers} {...limits.jokers} onChange={(jokers) => set({ jokers })} />
+          </>
+        ) : (
+          <>
+            <div className="space-y-2.5">
+              <Heading>Farbblöcke</Heading>
+              <Segmented
+                label="Größter Block"
+                value={String(options.maxBlock)}
+                options={[4, 5, 6].map((n) => ({ id: String(n), name: `${n} Kästchen` }))}
+                onChange={(value) => set({ maxBlock: Number(value) })}
+              />
+              <Muted className="font-semibold">Jede Farbe bekommt dieselben Blöcke: {plan.join(" + ")}.</Muted>
+            </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Segmented
-            label="Sterne pro Spalte"
-            value={String(options.starsPerColumn)}
-            options={[0, 1, 2].map((n) => ({ id: String(n), name: String(n) }))}
-            onChange={(value) => set({ starsPerColumn: Number(value) })}
-          />
-          <Stepper label="Joker" value={options.jokers} {...limits.jokers} onChange={(jokers) => set({ jokers })} />
-        </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Segmented
+                label="Sterne pro Spalte"
+                value={String(options.starsPerColumn)}
+                options={[0, 1, 2].map((n) => ({ id: String(n), name: String(n) }))}
+                onChange={(value) => set({ starsPerColumn: Number(value) })}
+              />
+              <Stepper label="Joker" value={options.jokers} {...limits.jokers} onChange={(jokers) => set({ jokers })} />
+            </div>
+          </>
+        )}
 
         <TextField label="Name" placeholder="z. B. Waldlauf" maxLength={80} value={name} onChange={(event) => setName(event.target.value)} />
       </Panel>
 
       <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-4">
-        <div className="flex flex-col items-center gap-6 rounded-[26px] border border-[#1d4a3d] bg-[radial-gradient(circle_at_30%_20%,#134034_0%,#0b2a22_60%)] px-5 py-8 sm:px-8">
-          <div className={cn("w-full max-w-3xl -rotate-1 drop-shadow-[0_24px_40px_rgba(0,0,0,0.45)] transition-opacity", deferred !== options && "opacity-70")}>
+        <div className="flex flex-col items-center gap-6 rounded-[26px] border border-(--nm-stage-line) bg-(image:--nm-stage) px-5 py-8 sm:px-8">
+          <div className={cn("w-full max-w-3xl -rotate-1 drop-shadow-[0_24px_40px_var(--nm-shadow)] transition-opacity", deferred !== options && "opacity-70")}>
             <SheetSvg sheet={preview} className="block h-auto w-full" />
           </div>
           <div className="flex flex-wrap justify-center gap-2.5">
-            <BigButton tone="white" onClick={() => set({ seed: Math.floor(Math.random() * 1e9) })}>
-              <DicesIcon /> Neu würfeln
-            </BigButton>
+            {!blank && (
+              <BigButton tone="white" onClick={() => set({ seed: Math.floor(Math.random() * 1e9) })}>
+                <DicesIcon /> Neu würfeln
+              </BigButton>
+            )}
             <BigButton onClick={create} disabled={pending}>
-              {pending ? "Wird angelegt …" : "Blatt anlegen"}
+              {pending ? "Wird angelegt …" : blank ? "Leeres Blatt anlegen" : "Blatt anlegen"}
             </BigButton>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {[
-            `${total} Kästchen`,
-            `${Math.floor(total / 5)}${total % 5 ? "–" + Math.ceil(total / 5) : ""} je Farbe`,
-            `Größter Block ${Math.max(...plan)}`,
-            `max. ${maxScore(preview)} Punkte`,
-          ].map((text) => (
-            <span key={text} className="flex items-center gap-2 rounded-full border border-[#2a3036] bg-[#1b1f23] px-3.5 py-2 text-sm font-bold">
+          {(blank
+            ? [`${total} Kästchen`, `${Math.floor(total / 5)}${total % 5 ? "–" + Math.ceil(total / 5) : ""} je Farbe`, `max. ${maxScore(preview)} Punkte`]
+            : [
+                `${total} Kästchen`,
+                `${Math.floor(total / 5)}${total % 5 ? "–" + Math.ceil(total / 5) : ""} je Farbe`,
+                `Größter Block ${Math.max(...plan)}`,
+                `max. ${maxScore(preview)} Punkte`,
+              ]
+          ).map((text) => (
+            <span key={text} className="flex items-center gap-2 rounded-full border border-(--nm-line) bg-(--nm-panel) px-3.5 py-2 text-sm font-bold">
               <span className="size-2 rounded-full bg-[#8cc63f]" />
               {text}
             </span>
@@ -263,30 +298,30 @@ function Rules() {
     <section id="regeln" className="mt-12 scroll-mt-6">
       <Panel className="p-6">
         <Heading className="mb-4 text-2xl">Kurzregeln</Heading>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-5 text-[15px] leading-relaxed text-[#d3d9de]">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-5 text-[15px] leading-relaxed text-(--nm-text-soft)">
           <p>
-            <strong className="text-white">Würfeln.</strong> Wer dran ist, würfelt alle Würfel und nimmt 1 Farb- und 1 Zahlenwürfel. Alle
+            <strong className="text-(--nm-text)">Würfeln.</strong> Wer dran ist, würfelt alle Würfel und nimmt 1 Farb- und 1 Zahlenwürfel. Alle
             anderen wählen aus dem Rest. In den ersten 3 Würfen dürfen alle aus allen Würfeln wählen. Passen geht immer.
           </p>
           <p>
-            <strong className="text-white">Ankreuzen.</strong> Genau so viele Kästchen wie die Zahl, zusammenhängend in einem Farbblock,
+            <strong className="text-(--nm-text)">Ankreuzen.</strong> Genau so viele Kästchen wie die Zahl, zusammenhängend in einem Farbblock,
             waagerecht oder senkrecht an Kreuze oder die Startspalte angrenzend. Der erste Wurf muss in die Startspalte. Höchstens 5 pro Wurf.
           </p>
           <p>
-            <strong className="text-white">Joker.</strong> „?“ ist eine Zahl von 1 bis 5, das schwarze Kreuz eine Farbe nach Wahl. Pro Joker ein
+            <strong className="text-(--nm-text)">Joker.</strong> „?“ ist eine Zahl von 1 bis 5, das schwarze Kreuz eine Farbe nach Wahl. Pro Joker ein
             Ausrufezeichen streichen; übrige zählen am Ende je 1 Punkt.
           </p>
           <p>
-            <strong className="text-white">Werten.</strong> Volle Spalte: obere Zahl für die Ersten, alle späteren die untere. Volle Farbe: 5
+            <strong className="text-(--nm-text)">Werten.</strong> Volle Spalte: obere Zahl für die Ersten, alle späteren die untere. Volle Farbe: 5
             bzw. 3. Leere Sterne −2. Schluss, sobald jemand die zweite Farbe voll hat.
           </p>
           <p>
-            <strong className="text-white">Noch mal so gut!</strong> Goldene Würfelfelder schalten Sonderwürfel frei (Bombe 2×2, Herz, 2 Sterne,
+            <strong className="text-(--nm-text)">Noch mal so gut!</strong> Goldene Würfelfelder schalten Sonderwürfel frei (Bombe 2×2, Herz, 2 Sterne,
             3 in einer Zeile, ganzer Farbblock). Volle Zeile: 5 Punkte, der Erste bekommt den Zeilenbonus. Herzen erhöhen den Bonus für jede
             später volle Spalte; ungenutzte Sonderwürfel +2.
           </p>
           <p>
-            <strong className="text-white">Solo.</strong> Nur 2 Farb- und 2 Zahlenwürfel. Nach jedem Wurf einen Strich in ein Buchstabenfeld,
+            <strong className="text-(--nm-text)">Solo.</strong> Nur 2 Farb- und 2 Zahlenwürfel. Nach jedem Wurf einen Strich in ein Buchstabenfeld,
             je Feld zwei (/ und \). Nach 30 Würfen wird gewertet.
           </p>
         </div>
@@ -311,7 +346,7 @@ function SheetView({ id }: { id: string }) {
       <Table>
         <div className="mx-auto max-w-2xl space-y-3">
           <BackLink />
-          <p className="font-bold text-[#b4bcc4]">Dieses Blatt gibt es nicht (mehr).</p>
+          <p className="font-bold text-(--nm-muted)">Dieses Blatt gibt es nicht (mehr).</p>
         </div>
       </Table>
     );
@@ -321,7 +356,7 @@ function SheetView({ id }: { id: string }) {
 
 function BackLink() {
   return (
-    <Link href={PATH} className="inline-flex items-center gap-1.5 px-1 py-2.5 font-bold text-[#b4bcc4] hover:text-white">
+    <Link href={PATH} className="inline-flex items-center gap-1.5 px-1 py-2.5 font-bold text-(--nm-muted) hover:text-(--nm-text)">
       <ChevronLeftIcon className="size-4" /> Alle Blätter
     </Link>
   );
@@ -408,14 +443,14 @@ function SheetScreen({ id, initialName, initialSheet }: { id: string; initialNam
             <BackLink />
             <span className="ml-auto flex items-center gap-1.5 text-[13px] font-extrabold" aria-live="polite">
               <span className={cn("size-2 rounded-full", status === "saved" ? "bg-[#8cc63f]" : status === "error" ? "bg-[#ff4d4d]" : "bg-[#ffcf2e]")} />
-              <span className={status === "saved" ? "text-[#9fd36a]" : status === "error" ? "text-[#ff8a8a]" : "text-[#ffe08a]"}>
+              <span className={status === "saved" ? "text-(--nm-ok)" : status === "error" ? "text-(--nm-danger)" : "text-(--nm-warn)"}>
                 {status === "saved" ? "Gespeichert" : status === "error" ? "Speichern fehlgeschlagen, versuche es weiter …" : "Speichert …"}
               </span>
             </span>
             <SmallButton onClick={duplicate}>
               <CopyIcon /> Kopie
             </SmallButton>
-            <SmallButton onClick={remove} className="text-[#ff8a8a]">
+            <SmallButton onClick={remove} className="text-(--nm-danger)">
               <Trash2Icon /> Löschen
             </SmallButton>
             <BigButton className="h-11 px-5 text-base" onClick={() => setTab("print")}>
@@ -434,7 +469,7 @@ function SheetScreen({ id, initialName, initialSheet }: { id: string; initialNam
               }}
               className={cn(
                 display,
-                "w-full max-w-md min-w-0 border-0 border-b-2 border-dashed border-[#2f363d] bg-transparent py-0.5 text-4xl text-white outline-none focus:border-[#ff9a2e]",
+                "w-full max-w-md min-w-0 border-0 border-b-2 border-dashed border-(--nm-line-strong) bg-transparent py-0.5 text-4xl text-(--nm-text) outline-none focus:border-[#ff9a2e]",
               )}
             />
             <span className="rounded-full px-3 py-1.5 text-[13px] font-black text-[#111417]" style={{ background: look.badge }}>
@@ -442,7 +477,7 @@ function SheetScreen({ id, initialName, initialSheet }: { id: string; initialNam
             </span>
           </div>
 
-          <div role="tablist" className="flex max-w-lg gap-1 rounded-xl bg-[#1b1f23] p-1">
+          <div role="tablist" className="flex max-w-lg gap-1 rounded-xl bg-(--nm-panel) p-1">
             {tabs.map((entry) => (
               <button
                 key={entry.id}
@@ -452,7 +487,7 @@ function SheetScreen({ id, initialName, initialSheet }: { id: string; initialNam
                 onClick={() => setTab(entry.id)}
                 className={cn(
                   "min-h-11 flex-1 cursor-pointer rounded-[9px] px-3 text-sm font-extrabold whitespace-nowrap transition-colors",
-                  tab === entry.id ? "bg-[#ff9a2e] text-[#1a1205]" : "text-[#dfe4e8] hover:bg-[#232a30]",
+                  tab === entry.id ? "bg-[#ff9a2e] text-[#1a1205]" : "text-(--nm-text-soft) hover:bg-(--nm-hover)",
                 )}
               >
                 {entry.name}
@@ -479,7 +514,7 @@ function SheetScreen({ id, initialName, initialSheet }: { id: string; initialNam
                     {perPageOptions.map((option) => (
                       <Choice key={option.id} active={perPage === option.id} onClick={() => setPerPage(option.id)}>
                         <span className={cn(display, "text-[17px]")}>{option.name}</span>
-                        <span className="text-xs text-[#b4bcc4]">{option.hint}</span>
+                        <span className="text-xs text-(--nm-muted)">{option.hint}</span>
                       </Choice>
                     ))}
                   </div>
@@ -494,8 +529,8 @@ function SheetScreen({ id, initialName, initialSheet }: { id: string; initialNam
                   <PrinterIcon /> Drucken
                 </BigButton>
               </Panel>
-              <div className="min-w-0 flex-[999_1_520px] rounded-[26px] border border-[#1d4a3d] bg-[radial-gradient(circle_at_30%_20%,#134034_0%,#0b2a22_60%)] p-6 sm:p-8">
-                <SheetSvg sheet={sheet} title={name} className="block h-auto w-full -rotate-1 drop-shadow-[0_24px_40px_rgba(0,0,0,0.45)]" />
+              <div className="min-w-0 flex-[999_1_520px] rounded-[26px] border border-(--nm-stage-line) bg-(image:--nm-stage) p-6 sm:p-8">
+                <SheetSvg sheet={sheet} title={name} className="block h-auto w-full -rotate-1 drop-shadow-[0_24px_40px_var(--nm-shadow)]" />
               </div>
             </div>
           )}
@@ -552,15 +587,32 @@ function Regenerate({ sheet, onApply }: { sheet: Sheet; onApply: (sheet: Sheet) 
                 }))
               )
                 return;
-              onApply(generate(options));
+              onApply({ ...generate(options), art: sheet.art });
             }}
           >
             Übernehmen
           </BigButton>
         </div>
+        <button
+          type="button"
+          className="self-start py-2 text-sm font-extrabold text-(--nm-muted) underline underline-offset-4 hover:text-(--nm-text)"
+          onClick={async () => {
+            if (
+              !(await confirmDialog({
+                title: "Alle Kästchen leeren?",
+                description: "Farben, Sterne und Sonderfelder werden entfernt, damit du das Blatt von Grund auf selbst gestalten kannst.",
+                confirmLabel: "Leeren",
+              }))
+            )
+              return;
+            onApply({ ...blankSheet(options), art: sheet.art });
+          }}
+        >
+          Stattdessen leer machen und alles selbst setzen
+        </button>
       </Panel>
-      <div className="min-w-0 flex-[999_1_520px] rounded-[26px] border border-[#1d4a3d] bg-[radial-gradient(circle_at_30%_20%,#134034_0%,#0b2a22_60%)] p-6 sm:p-8">
-        <SheetSvg sheet={preview} className="block h-auto w-full -rotate-1 drop-shadow-[0_24px_40px_rgba(0,0,0,0.45)]" />
+      <div className="min-w-0 flex-[999_1_520px] rounded-[26px] border border-(--nm-stage-line) bg-(image:--nm-stage) p-6 sm:p-8">
+        <SheetSvg sheet={preview} className="block h-auto w-full -rotate-1 drop-shadow-[0_24px_40px_var(--nm-shadow)]" />
       </div>
     </div>
   );
