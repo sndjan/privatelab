@@ -65,6 +65,14 @@ export const moduleMeta: ModuleMeta[] = [
     status: "live",
   },
   {
+    id: "events",
+    name: "Ereignis-Tracker",
+    description: "Festhalten, wann etwas passiert: krank, Fleisch gegessen, Sport … mit Kalender, Statistik und Zielen.",
+    icon: "📌",
+    category: "alltag",
+    status: "live",
+  },
+  {
     id: "health",
     name: "Gesundheit-Dashboard",
     description: "Schlaf, Sport, Gewicht und andere Gesundheitswerte im Überblick.",
