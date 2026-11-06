@@ -1,4 +1,5 @@
 import type { CurrentUser } from "@/lib/auth";
+import { eventsLoaders } from "@/modules/events/loaders";
 import { fireLoaders } from "@/modules/fire/loaders";
 import { nochmalLoaders } from "@/modules/nochmal/loaders";
 import { packingLoaders } from "@/modules/packing/loaders";
@@ -14,6 +15,7 @@ import { worktimeLoaders } from "@/modules/worktime/loaders";
 export type Loader = (params: Record<string, string>, user: CurrentUser) => Promise<unknown>;
 
 export const loaders = {
+  events: eventsLoaders,
   fire: fireLoaders,
   nochmal: nochmalLoaders,
   packing: packingLoaders,
