@@ -73,6 +73,14 @@ export const moduleMeta: ModuleMeta[] = [
     status: "live",
   },
   {
+    id: "weight",
+    name: "Gewicht-Challenge",
+    description: "Gemeinsam ab- oder zunehmen: Gewicht, Körperwerte und Maße für alle eintragen, mit Rangliste und Verlauf.",
+    icon: "⚖️",
+    category: "alltag",
+    status: "live",
+  },
+  {
     id: "health",
     name: "Gesundheit-Dashboard",
     description: "Schlaf, Sport, Gewicht und andere Gesundheitswerte im Überblick.",

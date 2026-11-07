@@ -6,6 +6,7 @@ import { packingLoaders } from "@/modules/packing/loaders";
 import { tennisLoaders } from "@/modules/tennis/loaders";
 import { thesisLoaders } from "@/modules/thesis/loaders";
 import { wasteLoaders } from "@/modules/waste/loaders";
+import { weightLoaders } from "@/modules/weight/loaders";
 import { wishlistLoaders } from "@/modules/wishlist/loaders";
 import { worktimeLoaders } from "@/modules/worktime/loaders";
 
@@ -22,6 +23,7 @@ export const loaders = {
   tennis: tennisLoaders,
   thesis: thesisLoaders,
   waste: wasteLoaders,
+  weight: weightLoaders,
   wishlist: wishlistLoaders,
   worktime: worktimeLoaders,
 } satisfies Record<string, Record<string, Loader>>;

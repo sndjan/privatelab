@@ -216,3 +216,9 @@
     --nm-shadow: rgba(0, 0, 0, 0.45);
   }
 }
+
+/* Pages with a tab bar at the bottom (Gewicht-Challenge): toasts sit above it
+   on phones instead of covering it. */
+body:has([data-bottom-nav]) [data-sonner-toaster] {
+  --mobile-offset-bottom: calc(5rem + env(safe-area-inset-bottom)) !important;
+}

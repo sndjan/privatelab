@@ -12,6 +12,7 @@ import PackingModule from "./packing";
 import TennisModule from "./tennis";
 import ThesisModule from "./thesis";
 import WasteModule from "./waste";
+import WeightModule from "./weight";
 import WishlistModule from "./wishlist";
 import WorktimeModule from "./worktime";
 
@@ -36,6 +37,7 @@ const pages: Record<string, ComponentType<ModulePageProps>> = {
   tennis: TennisModule,
   thesis: ThesisModule,
   waste: WasteModule,
+  weight: WeightModule,
   wishlist: WishlistModule,
   worktime: WorktimeModule,
 };
