@@ -37,7 +37,8 @@ export function ChartFullscreen({
   onModeChange: (mode: "delta" | "absolute") => void;
   onClose: () => void;
 }) {
-  const box = useRef<HTMLDivElement>(null);
+  // A state, not a ref: the portal mounts the box after this component.
+  const [box, setBox] = useState<HTMLDivElement | null>(null);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [portrait, setPortrait] = useState(false);
   const close = useRef(onClose);
@@ -82,13 +83,13 @@ export function ChartFullscreen({
   }, []);
 
   useEffect(() => {
-    const element = box.current;
+    const element = box;
     if (!element) return;
     // Layout size, unaffected by the rotation.
     const observer = new ResizeObserver(() => setSize({ width: element.clientWidth, height: element.clientHeight }));
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [box]);
 
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => !open && onClose()}>
@@ -106,7 +107,7 @@ export function ChartFullscreen({
             <DialogPrimitive.Title className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
               Verlauf
             </DialogPrimitive.Title>
-            <ul className="flex min-w-0 flex-1 gap-x-4 overflow-x-auto text-sm whitespace-nowrap">
+            <ul className="flex min-w-0 flex-1 flex-wrap gap-x-4 gap-y-0.5 text-sm whitespace-nowrap">
               {standings.map(({ participant, trend }) => (
                 <li key={participant.id} className="flex items-center gap-1.5">
                   <PersonName participant={participant} className="font-normal" />
@@ -132,7 +133,7 @@ export function ChartFullscreen({
               <span className="sr-only">Vollbild verlassen</span>
             </DialogPrimitive.Close>
           </div>
-          <div ref={box} className="min-h-0 flex-1">
+          <div ref={setBox} className="min-h-0 flex-1">
             {size && size.width > 0 && size.height > 0 && (
               <WeightChart
                 standings={standings}
