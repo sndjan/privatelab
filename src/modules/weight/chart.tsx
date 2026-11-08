@@ -3,8 +3,6 @@
 import { daysBetween, formatNumber, weighingsOf, type Standing } from "./calc";
 import { colorHex, type Settings, type Weighing } from "./data";
 
-const W = 320;
-const H = 180;
 const LEFT = 30;
 const RIGHT = 6;
 const TOP = 8;
@@ -21,13 +19,23 @@ export function WeightChart({
   settings,
   today,
   mode,
+  width = 320,
+  height = 180,
+  className,
 }: {
   standings: Standing[];
   weighings: Weighing[];
   settings: Settings;
   today: string;
   mode: "delta" | "absolute";
+  // Size of the drawing in SVG units; text stays 9 units tall, so a wider
+  // box shows the same chart with more room between the points.
+  width?: number;
+  height?: number;
+  className?: string;
 }) {
+  const W = width;
+  const H = height;
   const total = Math.max(1, daysBetween(settings.startDate, settings.endDate));
   const series = standings.map((standing) => {
     const { participant } = standing;
@@ -65,7 +73,7 @@ export function WeightChart({
   const todayDay = daysBetween(settings.startDate, today);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Gewichtsverlauf">
+    <svg viewBox={`0 0 ${W} ${H}`} className={className ?? "w-full"} role="img" aria-label="Gewichtsverlauf">
       {ticks.map((value) => (
         <g key={value}>
           <line

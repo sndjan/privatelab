@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { Maximize2Icon } from "lucide-react";
 import { WeightChart } from "./chart";
+import { ChartFullscreen } from "./chart-fullscreen";
 import {
   challengeProgress,
   formatDate,
@@ -19,6 +21,7 @@ import { Change, Dot, Panel, PersonName, Segmented } from "./ui";
 export function StartTab({ today }: { today: string }) {
   const { settings, participants, weighings, me } = useWeightData();
   const [mode, setMode] = useState<"delta" | "absolute">("delta");
+  const [fullscreen, setFullscreen] = useState(false);
 
   if (!settings || participants.length === 0) {
     return (
@@ -87,19 +90,40 @@ export function StartTab({ today }: { today: string }) {
       <Panel
         title="Verlauf"
         aside={
-          <Segmented
-            label="Darstellung"
-            value={mode}
-            onChange={setMode}
-            options={[
-              { id: "delta", label: "Δ" },
-              { id: "absolute", label: "kg" },
-            ]}
-            className="w-24 normal-case [&_button]:h-7"
-          />
+          <span className="flex items-center gap-1">
+            <Segmented
+              label="Darstellung"
+              value={mode}
+              onChange={setMode}
+              options={[
+                { id: "delta", label: "Δ" },
+                { id: "absolute", label: "kg" },
+              ]}
+              className="w-24 normal-case [&_button]:h-7"
+            />
+            <button
+              type="button"
+              onClick={() => setFullscreen(true)}
+              className="-mr-1 flex size-9 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Maximize2Icon className="size-4" />
+              <span className="sr-only">Vollbild</span>
+            </button>
+          </span>
         }
       >
         <WeightChart standings={standings} weighings={weighings} settings={settings} today={today} mode={mode} />
+        {fullscreen && (
+          <ChartFullscreen
+            standings={standings}
+            weighings={weighings}
+            settings={settings}
+            today={today}
+            mode={mode}
+            onModeChange={setMode}
+            onClose={() => setFullscreen(false)}
+          />
+        )}
         <ul className="space-y-1 text-sm">
           {standings.map(({ participant, trend }) => (
             <li key={participant.id} className="flex items-center justify-between gap-2">
