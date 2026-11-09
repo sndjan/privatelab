@@ -731,6 +731,156 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     diagram: { items: [kid(0, -11, "A"), kid(0, 11, "C"), kid(-5.8, -12.5, "B"), kid(5.8, 12.5, "D"), ball(-2, -12.5), ball(-1, -13), ball(0, -13.3), shot(0, -10.5, 2.5, 9)] },
   },
 
+  // --- Mehr kleine Spiele ------------------------------------------------------
+  {
+    name: "Krake",
+    phase: "warmup",
+    minutes: 6,
+    summary: "Die Krake steht in der Mitte, alle laufen von Grundlinie zu Grundlinie. Wer gefangen wird, wird ein Krakenarm.",
+    description:
+      "Ein Kind ist die Krake und steht auf der Aufschlaglinie in der Mitte. Ruft es „Krake!“, laufen alle mit dem Ball auf dem Schläger zur anderen Grundlinie. Wer abgeschlagen wird oder den Ball verliert, bleibt als Krakenarm an der Stelle stehen und darf nur mit dem Schläger fangen, ohne die Füße zu bewegen. Wer zuletzt übrig ist, ist die nächste Krake.",
+    tips: ["Kopf hoch, Ball im Blick!", "Schnell, aber der Ball bleibt drauf", "Arme: Schläger raus, Füße fest"],
+    focus: ["Koordination", "Beinarbeit", "Ballgefühl"],
+    diagram: {
+      items: [kid(0, -6.4, "K"), kid(-3, -11.5, "1"), kid(-1, -11.5, "2"), kid(1, -11.5, "3"), kid(3, -11.5, "4"), run(-3, -11.3, -2.5, 11.5), run(1, -11.3, 2, 11.5)],
+    },
+  },
+  {
+    name: "Versteinern",
+    phase: "warmup",
+    minutes: 6,
+    summary: "Fangspiel: Wer gefangen wird, versteinert mit dem Schläger über dem Kopf. Erlöst wird mit einer Schattenvorhand.",
+    description:
+      "Ein oder zwei Fänger (mit Leibchen oder Ball in der Hand). Wer abgeschlagen wird, bleibt stehen wie eine Statue, den Schläger über dem Kopf. Ein anderes Kind erlöst die Statue, indem es sich davor stellt und eine saubere Schattenvorhand oder -rückhand macht. Nach einer Minute neue Fänger. Nur innerhalb der Doppellinien.",
+    tips: ["Erlösen: seitlich stellen, ausholen, durchschwingen", "Kleine schnelle Schritte", "Schau, wer Hilfe braucht"],
+    focus: ["Beinarbeit", "Vorhand", "Rückhand"],
+    diagram: { items: [kid(0, 4, "F"), kid(-3, 8, "1"), kid(2.5, 9, "2"), kid(-1, 11, "3"), kid(3.5, 3, "4"), run(0, 4, -2.5, 7.5), run(2.5, 9, 3.3, 3.5)] },
+  },
+  {
+    name: "Trainer sagt",
+    phase: "warmup",
+    minutes: 5,
+    summary: "Wie „Simon sagt“: Nur wenn der Trainer „Trainer sagt“ davor sagt, wird die Bewegung gemacht.",
+    description:
+      "Alle stehen locker verteilt mit Schläger. Der Trainer ruft Aufgaben: „Trainer sagt: Split-Step!“, „Trainer sagt: Schattenrückhand!“, „Trainer sagt: Sidesteps nach links!“. Fehlt „Trainer sagt“, bleibt man stehen. Wer sich bewegt, macht 3 Hampelmänner und spielt sofort weiter, niemand scheidet aus. Später dürfen die Kinder Trainer sein.",
+    tips: ["Gut zuhören!", "Split-Step: kleiner Hüpfer, Knie weich", "Schatten-Schläge ganz langsam und sauber"],
+    focus: ["Koordination", "Vorhand", "Rückhand"],
+    diagram: { items: [coach(0, 1.5), kid(-3, 5, "1"), kid(0, 5, "2"), kid(3, 5, "3"), kid(-1.5, 8, "4"), kid(1.5, 8, "5")] },
+  },
+  {
+    name: "Hungrige Nilpferde",
+    phase: "warmup",
+    minutes: 6,
+    summary: "Viele Bälle in der Mitte, jedes Team hat ein Nest. Bälle einzeln auf dem Schläger ins eigene Nest bringen.",
+    description:
+      "In der Mitte (am T) liegen viele Bälle. Jedes Team (1–2 Kinder) hat in einer Ecke einen Reifen oder ein Hütchenquadrat als Nest. Auf „Los“ holt jeder einen Ball auf dem Schläger ins Nest, nie mit der Hand. Ist die Mitte leer, darf aus anderen Nestern geräubert werden. Nach 90 Sekunden zählen: Welches Nilpferd ist am dicksten?",
+    tips: ["Nur ein Ball auf einmal", "Ball fällt? Da, wo er liegt, wieder aufnehmen", "Kurz bremsen, dann ablegen"],
+    focus: ["Ballgefühl", "Beinarbeit"],
+    diagram: {
+      items: [ball(0, 6.4), ball(0.6, 6.8), ball(-0.6, 6.1), ball(0.3, 5.7), target(-4.5, 11.5), target(4.5, 11.5), target(-4.5, 1.5), target(4.5, 1.5), kid(-3.8, 10.8, "1"), kid(3.8, 10.8, "2"), run(-3.8, 10.8, -0.6, 7)],
+    },
+  },
+  {
+    name: "Zahlen-Sprint",
+    phase: "warmup",
+    minutes: 6,
+    summary: "Jedes Kind hat eine Zahl. Der Trainer ruft Rechenaufgaben, wer gemeint ist, läuft um das Hütchen und zurück.",
+    description:
+      "Die Kinder stehen nebeneinander an der Grundlinie und bekommen Zahlen. Der Trainer ruft eine Zahl (oder „2 + 1“) und eine Lauf-Art: vorwärts, Sidesteps, rückwärts, mit Ball auf dem Schläger. Das Kind läuft ums Hütchen an der T-Linie und zurück. Ruft der Trainer zwei Zahlen, gibt es ein Wettrennen. Wer zuerst zurück ist, sammelt einen Ball.",
+    tips: ["Tief starten, Knie beugen", "Um das Hütchen eng herum", "Rückwärts: Blick über die Schulter"],
+    focus: ["Beinarbeit", "Koordination"],
+    diagram: { items: [coach(-5.5, 6.4), cone(0, 6.4), kid(-2, 11.9, "1"), kid(-0.7, 11.9, "2"), kid(0.7, 11.9, "3"), kid(2, 11.9, "4"), run(-0.7, 11.7, -0.4, 6.9), run(0.4, 6.9, 0.7, 11.7)] },
+  },
+  {
+    name: "Heiße Kartoffel",
+    phase: "warmup",
+    minutes: 5,
+    summary: "Im Kreis wird der Ball von Schläger zu Schläger getippt. Bei wem er ist, wenn der Trainer „Heiß!“ ruft, sammelt einen Punkt.",
+    description:
+      "Die Kinder stehen im Kreis, etwa zwei Schritte auseinander. Ein Ball wird mit dem Schläger zum Nachbarn gespielt: einmal aufspringen lassen, annehmen, weiterspielen. Der Trainer dreht sich weg und ruft irgendwann „Heiß!“. Wer den Ball gerade hat oder ihn fallen lässt, bekommt einen Punkt, wenig Punkte gewinnen. Später nur mit der Rückhandseite oder in der Luft.",
+    tips: ["Sanft spielen, nicht schlagen", "Schläger offen wie ein Tablett", "Schau zum Nächsten, bevor du spielst"],
+    focus: ["Ballgefühl", "Koordination"],
+    diagram: { items: [coach(-5.5, 3), kid(0, 3.5, "1"), kid(2, 5, "2"), kid(1.5, 7.3, "3"), kid(-1.5, 7.3, "4"), kid(-2, 5, "5"), shot(0, 3.5, 2, 5), shot(2, 5, 1.5, 7.3)] },
+  },
+
+  // --- Grundschläge mit Bewegung, Zielen, Stationen -----------------------------
+  {
+    name: "Rund ums Hütchen",
+    phase: "technique",
+    minutes: 10,
+    summary: "Vorhand schlagen, dann außen um ein Hütchen hinter der Seitenlinie laufen und über die andere Seite als Rückhand wieder rein.",
+    description:
+      "Der Trainer spielt aus dem Korb. Das Kind schlägt eine Vorhand in der Platzmitte, läuft außen um ein Hütchen neben der Doppellinie, kommt von der anderen Seite zurück und schlägt eine Rückhand. Dann hinten um ein zweites Hütchen zurück in die Reihe und auf dem Weg einen Ball einsammeln. Der Laufweg ist eine liegende Acht, so ist keiner lange in der Reihe.",
+    tips: ["Nach dem Schlag gleich los", "Vor dem Schlag kurz abbremsen", "Seitlich stellen, dann schlagen"],
+    focus: ["Vorhand", "Rückhand", "Beinarbeit"],
+    diagram: {
+      items: [...feeding, kid(-1.5, 7, "1"), cone(-6.3, 7), cone(5.5, 11.5), run(-1.5, 7, -6.3, 7.8), run(-6.3, 7.8, 1.5, 7.5), run(1.5, 7.5, 5.5, 11.5), ...queue(3.5, 12.5, 2), shot(0.5, -8.5, -1.5, 6.5), shot(0.5, -8.5, 1.5, 7)],
+    },
+  },
+  {
+    name: "Solo-Zielstation",
+    phase: "technique",
+    minutes: 10,
+    summary: "Eine Gruppe beim Trainer, ein Kind allein an der Zielstation: selbst fallen lassen und in den Reifen schlagen. Nach 4 Bällen Wechsel.",
+    description:
+      "Station 1: Der Trainer spielt Vorhand und Rückhand zu. Station 2 (für ein Kind, auf der Nebenseite oder im Nachbarfeld): Ball fallen lassen, aufspringen lassen, mit Vorhand übers Netz in einen Reifen oder zwischen zwei Hütchen spielen. Jeder Treffer = ein Ball in den eigenen Becher. Nach 4 Bällen wechselt das Kind beim Trainer an die Solostation. Wer hat am Ende die meisten Treffer?",
+    tips: ["Ball vor dem Körper fallen lassen", "Schläger früh zurück", "Zum Ziel schauen, dann schlagen"],
+    focus: ["Vorhand", "Rückhand", "Ballgefühl"],
+    diagram: {
+      items: [...feeding, kid(-2, 8, "1"), ...queue(-3.5, 10, 2), shot(0.5, -8.5, -2, 7.5), kid(4.2, 9, "S"), target(3, -7), cone(2, -7), cone(4, -7), shot(4.2, 8.6, 3, -6.6)],
+    },
+  },
+  {
+    name: "Farbe ruft",
+    phase: "technique",
+    minutes: 10,
+    summary: "Drei farbige Ziele auf der Trainerseite. Beim Zuspiel ruft der Trainer eine Farbe, dorthin wird gespielt.",
+    description:
+      "Auf der Trainerseite liegen drei Ziele (Reifen, Hütchen oder Leibchen in Rot, Gelb, Blau): links, Mitte, rechts. Der Trainer spielt zu und ruft im selben Moment eine Farbe. Das Kind entscheidet schnell und spielt den Grundschlag in die Richtung. Treffer im Ziel = 3 Punkte, richtige Richtung = 1 Punkt. Teams sammeln gemeinsam.",
+    tips: ["Erst Ball, dann Richtung", "Schulter zeigt zum Ziel", "Lieber sicher in die Richtung als ganz knapp"],
+    focus: ["Vorhand", "Rückhand", "Taktik"],
+    diagram: {
+      items: [coach(1.5, -4.5), basket(2.5, -4.5), target(-3, -9), target(0, -10), target(3, -9), kid(0, 8, "1"), ...queue(3.5, 10, 2), shot(1.5, -4.5, 0, 7.5), shot(0, 7.6, -3, -8.6)],
+    },
+  },
+  {
+    name: "Reaktions-Start",
+    phase: "technique",
+    minutes: 8,
+    summary: "Das Kind sitzt, liegt oder steht mit dem Rücken zum Netz. Auf „Hopp!“ aufspringen, umdrehen und den Ball schlagen.",
+    description:
+      "Das Kind wartet in einer Startposition an der Grundlinie oder Midcourt-Linie: im Schneidersitz, auf dem Bauch, mit dem Rücken zum Netz. Der Trainer ruft „Hopp!“ und spielt im selben Moment zu. Aufstehen, zum Ball laufen, Vorhand oder Rückhand schlagen. Nach dem Schlag einen Ball vom Hütchen holen und zum Trainer bringen, das Nächste startet. Die Startposition wählt das Kind vorher selbst.",
+    tips: ["Schnell hoch, dann ruhig schlagen", "Erst schauen, wo der Ball hinkommt", "Fertig zum Schlag: Schläger zurück"],
+    focus: ["Beinarbeit", "Koordination", "Vorhand", "Rückhand"],
+    diagram: { items: [...feeding, kid(0, 10.5, "1"), ...queue(4, 11, 2), run(0, 10.5, -1, 7.5), shot(0.5, -8.5, -1.2, 7)] },
+  },
+  {
+    name: "Ball-Taxi",
+    phase: "technique",
+    minutes: 10,
+    summary: "Schlagen, dann als Taxi einen Ball über die Seite zum Trainer bringen. Das Taxi ist erst zurück, wenn es wieder in der Reihe ist.",
+    description:
+      "Das Kind schlägt zwei Grundschläge (einen kurz an der T-Linie, einen weiter hinten). Dann holt es einen Ball aus einem Reifen an der Seite, läuft außen um den Netzpfosten auf die Trainerseite und legt ihn in den Korb, danach außen zurück in die Reihe. So bleibt der Korb voll und keiner steht. Mit Ball auf dem Schläger wird es schwieriger.",
+    tips: ["Zwei Schläge, dann Taxi!", "Außen herum, nie über das Netz steigen", "Beim Schlag kurz stehen bleiben"],
+    focus: ["Vorhand", "Rückhand", "Beinarbeit"],
+    diagram: {
+      items: [...feeding, kid(-1.5, 6.4, "1"), target(-6.5, 4), ball(-6.5, 4), run(-1.5, 7, -6.5, 4.4), run(-6.5, 3.8, -6.8, -0.4), run(-6.8, -0.4, 1.3, -8), ...queue(3, 10.5, 2), shot(0.5, -8.5, -1.5, 6)],
+    },
+  },
+  {
+    name: "Torschuss",
+    phase: "technique",
+    minutes: 10,
+    summary: "Zwei Hütchen sind das Tor auf der Gegenseite. Grundschläge müssen durchs Tor rollen oder springen.",
+    description:
+      "Auf der Trainerseite stehen zwei Hütchen als Tor an der Grundlinie (anfangs 3 m breit). Ein Kind ist Torwart und darf den Ball nur mit dem Schläger aufhalten, nicht fangen. Die anderen schlagen nacheinander zugespielte Bälle: Tor = Punkt, gehalten = Punkt für den Torwart. Nach 5 Schüssen wird der Schütze Torwart. Das Tor wird kleiner, wenn es zu leicht ist.",
+    tips: ["Schau zum Tor, dann zum Ball", "Mit Schwung durch den Ball", "Torwart: tief stehen, Schläger runter"],
+    focus: ["Vorhand", "Rückhand", "Ballgefühl"],
+    diagram: {
+      items: [coach(4, -4), basket(5, -4), cone(-1.5, -11.9), cone(1.5, -11.9), kid(0, -11.3, "T"), kid(0, 8, "1"), ...queue(-3, 10, 2), shot(4, -4, 0, 7.5), shot(0, 7.6, 0.7, -11.5)],
+    },
+  },
+
   // --- Midcourt (Play+Stay Orange) ---------------------------------------------
   // Grundschläge von der T-Linie (Aufschlaglinie) und der Midcourt-Linie
   // (Grundlinie des Orange-Felds, ca. 9 m vom Netz), Aufschlag von dort.
@@ -813,6 +963,18 @@ export const starterPlayers: Record<string, [number | null, number | null]> = {
   "Rein, Schlag, Volley, Raus": [null, 6],
   "Hinter die T-Linie": [2, null],
   "Vorne – Hinten": [null, 6],
+  "Krake": [4, null],
+  "Versteinern": [4, null],
+  "Trainer sagt": [null, null],
+  "Hungrige Nilpferde": [2, null],
+  "Zahlen-Sprint": [2, null],
+  "Heiße Kartoffel": [3, 10],
+  "Rund ums Hütchen": [null, 6],
+  "Solo-Zielstation": [3, 8],
+  "Farbe ruft": [null, 6],
+  "Reaktions-Start": [null, 6],
+  "Ball-Taxi": [2, 6],
+  "Torschuss": [3, 8],
   "Midcourt-Rekord": [2, null],
   "Aufschlag-Leiter": [null, null],
   "Midcourt-Match": [3, 8],
@@ -1242,6 +1404,78 @@ export const starterVariations: Record<string, [string, string, string, string]>
     "30 Sekunden, nur Rückhand.",
     "1 gegen 1.",
     "Teams zu dritt, jeder Punkt Spielerwechsel.",
+  ],
+  Krake: [
+    "Ohne Ball auf dem Schläger, nur laufen.",
+    "Krakenarme dürfen einen Schritt machen, oder Ball auf dem Schläger hüpfen lassen.",
+    "Trainer ist die Krake.",
+    "Zwei Kraken.",
+  ],
+  Versteinern: [
+    "Erlösen durch Abklatschen.",
+    "Erlösen nur mit Rückhand, oder alle laufen mit Ball auf dem Schläger.",
+    "Trainer fängt.",
+    "Drei Fänger, Feld bis zur Grundlinie.",
+  ],
+  "Trainer sagt": [
+    "Nur drei Bewegungen, die vorher gezeigt werden.",
+    "Bewegungen schnell hintereinander, oder Kinder ansagen lassen.",
+    "Jedes Kind darf einmal Trainer sein.",
+    "Zwei Gruppen, je ein Kind als Trainer.",
+  ],
+  "Hungrige Nilpferde": [
+    "Ball in der Hand tragen statt auf dem Schläger.",
+    "Ball auf dem Schläger hüpfen lassen, oder nur Rückhandseite.",
+    "Gegen die Uhr: Wie viele schaffst du in einer Minute?",
+    "Teams zu dritt, vier Nester.",
+  ],
+  "Zahlen-Sprint": [
+    "Nur vorwärts laufen, kein Rechnen.",
+    "Ball auf dem Schläger, oder Ball an der T-Linie holen und zurückbringen.",
+    "Trainer läuft mit.",
+    "Zwei Hütchen, zwei Kinder pro Zahl.",
+  ],
+  "Heiße Kartoffel": [
+    "Ball darf zweimal aufspringen, oder werfen und fangen.",
+    "Nur in der Luft spielen (Volley), oder nur Rückhandseite.",
+    "Zu dritt im Dreieck.",
+    "Zwei Bälle gleichzeitig im Kreis.",
+  ],
+  "Rund ums Hütchen": [
+    "Hütchen näher an der Seitenlinie, Trainer wirft zu.",
+    "Ziel-Reifen auf der Trainerseite, nur Treffer zählen.",
+    "Jedes Kind 3 Runden am Stück.",
+    "Zweite Reihe von rechts, Trainer spielt abwechselnd.",
+  ],
+  "Solo-Zielstation": [
+    "Großes Ziel (ganzes Aufschlagfeld).",
+    "Kleiner Reifen, oder nur Rückhand an der Solostation.",
+    "Jedes Kind 6 Bälle an der Solostation.",
+    "Zwei Solostationen.",
+  ],
+  "Farbe ruft": [
+    "Nur zwei Farben, links und rechts.",
+    "Farbe erst nach dem Aufspringen rufen, oder vier Ziele.",
+    "Jedes Kind 4 Bälle am Stück.",
+    "Partner ruft die Farbe statt Trainer.",
+  ],
+  "Reaktions-Start": [
+    "Stehend mit Rücken zum Netz starten.",
+    "Auf dem Bauch starten, oder Trainer ruft erst beim Schlag die Seite.",
+    "Zwei Bälle hintereinander pro Kind.",
+    "Zwei Kinder starten gleichzeitig, wer zuerst trifft.",
+  ],
+  "Ball-Taxi": [
+    "Nur ein Schlag, Taxi ohne Ball auf dem Schläger.",
+    "Ball auf dem Schläger transportieren.",
+    "Trainer bringt die Bälle, Kind schlägt 4.",
+    "Zwei Taxi-Wege, links und rechts.",
+  ],
+  Torschuss: [
+    "Großes Tor, ohne Torwart.",
+    "Kleines Tor, oder Tor in der Ecke.",
+    "Trainer ist Torwart.",
+    "Zwei Tore, zwei Reihen.",
   ],
   "Vorne – Hinten": [
     "Zuwerfen statt zuspielen, Ball darf zweimal aufspringen.",
