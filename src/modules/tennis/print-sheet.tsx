@@ -1,16 +1,15 @@
 import { Court } from "./court";
-import { formatClock, phaseName, showsMidcourt, timeline, type Exercise, type Player, type Stage } from "./data";
+import { formatClock, showsMidcourt, timeline, type Exercise, type Stage } from "./data";
 
-// The session on one A5 page in black and white: per exercise the time, name,
-// one sentence and the cues to call out, with a small sketch. Only printed;
+// The session on one A5 page in black and white, kept short to take along:
+// per exercise the time, name, the session's note, one short sentence and a
+// short "leichter / schwerer", with a small upright sketch. Only printed;
 // the page itself is hidden in print.
 export function PrintSheet({
   title,
   subtitle,
   startTime,
   items,
-  players,
-  absent,
   notes,
   stage = null,
 }: {
@@ -18,64 +17,70 @@ export function PrintSheet({
   subtitle: string;
   startTime: string;
   items: { exercise: Exercise; minutes: number; note?: string }[];
-  players: Player[];
-  absent: string[];
   notes: string;
   stage?: Stage | null;
 }) {
   const ranges = timeline(startTime, items);
-  const present = players.filter((player) => !absent.includes(player.id));
 
   return (
-    <div className="hidden text-[9pt] leading-snug text-black print:block">
+    <div className="hidden text-[8pt] leading-tight text-black print:block">
       {/* Only on this page: A5 with small margins. */}
-      <style>{"@page { size: A5 portrait; margin: 8mm; }"}</style>
-      <header className="mb-2 flex items-baseline justify-between gap-3 border-b-2 border-black pb-1">
-        <h1 className="text-[12pt] font-bold">{title}</h1>
+      <style>{"@page { size: A5 portrait; margin: 7mm; }"}</style>
+      <header className="mb-1 flex items-baseline justify-between gap-3 border-b-2 border-black pb-0.5">
+        <h1 className="text-[11pt] font-bold">{title}</h1>
         <p className="text-right">{subtitle}</p>
       </header>
-      {players.length > 0 && (
-        <p className="mb-2">
-          <span className="font-semibold">Da ({present.length}):</span> {present.map((player) => player.name).join(", ")}
-          {absent.length > 0 && (
-            <span>
-              {" "}
-              · <span className="font-semibold">Fehlt:</span>{" "}
-              {players
-                .filter((player) => absent.includes(player.id))
-                .map((player) => player.name)
-                .join(", ")}
-            </span>
-          )}
-        </p>
-      )}
       <ol>
-        {items.map(({ exercise, minutes, note }, index) => (
-          <li key={index} className="flex break-inside-avoid gap-2 border-b border-black/40 py-1.5">
-            <div className="w-11 shrink-0 font-mono">
-              <div className="font-bold">{formatClock(ranges[index].start)}</div>
-              <div>{minutes}′</div>
-            </div>
-            <div className="min-w-0 flex-1">
-              <p>
-                <span className="font-bold">{exercise.name}</span> <span>· {phaseName(exercise.phase)}</span>
-              </p>
-              {note && <p className="font-bold">Notiz: {note}</p>}
-              {exercise.summary && <p>{exercise.summary}</p>}
-              {exercise.tips.length > 0 && <p className="italic">„{exercise.tips.join("“ · „")}“</p>}
-              {exercise.variations.easier && <p>Leichter: {exercise.variations.easier}</p>}
-              {exercise.variations.harder && <p>Schwerer: {exercise.variations.harder}</p>}
-            </div>
-            {exercise.diagram.items.length > 0 && <Court diagram={exercise.diagram} mono horizontal midcourt={showsMidcourt(exercise, stage)} className="h-[22mm] w-auto shrink-0" />}
-          </li>
-        ))}
+        {items.map(({ exercise, minutes, note }, index) => {
+          const easier = shortText(exercise.variations.easier, 60);
+          const harder = shortText(exercise.variations.harder, 60);
+          return (
+            <li key={index} className="flex break-inside-avoid gap-2 border-b border-black/40 py-1">
+              <div className="w-9 shrink-0 font-mono">
+                <div className="font-bold">{formatClock(ranges[index].start)}</div>
+                <div>{minutes}′</div>
+              </div>
+              <div className="min-w-0 flex-1 space-y-px">
+                <p className="text-[9pt] font-bold">{exercise.name}</p>
+                {note && <p className="font-bold">» {note}</p>}
+                {exercise.summary && <p>{shortText(exercise.summary, 110)}</p>}
+                {(easier || harder) && (
+                  <p>
+                    {easier && (
+                      <>
+                        <span className="font-semibold">Leichter:</span> {easier}
+                      </>
+                    )}
+                    {easier && harder && " · "}
+                    {harder && (
+                      <>
+                        <span className="font-semibold">Schwerer:</span> {harder}
+                      </>
+                    )}
+                  </p>
+                )}
+              </div>
+              {exercise.diagram.items.length > 0 && (
+                <Court diagram={exercise.diagram} mono midcourt={showsMidcourt(exercise, stage)} className="h-[17mm] w-auto shrink-0" />
+              )}
+            </li>
+          );
+        })}
       </ol>
-      <div className="mt-2 break-inside-avoid">
+      <div className="mt-1.5 break-inside-avoid">
         <p className="font-semibold">Notizen</p>
         {notes && <p className="whitespace-pre-line">{notes}</p>}
-        <div className="mt-1 h-5 border-b border-black/60" />
-        <div className="h-5 border-b border-black/60" />
+        <div className="mt-1 h-4 border-b border-black/60" />
+        <div className="h-4 border-b border-black/60" />
       </div>
     </div>
   );
+}
+
+// The first sentence, cut at a word after `max` characters.
+function shortText(text: string, max: number) {
+  const sentence = text.trim().match(/^.*?[.!?](?=\s|$)/)?.[0] ?? text.trim();
+  if (sentence.length <= max) return sentence;
+  const cut = sentence.slice(0, max);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), max / 2)).replace(/[,;:\s–-]+$/, "")} …`;
 }

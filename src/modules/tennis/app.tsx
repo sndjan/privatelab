@@ -556,8 +556,6 @@ function SessionView({ sessionId }: { sessionId: string }) {
         subtitle={`${formatSessionDate(session.date)} · ${session.startTime}–${sessionEnd(session)}${session.focus ? ` · ${session.focus}` : ""}`}
         startTime={session.startTime}
         items={items}
-        players={players}
-        absent={session.absent}
         notes={session.notes}
         stage={group?.stage}
       />
