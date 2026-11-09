@@ -2,7 +2,7 @@
 
 import { BookOpenIcon, CalendarCheckIcon, CalendarPlusIcon, ChevronLeftIcon, ChevronRightIcon, ListChecksIcon, PalmtreeIcon, PencilIcon, PlusIcon, StarIcon, Trash2Icon, UsersIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { FormPending } from "@/components/form-pending";
 import { Loading } from "@/components/loading";
 import { confirmSubmit } from "@/components/confirm-dialog";
@@ -63,7 +63,8 @@ import { FavoriteToggles } from "./favorite-toggles";
 import { Library } from "./library";
 import { Planner } from "./planner";
 import { Players } from "./players";
-import { PrintSheet } from "./print-sheet";
+import { PrintPicker } from "./print-many";
+import { PrintSheet, PrintSheets, sheetFor } from "./print-sheet";
 import { LiveBadge, PrintButton, SessionPlan } from "./session-plan";
 import { starterExercises } from "./starter";
 import { useTennis } from "./use-tennis";
@@ -140,6 +141,8 @@ function Overview() {
   const nextStandIn = (groupId: string) => standIns.find((standIn) => standIn.groupId === groupId)?.date;
   const currentHoliday = holidayOn(today, holidays);
   const nextHoliday = holidays.find((holiday) => holiday.startDate > today);
+  // Sessions picked for printing several at once (see PrintPicker).
+  const [printIds, setPrintIds] = useState<string[] | null>(null);
 
   // My training days of the next week (stand-ins: the next two weeks) that
   // have no session yet.
@@ -151,164 +154,177 @@ function Overview() {
     .sort((a, b) => a.date.localeCompare(b.date) || a.group.startTime.localeCompare(b.group.startTime));
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      {!exerciseCount && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Willkommen auf dem Platz 🎾</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Starte mit {starterExercises.length} erprobten Übungen und Spielen für Kinder und Jugendliche, jede mit Skizze und
-              Tipps zum Zurufen. Du kannst alles ändern, löschen und mit KI weitere dazuholen.
-            </p>
-            <form action={loadStarterExercises}>
-              <SubmitButton size="lg" className="h-12 w-full" done="Starter-Sammlung geladen">
-                Starter-Sammlung laden
-              </SubmitButton>
-            </form>
-          </CardContent>
-        </Card>
+    <>
+      {printIds && (
+        <PrintSheets
+          sheets={printIds.flatMap((id) => {
+            const session = allSessions.find((entry) => entry.id === id);
+            return session ? [{ key: id, ...sheetFor(session, groups, exercises) }] : [];
+          })}
+        />
       )}
+      <div className="mx-auto max-w-2xl space-y-6 print:hidden">
+        {!exerciseCount && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Willkommen auf dem Platz 🎾</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Starte mit {starterExercises.length} erprobten Übungen und Spielen für Kinder und Jugendliche, jede mit Skizze und
+                Tipps zum Zurufen. Du kannst alles ändern, löschen und mit KI weitere dazuholen.
+              </p>
+              <form action={loadStarterExercises}>
+                <SubmitButton size="lg" className="h-12 w-full" done="Starter-Sammlung geladen">
+                  Starter-Sammlung laden
+                </SubmitButton>
+              </form>
+            </CardContent>
+          </Card>
+        )}
 
-      {currentHoliday && (
-        <p className="flex items-center gap-2 rounded-xl bg-muted px-4 py-3 text-sm">
-          <PalmtreeIcon className="size-4 shrink-0" />
-          {currentHoliday.name || "Ferien"} bis {formatSessionDate(currentHoliday.endDate)}: kein Training.
-        </p>
-      )}
+        {currentHoliday && (
+          <p className="flex items-center gap-2 rounded-xl bg-muted px-4 py-3 text-sm">
+            <PalmtreeIcon className="size-4 shrink-0" />
+            {currentHoliday.name || "Ferien"} bis {formatSessionDate(currentHoliday.endDate)}: kein Training.
+          </p>
+        )}
 
-      <Button asChild size="lg" className="h-14 w-full text-base">
-        <Link href={`${PATH}?plan=1`}>
-          <CalendarPlusIcon className="size-5" /> Stunde planen
-        </Link>
-      </Button>
+        <Button asChild size="lg" className="h-14 w-full text-base">
+          <Link href={`${PATH}?plan=1`}>
+            <CalendarPlusIcon className="size-5" /> Stunde planen
+          </Link>
+        </Button>
 
-      {(upcoming.length > 0 || unplanned.length > 0) && (
-        <section aria-label="Nächste Stunden" className="space-y-1.5">
-          <h2 className="px-1 text-sm font-medium text-muted-foreground">Nächste Stunden</h2>
-          <ul className="divide-y overflow-hidden rounded-xl border bg-card">
-            {[
-              ...upcoming.map((session) => ({ key: `${session.date} ${session.startTime} ${session.id}`, session, group: null, date: session.date })),
-              ...unplanned.map(({ group, date }) => ({ key: `${date} ${group.startTime} ${group.id}`, session: null, group, date })),
-            ]
-              .sort((a, b) => a.key.localeCompare(b.key))
-              .map(({ key, session, group, date }) =>
-                session ? (
-                  <li key={key}>
-                    <SessionLink session={session} title={groupName(session.groupId)} today={today} />
-                  </li>
-                ) : (
-                  <li key={key}>
-                    <Link
-                      href={`${PATH}?plan=1&group=${group.id}&date=${date}`}
-                      className="flex min-h-12 items-center gap-3 px-4 py-2 text-muted-foreground active:bg-accent"
-                    >
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span>
-                          {date === today ? "Heute" : formatSessionDate(date)}, {group.startTime} · {group.name}
+        {(upcoming.length > 0 || unplanned.length > 0) && (
+          <section aria-label="Nächste Stunden" className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2 px-1">
+              <h2 className="text-sm font-medium text-muted-foreground">Nächste Stunden</h2>
+              <PrintPicker sessions={upcoming} groups={groups} today={today} onPrint={setPrintIds} />
+            </div>
+            <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+              {[
+                ...upcoming.map((session) => ({ key: `${session.date} ${session.startTime} ${session.id}`, session, group: null, date: session.date })),
+                ...unplanned.map(({ group, date }) => ({ key: `${date} ${group.startTime} ${group.id}`, session: null, group, date })),
+              ]
+                .sort((a, b) => a.key.localeCompare(b.key))
+                .map(({ key, session, group, date }) =>
+                  session ? (
+                    <li key={key}>
+                      <SessionLink session={session} title={groupName(session.groupId)} today={today} />
+                    </li>
+                  ) : (
+                    <li key={key}>
+                      <Link
+                        href={`${PATH}?plan=1&group=${group.id}&date=${date}`}
+                        className="flex min-h-12 items-center gap-3 px-4 py-2 text-muted-foreground active:bg-accent"
+                      >
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span>
+                            {date === today ? "Heute" : formatSessionDate(date)}, {group.startTime} · {group.name}
+                          </span>
+                          <span className="text-xs">
+                            {group.coach ? `Aushilfe für ${group.coach} · ` : ""}Noch nicht geplant
+                          </span>
                         </span>
-                        <span className="text-xs">
-                          {group.coach ? `Aushilfe für ${group.coach} · ` : ""}Noch nicht geplant
-                        </span>
-                      </span>
-                      <span className="text-sm font-medium text-brand">Planen</span>
-                    </Link>
-                  </li>
-                ),
-              )}
-          </ul>
-        </section>
-      )}
+                        <span className="text-sm font-medium text-brand">Planen</span>
+                      </Link>
+                    </li>
+                  ),
+                )}
+            </ul>
+          </section>
+        )}
 
-      <section aria-label="Gruppen" className="space-y-1.5">
-        <h2 className="px-1 text-sm font-medium text-muted-foreground">Gruppen</h2>
-        <ul className="divide-y overflow-hidden rounded-xl border bg-card">
-          {groups.map((group) => (
-            <li key={group.id} className="flex items-center">
-              <Link href={`${PATH}?group=${group.id}`} className="flex min-h-12 flex-1 flex-col justify-center px-4 py-2 active:bg-accent">
-                <span>{group.name}</span>
-                <span className="line-clamp-1 text-xs text-muted-foreground">
-                  {[
-                    group.weekday && `${weekdays[group.weekday - 1]} ${group.startTime}`,
-                    group.coach && `Trainer:in ${group.coach}`,
-                    group.coach && nextStandIn(group.id) && `ich helfe ${formatSessionDate(nextStandIn(group.id)!)} aus`,
-                    playerCount(group.id) > 0 && `${playerCount(group.id)} Kinder`,
-                    ages(group.id),
-                    group.stage && stageLabel(group.stage),
-                    !group.serves && "ohne Aufschlag",
-                    group.gamesBetween && "Spiele zwischendurch",
-                    group.note,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </span>
-              </Link>
-              <Button asChild variant="ghost" size="sm" className="mr-2 text-brand">
-                <Link href={`${PATH}?plan=1&group=${group.id}`}>Planen</Link>
-              </Button>
-            </li>
-          ))}
-          <li>
-            <form action={createGroup} className="relative">
-              <Input
-                name="name"
-                required
-                maxLength={60}
-                aria-label="Neue Gruppe"
-                placeholder="+ Neue Gruppe, z. B. U10 Mittwoch"
-                enterKeyHint="enter"
-                className="h-12 rounded-none border-0 px-4 shadow-none focus-visible:ring-0"
-              />
-              <FormPending />
-            </form>
-          </li>
-        </ul>
-      </section>
-
-      <div className="space-y-2">
-        <Link href={`${PATH}?exercises=1`} className="flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 shadow-xs active:bg-accent">
-          <BookOpenIcon className="size-5 text-muted-foreground" />
-          <span className="flex-1">Übungssammlung</span>
-          <span className="font-mono text-sm text-muted-foreground">{exerciseCount ?? 0}</span>
-          <ChevronRightIcon className="size-4 text-muted-foreground" />
-        </Link>
-        <Link href={`${PATH}?principles=1`} className="flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 shadow-xs active:bg-accent">
-          <ListChecksIcon className="size-5 text-muted-foreground" />
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span>Grundsätze</span>
-            <span className="truncate text-xs text-muted-foreground">Woran sich die KI beim Planen hält, z. B. die 8-Sekunden-Regel</span>
-          </span>
-          <ChevronRightIcon className="size-4 text-muted-foreground" />
-        </Link>
-        <Link href={`${PATH}?holidays=1`} className="flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 shadow-xs active:bg-accent">
-          <PalmtreeIcon className="size-5 text-muted-foreground" />
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span>Ferien</span>
-            {(currentHoliday ?? nextHoliday) && (
-              <span className="truncate text-xs text-muted-foreground">
-                {currentHoliday ? "Gerade: " : "Nächste: "}
-                {(currentHoliday ?? nextHoliday)!.name || "Ferien"}, {formatRange(currentHoliday ?? nextHoliday!)}
-              </span>
-            )}
-          </span>
-          <ChevronRightIcon className="size-4 text-muted-foreground" />
-        </Link>
-      </div>
-
-      {past.length > 0 && (
-        <section aria-label="Vergangene Stunden" className="space-y-1.5">
-          <h2 className="px-1 text-sm font-medium text-muted-foreground">Vergangene Stunden</h2>
+        <section aria-label="Gruppen" className="space-y-1.5">
+          <h2 className="px-1 text-sm font-medium text-muted-foreground">Gruppen</h2>
           <ul className="divide-y overflow-hidden rounded-xl border bg-card">
-            {past.map((session) => (
-              <li key={session.id}>
-                <SessionLink session={session} title={groupName(session.groupId)} today={today} />
+            {groups.map((group) => (
+              <li key={group.id} className="flex items-center">
+                <Link href={`${PATH}?group=${group.id}`} className="flex min-h-12 flex-1 flex-col justify-center px-4 py-2 active:bg-accent">
+                  <span>{group.name}</span>
+                  <span className="line-clamp-1 text-xs text-muted-foreground">
+                    {[
+                      group.weekday && `${weekdays[group.weekday - 1]} ${group.startTime}`,
+                      group.coach && `Trainer:in ${group.coach}`,
+                      group.coach && nextStandIn(group.id) && `ich helfe ${formatSessionDate(nextStandIn(group.id)!)} aus`,
+                      playerCount(group.id) > 0 && `${playerCount(group.id)} Kinder`,
+                      ages(group.id),
+                      group.stage && stageLabel(group.stage),
+                      !group.serves && "ohne Aufschlag",
+                      group.gamesBetween && "Spiele zwischendurch",
+                      group.note,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </Link>
+                <Button asChild variant="ghost" size="sm" className="mr-2 text-brand">
+                  <Link href={`${PATH}?plan=1&group=${group.id}`}>Planen</Link>
+                </Button>
               </li>
             ))}
+            <li>
+              <form action={createGroup} className="relative">
+                <Input
+                  name="name"
+                  required
+                  maxLength={60}
+                  aria-label="Neue Gruppe"
+                  placeholder="+ Neue Gruppe, z. B. U10 Mittwoch"
+                  enterKeyHint="enter"
+                  className="h-12 rounded-none border-0 px-4 shadow-none focus-visible:ring-0"
+                />
+                <FormPending />
+              </form>
+            </li>
           </ul>
         </section>
-      )}
-    </div>
+
+        <div className="space-y-2">
+          <Link href={`${PATH}?exercises=1`} className="flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 shadow-xs active:bg-accent">
+            <BookOpenIcon className="size-5 text-muted-foreground" />
+            <span className="flex-1">Übungssammlung</span>
+            <span className="font-mono text-sm text-muted-foreground">{exerciseCount ?? 0}</span>
+            <ChevronRightIcon className="size-4 text-muted-foreground" />
+          </Link>
+          <Link href={`${PATH}?principles=1`} className="flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 shadow-xs active:bg-accent">
+            <ListChecksIcon className="size-5 text-muted-foreground" />
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span>Grundsätze</span>
+              <span className="truncate text-xs text-muted-foreground">Woran sich die KI beim Planen hält, z. B. die 8-Sekunden-Regel</span>
+            </span>
+            <ChevronRightIcon className="size-4 text-muted-foreground" />
+          </Link>
+          <Link href={`${PATH}?holidays=1`} className="flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 shadow-xs active:bg-accent">
+            <PalmtreeIcon className="size-5 text-muted-foreground" />
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span>Ferien</span>
+              {(currentHoliday ?? nextHoliday) && (
+                <span className="truncate text-xs text-muted-foreground">
+                  {currentHoliday ? "Gerade: " : "Nächste: "}
+                  {(currentHoliday ?? nextHoliday)!.name || "Ferien"}, {formatRange(currentHoliday ?? nextHoliday!)}
+                </span>
+              )}
+            </span>
+            <ChevronRightIcon className="size-4 text-muted-foreground" />
+          </Link>
+        </div>
+
+        {past.length > 0 && (
+          <section aria-label="Vergangene Stunden" className="space-y-1.5">
+            <h2 className="px-1 text-sm font-medium text-muted-foreground">Vergangene Stunden</h2>
+            <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+              {past.map((session) => (
+                <li key={session.id}>
+                  <SessionLink session={session} title={groupName(session.groupId)} today={today} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -551,14 +567,7 @@ function SessionView({ sessionId }: { sessionId: string }) {
 
   return (
     <>
-      <PrintSheet
-        title={`${group?.name ?? "Training"} · Tennistraining`}
-        subtitle={`${formatSessionDate(session.date)} · ${session.startTime}–${sessionEnd(session)}${session.focus ? ` · ${session.focus}` : ""}`}
-        startTime={session.startTime}
-        items={items}
-        notes={session.notes}
-        stage={group?.stage}
-      />
+      <PrintSheet {...sheetFor(session, groups, exercises)} />
       <div className="mx-auto max-w-2xl space-y-4 print:hidden">
         <div className="-ml-2 flex items-center gap-1">
           <Button asChild variant="ghost" size="icon" className="size-10 text-muted-foreground">
