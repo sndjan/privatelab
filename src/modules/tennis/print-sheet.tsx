@@ -17,7 +17,7 @@ export function PrintSheet({
   title: string;
   subtitle: string;
   startTime: string;
-  items: { exercise: Exercise; minutes: number }[];
+  items: { exercise: Exercise; minutes: number; note?: string }[];
   players: Player[];
   absent: string[];
   notes: string;
@@ -50,7 +50,7 @@ export function PrintSheet({
         </p>
       )}
       <ol>
-        {items.map(({ exercise, minutes }, index) => (
+        {items.map(({ exercise, minutes, note }, index) => (
           <li key={index} className="flex break-inside-avoid gap-2 border-b border-black/40 py-1.5">
             <div className="w-11 shrink-0 font-mono">
               <div className="font-bold">{formatClock(ranges[index].start)}</div>
@@ -60,6 +60,7 @@ export function PrintSheet({
               <p>
                 <span className="font-bold">{exercise.name}</span> <span>· {phaseName(exercise.phase)}</span>
               </p>
+              {note && <p className="font-bold">Notiz: {note}</p>}
               {exercise.summary && <p>{exercise.summary}</p>}
               {exercise.tips.length > 0 && <p className="italic">„{exercise.tips.join("“ · „")}“</p>}
               {exercise.variations.easier && <p>Leichter: {exercise.variations.easier}</p>}

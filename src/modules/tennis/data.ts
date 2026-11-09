@@ -145,7 +145,30 @@ export const genderName = { m: "Junge", f: "Mädchen" } as const;
 // Days without training, e.g. school holidays.
 export type Holiday = { id: string; name: string; startDate: string; endDate: string };
 
-export type PlanItem = { exerciseId: string; minutes: number };
+// `note`: a reminder for this session only, e.g. "Hütchen mitnehmen"; the
+// exercise itself stays as it is.
+export type PlanItem = { exerciseId: string; minutes: number; note?: string };
+
+// A plan item from the browser or the database, or null if it isn't one.
+export function cleanPlanItem(value: unknown): PlanItem | null {
+  if (!value || typeof value !== "object") return null;
+  const { exerciseId, minutes, note } = value as Record<string, unknown>;
+  if (typeof exerciseId !== "string" || typeof minutes !== "number" || !Number.isFinite(minutes)) return null;
+  const text = typeof note === "string" ? note.trim().slice(0, 300) : "";
+  return { exerciseId, minutes: Math.min(90, Math.max(5, Math.round(minutes))), ...(text && { note: text }) };
+}
+
+// Notes stay with their exercise when a plan is replaced (e.g. by the AI):
+// each new item takes the note of the same exercise in the old plan.
+export function keepNotes(next: PlanItem[], previous: PlanItem[]): PlanItem[] {
+  const left = previous.filter((item) => item.note);
+  return next.map((item) => {
+    const at = left.findIndex((entry) => entry.exerciseId === item.exerciseId);
+    if (at < 0) return item;
+    const [match] = left.splice(at, 1);
+    return { ...item, note: match.note };
+  });
+}
 
 export type Session = {
   id: string;
@@ -388,7 +411,8 @@ export function replan(
     if (!replacement || (!all && !fitsPlayers(replacement, context.players))) return item;
     taken.add(replacement.id);
     changed++;
-    return { ...item, exerciseId: replacement.id };
+    // The note was about the old exercise.
+    return { exerciseId: replacement.id, minutes: item.minutes };
   });
   return { plan: next, changed };
 }

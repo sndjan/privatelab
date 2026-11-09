@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRightIcon, PrinterIcon } from "lucide-react";
+import { ChevronRightIcon, PrinterIcon, StickyNoteIcon } from "lucide-react";
 import { ViewLink as Link } from "@/lib/query/view-link";
 import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,8 @@ export function useLive(session: { date: string; startTime: string; plan: { minu
   return now === null ? null : liveState(session, new Date(now));
 }
 
-type Item = { exercise: Exercise; minutes: number };
+// `note`: the coach's reminder for this session.
+type Item = { exercise: Exercise; minutes: number; note?: string };
 
 // The session sheet: every exercise with its time, sketch and cues. While the
 // session runs, the current exercise is highlighted with the minutes left.
@@ -60,7 +61,7 @@ export function SessionPlan({
     <div className="space-y-3">
       {live && <LiveBanner live={live} items={items} />}
       <ol className="space-y-3">
-        {items.map(({ exercise, minutes }, index) => {
+        {items.map(({ exercise, minutes, note }, index) => {
           const current = live?.kind === "running" && live.index === index;
           const past = (live?.kind === "running" && index < live.index) || live?.kind === "over";
           return (
@@ -81,6 +82,12 @@ export function SessionPlan({
                     · {phaseName(exercise.phase)} · {minutes} Min.
                   </p>
                   <h3 className="text-lg leading-tight font-semibold">{exercise.name}</h3>
+                  {note && (
+                    <p className="flex gap-1.5 rounded-lg bg-amber-100 px-2.5 py-1.5 text-sm text-amber-950 dark:bg-amber-400/15 dark:text-amber-100">
+                      <StickyNoteIcon className="mt-0.5 size-4 shrink-0" />
+                      <span className="whitespace-pre-line">{note}</span>
+                    </p>
+                  )}
                   {current && live?.kind === "running" && (
                     <div className="flex items-center gap-2">
                       <Progress value={live.progress * 100} className="h-1.5 flex-1 bg-muted" indicatorClassName="bg-brand" />

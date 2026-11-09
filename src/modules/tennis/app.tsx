@@ -546,7 +546,7 @@ function SessionView({ sessionId }: { sessionId: string }) {
   const exercises = allExercises;
   const items = session.plan.flatMap((item) => {
     const exercise = exercises.find((entry) => entry.id === item.exerciseId);
-    return exercise ? [{ exercise, minutes: item.minutes }] : [];
+    return exercise ? [{ exercise, minutes: item.minutes, note: item.note ?? "" }] : [];
   });
 
   return (
