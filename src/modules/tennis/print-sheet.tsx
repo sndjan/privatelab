@@ -1,5 +1,5 @@
 import { Court } from "./court";
-import { formatClock, phaseName, timeline, type Exercise, type Player } from "./data";
+import { formatClock, phaseName, showsMidcourt, timeline, type Exercise, type Player, type Stage } from "./data";
 
 // The session on one A5 page in black and white: per exercise the time, name,
 // one sentence and the cues to call out, with a small sketch. Only printed;
@@ -12,6 +12,7 @@ export function PrintSheet({
   players,
   absent,
   notes,
+  stage = null,
 }: {
   title: string;
   subtitle: string;
@@ -20,6 +21,7 @@ export function PrintSheet({
   players: Player[];
   absent: string[];
   notes: string;
+  stage?: Stage | null;
 }) {
   const ranges = timeline(startTime, items);
   const present = players.filter((player) => !absent.includes(player.id));
@@ -63,7 +65,7 @@ export function PrintSheet({
               {exercise.variations.easier && <p>Leichter: {exercise.variations.easier}</p>}
               {exercise.variations.harder && <p>Schwerer: {exercise.variations.harder}</p>}
             </div>
-            {exercise.diagram.items.length > 0 && <Court diagram={exercise.diagram} mono horizontal className="h-[22mm] w-auto shrink-0" />}
+            {exercise.diagram.items.length > 0 && <Court diagram={exercise.diagram} mono horizontal midcourt={showsMidcourt(exercise, stage)} className="h-[22mm] w-auto shrink-0" />}
           </li>
         ))}
       </ol>

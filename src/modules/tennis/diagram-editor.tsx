@@ -39,9 +39,12 @@ type Drag = {
 export function DiagramEditor({
   value,
   onChange,
+  midcourt = false,
 }: {
   value: Diagram;
   onChange: (update: (diagram: Diagram) => Diagram) => void;
+  // Shows the Orange court's baseline, for exercises made for Midcourt.
+  midcourt?: boolean;
 }) {
   const [tool, setTool] = useState<Tool | null>("player");
   const [selected, setSelected] = useState<number | null>(null);
@@ -184,6 +187,7 @@ export function DiagramEditor({
         <CourtSvg
           ref={svgRef}
           horizontal
+          midcourt={midcourt}
           className="w-full max-w-2xl touch-none select-none"
           onPointerDown={onCourtDown}
           onPointerMove={onMove}

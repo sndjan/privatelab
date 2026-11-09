@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   isStage,
   parseDiagram,
+  parseStages,
   parseVariations,
   type Exercise,
   type Gender,
@@ -20,16 +21,18 @@ import {
 
 // Exercises, groups and players are read with "*": before the migration
 // 20261116000000_tennis_variations_ages_principles.sql their new columns
-// (variations, stage, birth_year) don't exist yet.
+// (variations, stage, birth_year) don't exist yet; the same goes for
+// 20261125000000_tennis_midcourt.sql (stages, serves, games_between).
 const standInColumns = "id, group_id, date, note";
 const sessionColumns = "id, group_id, date, start_time, minutes, focus, plan, notes, absent";
 const holidayColumns = "id, name, start_date, end_date";
 
-type ExerciseRow = Omit<Exercise, "diagram" | "playersMin" | "playersMax" | "variations"> & {
+type ExerciseRow = Omit<Exercise, "diagram" | "playersMin" | "playersMax" | "variations" | "stages"> & {
   diagram: unknown;
   players_min: number | null;
   players_max: number | null;
   variations?: unknown;
+  stages?: unknown;
 };
 type GroupRow = {
   id: string;
@@ -40,6 +43,8 @@ type GroupRow = {
   weekday: number | null;
   coach: string | null;
   stage?: string | null;
+  serves?: boolean | null;
+  games_between?: boolean | null;
 };
 type StandInRow = { id: string; group_id: string; date: string; note: string };
 type PlayerRow = { id: string; group_id: string; name: string; gender: Gender | null; birth_year?: number | null };
@@ -70,6 +75,7 @@ const toExercise = (row: ExerciseRow): Exercise => ({
   playersMin: row.players_min,
   playersMax: row.players_max,
   variations: parseVariations(row.variations),
+  stages: parseStages(row.stages),
 });
 
 const toPlayer = (row: PlayerRow): Player => ({
@@ -91,6 +97,8 @@ const toGroup = (row: GroupRow): Group => ({
   weekday: row.weekday,
   coach: row.coach ?? "",
   stage: isStage(row.stage) ? row.stage : null,
+  serves: row.serves ?? true,
+  gamesBetween: row.games_between ?? false,
 });
 
 const toStandIn = (row: StandInRow): StandIn => ({ id: row.id, groupId: row.group_id, date: row.date, note: row.note });

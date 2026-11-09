@@ -6,7 +6,8 @@ import { court, isArrow, type Arrow, type Diagram, type DiagramItem, type Piece 
 // (it is a picture), so it looks the same in light and dark mode and in print.
 // `mono` draws it black on white, for the printed sheet. `horizontal` turns
 // it a quarter (net upright, the coach's half on the left), so it fills a
-// wide space and is easier to read; labels stay upright.
+// wide space and is easier to read; labels stay upright. `midcourt` adds the
+// baseline of the Play+Stay Orange court (orange, dashed in print).
 
 const viewBox = `${court.minX} ${court.minY} ${court.maxX - court.minX} ${court.maxY - court.minY}`;
 // Rotated by -90°: (x, y) is drawn at (y, -x).
@@ -18,14 +19,16 @@ export function Court({
   className,
   mono = false,
   horizontal = false,
+  midcourt = false,
 }: {
   diagram: Diagram;
   className?: string;
   mono?: boolean;
   horizontal?: boolean;
+  midcourt?: boolean;
 }) {
   return (
-    <CourtSvg className={className} mono={mono} horizontal={horizontal} role="img" aria-label="Skizze der Übung">
+    <CourtSvg className={className} mono={mono} horizontal={horizontal} midcourt={midcourt} role="img" aria-label="Skizze der Übung">
       {diagram.items.map((item, index) => (
         <DiagramShape key={index} item={item} mono={mono} />
       ))}
@@ -38,8 +41,12 @@ export function CourtSvg({
   children,
   mono = false,
   horizontal = false,
+  midcourt = false,
   ...props
-}: SVGProps<SVGSVGElement> & { mono?: boolean; horizontal?: boolean }) {
+}: SVGProps<SVGSVGElement> & { mono?: boolean; horizontal?: boolean; midcourt?: boolean }) {
+  const midcourtLine = mono
+    ? { stroke: "#000", strokeWidth: 0.12, strokeDasharray: "0.5 0.35" }
+    : { stroke: "#ffb347", strokeWidth: 0.14 };
   const line = mono ? { stroke: "#000", strokeWidth: 0.12 } : { stroke: "#fff", strokeWidth: 0.09 };
   return (
     <Horizontal value={horizontal}>
@@ -65,6 +72,17 @@ export function CourtSvg({
           <line x1={0} y1={-court.service} x2={0} y2={court.service} {...line} />
           <line x1={0} y1={-court.baseline} x2={0} y2={-court.baseline + 0.3} {...line} />
           <line x1={0} y1={court.baseline} x2={0} y2={court.baseline - 0.3} {...line} />
+          {midcourt &&
+            [-1, 1].map((side) => (
+              <line
+                key={side}
+                x1={-court.singles}
+                y1={side * court.midcourt}
+                x2={court.singles}
+                y2={side * court.midcourt}
+                {...midcourtLine}
+              />
+            ))}
           {/* Net with posts */}
           <line x1={-court.doubles - 0.9} y1={0} x2={court.doubles + 0.9} y2={0} stroke="#23302b" strokeWidth={0.16} />
           <circle cx={-court.doubles - 0.9} cy={0} r={0.18} fill="#23302b" />

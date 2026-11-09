@@ -58,6 +58,7 @@ function toRow(input: ExerciseInput) {
     players_min: input.playersMin,
     players_max: input.playersMax,
     variations: input.variations,
+    stages: input.stages,
   };
 }
 
@@ -173,6 +174,8 @@ function groupValues(formData: FormData) {
     ...(minutes >= 15 && minutes <= 180 && { minutes }),
     ...(formData.has("weekday") && { weekday: Number.isInteger(weekday) && weekday >= 1 && weekday <= 7 ? weekday : null }),
     ...(formData.has("stage") && { stage: isStage(formData.get("stage")) ? String(formData.get("stage")) : null }),
+    // Checkboxes only send a value when ticked; "options" marks the form that has them.
+    ...(formData.has("options") && { serves: formData.get("serves") === "on", games_between: formData.get("gamesBetween") === "on" }),
   };
 }
 
@@ -360,6 +363,7 @@ export async function replanSession(sessionId: string, { from = 0, all = false }
   const session = check(
     await supabase.from("tennis_sessions").select("id, group_id, plan, absent, focus").eq("id", sessionId).single(),
   );
+  const group = session.group_id ? (await tennisLoaders.groups()).find((entry) => entry.id === session.group_id) : undefined;
   const plan = (Array.isArray(session.plan) ? session.plan : []) as PlanItem[];
   const absent = new Set((session.absent ?? []) as string[]);
   const [exercises, players, favorites, recentSessions] = await Promise.all([
@@ -392,6 +396,8 @@ export async function replanSession(sessionId: string, { from = 0, all = false }
       ),
       focus: session.focus,
       players: present,
+      stage: group?.stage,
+      serves: group?.serves,
     },
     { from: Math.max(0, Math.round(from)), all },
   );

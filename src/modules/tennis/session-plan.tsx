@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { Court } from "./court";
-import { formatClock, hasVariations, liveState, phaseName, timeline, type Exercise, type LiveState } from "./data";
+import { formatClock, hasVariations, liveState, phaseName, showsMidcourt, timeline, type Exercise, type LiveState, type Stage } from "./data";
 import { VariationList } from "./variations";
 
 const PATH = "/m/tennis";
@@ -41,7 +41,18 @@ type Item = { exercise: Exercise; minutes: number };
 
 // The session sheet: every exercise with its time, sketch and cues. While the
 // session runs, the current exercise is highlighted with the minutes left.
-export function SessionPlan({ date, startTime, items }: { date: string; startTime: string; items: Item[] }) {
+export function SessionPlan({
+  date,
+  startTime,
+  items,
+  stage = null,
+}: {
+  date: string;
+  startTime: string;
+  items: Item[];
+  // The group's Play+Stay stage: Orange sketches show the midcourt line.
+  stage?: Stage | null;
+}) {
   const live = useLive({ date, startTime, plan: items });
   const ranges = timeline(startTime, items);
 
@@ -109,7 +120,7 @@ export function SessionPlan({ date, startTime, items }: { date: string; startTim
                   </Link>
                 </div>
               </div>
-              {exercise.diagram.items.length > 0 && <Court diagram={exercise.diagram} horizontal className="mt-3 w-full max-w-xl" />}
+              {exercise.diagram.items.length > 0 && <Court diagram={exercise.diagram} horizontal midcourt={showsMidcourt(exercise, stage)} className="mt-3 w-full max-w-xl" />}
             </li>
           );
         })}
