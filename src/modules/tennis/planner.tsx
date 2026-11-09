@@ -21,6 +21,7 @@ import {
   InfoIcon,
   Loader2Icon,
   SparklesIcon,
+  StickyNoteIcon,
   MinusIcon,
   PalmtreeIcon,
   PlusIcon,
@@ -53,6 +54,7 @@ import {
   formatSessionDate,
   generatePlan,
   holidayOn,
+  keepNotes,
   nextTrainingDate,
   phaseName,
   playersLabel,
@@ -169,14 +171,15 @@ export function Planner({
     const current = byId.get(plan[index].exerciseId)!;
     const taken = new Set(plan.map((item) => item.exerciseId));
     const exercise = pickExercise(current.phase, context(), taken);
-    if (exercise) setPlan(plan.map((item, at) => (at === index ? { ...item, exerciseId: exercise.id } : item)));
+    // A note was about the old exercise, so it goes with it.
+    if (exercise) setPlan(plan.map((item, at) => (at === index ? { exerciseId: exercise.id, minutes: item.minutes } : item)));
     else toast.info(`Keine andere Übung für ${phaseName(current.phase)} in der Sammlung.`);
   }
 
   function pick(exercise: Exercise) {
     if (!picking) return;
     if (picking.index === null) setPlan([...plan, { exerciseId: exercise.id, minutes: exercise.minutes }]);
-    else setPlan(plan.map((item, at) => (at === picking.index ? { ...item, exerciseId: exercise.id } : item)));
+    else setPlan(plan.map((item, at) => (at === picking.index ? { exerciseId: exercise.id, minutes: item.minutes } : item)));
     setPicking(null);
   }
 
@@ -194,6 +197,17 @@ export function Planner({
   function onDragEnd({ active, over }: DragEndEvent) {
     if (!over || active.id === over.id) return;
     setPlan(arrayMove(plan, itemIds.indexOf(String(active.id)), itemIds.indexOf(String(over.id))));
+  }
+
+  // undefined = no note field; "" = an open, empty one.
+  function setNote(index: number, note: string | undefined) {
+    setPlan(
+      plan.map((entry, at) => {
+        if (at !== index) return entry;
+        const base = { exerciseId: entry.exerciseId, minutes: entry.minutes };
+        return note === undefined ? base : { ...base, note };
+      }),
+    );
   }
 
   function setMinutes(index: number, by: number) {
@@ -411,6 +425,22 @@ export function Planner({
                         </div>
                         {handle}
                       </div>
+                      {item.note !== undefined && (
+                        <div className="mt-2 flex items-start gap-2 rounded-lg bg-amber-100 px-2.5 py-1.5 text-amber-950 dark:bg-amber-400/15 dark:text-amber-100">
+                          <StickyNoteIcon className="mt-1.5 size-4 shrink-0" />
+                          <Textarea
+                            aria-label={`Notiz zu ${exercise.name}`}
+                            autoFocus={item.note === ""}
+                            rows={1}
+                            maxLength={300}
+                            value={item.note}
+                            onChange={(event) => setNote(index, event.target.value)}
+                            onBlur={(event) => !event.target.value.trim() && setNote(index, undefined)}
+                            placeholder="z. B. noch ein Hütchen dazustellen"
+                            className="field-sizing-content min-h-0 resize-none border-0 bg-transparent p-1 text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
+                          />
+                        </div>
+                      )}
                       <div className="mt-2 flex items-center gap-0.5">
                         <Button variant="ghost" size="icon" aria-label="Kürzer" onClick={() => setMinutes(index, -5)}>
                           <MinusIcon />
@@ -432,6 +462,16 @@ export function Planner({
                               <StarIcon className={cn(isFavorite(exercise.id) && "fill-amber-400 text-amber-500")} />
                             </Button>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Notiz zu dieser Übung"
+                            title="Notiz"
+                            aria-pressed={item.note !== undefined}
+                            onClick={() => setNote(index, item.note ?? "")}
+                          >
+                            <StickyNoteIcon className={cn(item.note && "text-amber-500")} />
+                          </Button>
                           <Button variant="ghost" size="icon" aria-label="Andere Übung würfeln" title="Würfeln" onClick={() => reroll(index)}>
                             <DicesIcon />
                           </Button>
@@ -755,7 +795,7 @@ function AiPlanner({
           startTime: result.startTime ?? (groupChanged && group ? group.startTime : values.startTime),
           minutes,
           focus: editing ? (result.focus ?? values.focus) : result.focus,
-          plan: result.plan,
+          plan: editing ? keepNotes(result.plan, values.plan) : result.plan,
         });
         if (editing) setRequest("");
         setFresh(false);

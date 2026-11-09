@@ -3,6 +3,7 @@
 import type { Loader } from "@/lib/query/loaders";
 import { createClient } from "@/lib/supabase/server";
 import {
+  cleanPlanItem,
   isStage,
   parseDiagram,
   parseStages,
@@ -104,9 +105,7 @@ const toGroup = (row: GroupRow): Group => ({
 const toStandIn = (row: StandInRow): StandIn => ({ id: row.id, groupId: row.group_id, date: row.date, note: row.note });
 
 function toSession(row: SessionRow): Session {
-  const plan = (Array.isArray(row.plan) ? row.plan : []).filter(
-    (item): item is PlanItem => typeof item?.exerciseId === "string" && typeof item?.minutes === "number",
-  );
+  const plan = (Array.isArray(row.plan) ? row.plan : []).map(cleanPlanItem).filter((item): item is PlanItem => item !== null);
   return {
     id: row.id,
     groupId: row.group_id,

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { askForExercises, askForPlan } from "./ai-plan";
 import {
   cleanExercise,
+  cleanPlanItem,
   defaultPrinciples,
   focusTags,
   hasVariations,
@@ -307,9 +308,9 @@ export async function saveSession(
 ) {
   if (!isDate(values.date) || !isTime(values.startTime)) throw new Error("Ungültiges Datum oder Uhrzeit");
   const plan = values.plan
-    .filter((item) => isId(item.exerciseId))
-    .slice(0, 20)
-    .map((item) => ({ exerciseId: item.exerciseId, minutes: Math.min(90, Math.max(5, Math.round(item.minutes))) }));
+    .map(cleanPlanItem)
+    .filter((item): item is PlanItem => item !== null && isId(item.exerciseId))
+    .slice(0, 20);
   const row = {
     group_id: isId(values.groupId) ? values.groupId : null,
     date: values.date,
@@ -408,9 +409,9 @@ export async function replanSession(sessionId: string, { from = 0, all = false }
 
 export async function restorePlan(sessionId: string, plan: PlanItem[]) {
   const clean = plan
-    .filter((item) => isId(item.exerciseId))
-    .slice(0, 20)
-    .map((item) => ({ exerciseId: item.exerciseId, minutes: Math.min(90, Math.max(5, Math.round(item.minutes))) }));
+    .map(cleanPlanItem)
+    .filter((item): item is PlanItem => item !== null && isId(item.exerciseId))
+    .slice(0, 20);
   const supabase = await db();
   check(await supabase.from("tennis_sessions").update({ plan: clean }).eq("id", sessionId));
   revalidatePath(PATH);
