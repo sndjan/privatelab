@@ -155,7 +155,7 @@ export function cleanPlanItem(value: unknown): PlanItem | null {
   const { exerciseId, minutes, note } = value as Record<string, unknown>;
   if (typeof exerciseId !== "string" || typeof minutes !== "number" || !Number.isFinite(minutes)) return null;
   const text = typeof note === "string" ? note.trim().slice(0, 300) : "";
-  return { exerciseId, minutes: Math.min(90, Math.max(5, Math.round(minutes))), ...(text && { note: text }) };
+  return { exerciseId, minutes: Math.min(90, Math.max(1, Math.round(minutes))), ...(text && { note: text }) };
 }
 
 // Notes stay with their exercise when a plan is replaced (e.g. by the AI):

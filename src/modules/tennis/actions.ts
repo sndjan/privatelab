@@ -474,7 +474,7 @@ export async function planWithAi(
     principles,
     current: current
       .filter((item) => isId(item.exerciseId) && exercises.some((exercise) => exercise.id === item.exerciseId))
-      .map((item) => ({ exerciseId: item.exerciseId, minutes: Math.min(90, Math.max(5, Math.round(Number(item.minutes)) || 10)) }))
+      .map((item) => ({ exerciseId: item.exerciseId, minutes: Math.min(90, Math.max(1, Math.round(Number(item.minutes)) || 10)) }))
       .slice(0, 20),
   });
   if ("error" in answer) return { error: answer.error };
@@ -499,7 +499,7 @@ export async function planWithAi(
           : item.new_exercise_index >= 0
             ? createdIds[item.new_exercise_index] ?? null
             : null,
-      minutes: Math.min(90, Math.max(5, Math.round(item.minutes / 5) * 5 || 10)),
+      minutes: Math.min(90, Math.max(1, Math.round(item.minutes) || 10)),
     }))
     .filter((item): item is PlanItem => item.exerciseId !== null)
     .slice(0, 20);

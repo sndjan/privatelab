@@ -211,7 +211,7 @@ export function Planner({
   }
 
   function setMinutes(index: number, by: number) {
-    setPlan(plan.map((entry, at) => (at === index ? { ...entry, minutes: Math.min(90, Math.max(5, entry.minutes + by)) } : entry)));
+    setPlan(plan.map((entry, at) => (at === index ? { ...entry, minutes: Math.min(90, Math.max(1, entry.minutes + by)) } : entry)));
   }
 
   function toggleFavorite(exerciseId: string) {
@@ -442,11 +442,11 @@ export function Planner({
                         </div>
                       )}
                       <div className="mt-2 flex items-center gap-0.5">
-                        <Button variant="ghost" size="icon" aria-label="Kürzer" onClick={() => setMinutes(index, -5)}>
+                        <Button variant="ghost" size="icon" aria-label="1 Minute kürzer" onClick={() => setMinutes(index, -1)}>
                           <MinusIcon />
                         </Button>
                         <span className="w-16 text-center font-mono text-sm whitespace-nowrap">{item.minutes} Min.</span>
-                        <Button variant="ghost" size="icon" aria-label="Länger" onClick={() => setMinutes(index, 5)}>
+                        <Button variant="ghost" size="icon" aria-label="1 Minute länger" onClick={() => setMinutes(index, 1)}>
                           <PlusIcon />
                         </Button>
                         <div className="ml-auto flex items-center gap-0.5 text-muted-foreground">
