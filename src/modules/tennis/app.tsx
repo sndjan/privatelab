@@ -7,7 +7,6 @@ import { FormPending } from "@/components/form-pending";
 import { Loading } from "@/components/loading";
 import { confirmSubmit } from "@/components/confirm-dialog";
 import { SubmitButton } from "@/components/submit-button";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -47,8 +46,6 @@ import {
   nextTrainingDate,
   noVariations,
   parseDiagram,
-  phaseName,
-  playersLabel,
   showsMidcourt,
   stageLabel,
   stages,
@@ -60,6 +57,7 @@ import {
   type Phase,
   type Session,
 } from "./data";
+import { ExerciseDetails } from "./exercise-details";
 import { ExerciseForm } from "./exercise-form";
 import { FavoriteToggles } from "./favorite-toggles";
 import { Library } from "./library";
@@ -69,7 +67,6 @@ import { PrintSheet } from "./print-sheet";
 import { LiveBadge, PrintButton, SessionPlan } from "./session-plan";
 import { starterExercises } from "./starter";
 import { useTennis } from "./use-tennis";
-import { VariationList } from "./variations";
 
 const PATH = "/m/tennis";
 
@@ -698,47 +695,7 @@ function ExerciseView({ exerciseId, edit }: { exerciseId: string; edit: boolean 
         </Button>
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
-        <Badge variant="secondary">{phaseName(exercise.phase)}</Badge>
-        <Badge variant="secondary">{exercise.minutes} Min.</Badge>
-        {playersLabel(exercise) && <Badge variant="secondary">{playersLabel(exercise)}</Badge>}
-        {exercise.stages.map((stage) => (
-          <Badge key={stage} variant="secondary">
-            {stageLabel(stage)}
-          </Badge>
-        ))}
-        {exercise.focus.map((tag) => (
-          <Badge key={tag} variant="outline">
-            {tag}
-          </Badge>
-        ))}
-      </div>
-
-      <div className="space-y-4">
-        <Court diagram={exercise.diagram} horizontal midcourt={showsMidcourt(exercise)} className="w-full" />
-        <div className="space-y-3">
-          {exercise.summary && <p className="font-medium">{exercise.summary}</p>}
-          {exercise.description && <p className="text-sm whitespace-pre-line">{exercise.description}</p>}
-          {exercise.tips.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-sm text-muted-foreground">Zum Zurufen</p>
-              <ul className="flex flex-wrap gap-1.5">
-                {exercise.tips.map((tip) => (
-                  <li key={tip} className="rounded-full bg-good px-2.5 py-0.5 text-sm text-good-foreground">
-                    „{tip}“
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {hasVariations(exercise.variations) && (
-            <div className="space-y-1.5">
-              <p className="text-sm text-muted-foreground">Variationen</p>
-              <VariationList variations={exercise.variations} />
-            </div>
-          )}
-        </div>
-      </div>
+      <ExerciseDetails exercise={exercise} />
 
       <Card>
         <CardHeader>

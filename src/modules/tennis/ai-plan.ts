@@ -16,6 +16,7 @@ import {
   weekdayNames,
   type Exercise,
   type Group,
+  type PlanItem,
   type Player,
 } from "./data";
 
@@ -133,6 +134,7 @@ How to build a session (BTV "Planung von Trainingseinheiten"):
 - Prefer the group's favorites and avoid what it played in its last sessions, unless asked for.
 - Pick the group the request names (names can be partial or misspelled); otherwise keep the preselected one. Resolve dates like "heute", "morgen" or "Mittwoch" from today's date; otherwise use null.
 - Write the note in German, addressed to the coach with "du", only when something could not be done as asked.
+- If a current plan is given, the request changes that plan: keep every item, its order and minutes exactly as they are unless the request asks to change them; change only what is asked (e.g. swap one exercise, make the game longer, add a warm-up game), and return the whole plan. Keep the group, date and focus unless asked (return null for date and start_time to keep them).
 
 ${exerciseGuide}`;
 
@@ -260,12 +262,15 @@ export async function askForPlan({
   recent,
   players,
   principles,
+  current = [],
 }: {
   request: string;
   today: string;
   groups: Group[];
   groupId: string | null;
   date: string;
+  // The plan in the planner, when the request is a change to it.
+  current?: PlanItem[];
   exercises: Exercise[];
   // Per group id: exercise ids.
   favorites: Record<string, string[]>;
@@ -301,7 +306,14 @@ Usual shape for the preselected group: ${slotsFor(groups.find((group) => group.i
     .join(" + ")}
 
 Collection (id | name | part | minutes | focus | kids | stages | summary | variations):
-${exercises.map(exerciseLine).join("\n")}`;
+${exercises.map(exerciseLine).join("\n")}${
+    current.length > 0
+      ? `
+
+Current plan (change only what the request asks):
+${current.map((item, index) => `${index + 1}. ${item.exerciseId} | ${name(item.exerciseId)} | ${item.minutes} min`).join("\n")}`
+      : ""
+  }`;
 
   const answer = await ask<AiPlanAnswer>(system, `${context}\n\nRequest from the coach:\n${request}`, schema);
   if ("error" in answer) return answer;

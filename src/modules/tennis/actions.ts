@@ -433,7 +433,14 @@ export type AiPlanResult =
 
 // A session from a sentence like "Vorhandfokus für die U10, zum Aufwärmen Tic
 // Tac Toe und zwei Spiele". Exercises the collection doesn't have are created.
-export async function planWithAi(request: string, groupId: string | null, date: string): Promise<AiPlanResult> {
+// With `current`, the request is a change to that plan ("tausch die zweite
+// Übung gegen ein Laufspiel"); everything else stays.
+export async function planWithAi(
+  request: string,
+  groupId: string | null,
+  date: string,
+  current: PlanItem[] = [],
+): Promise<AiPlanResult> {
   const wish = request.trim().slice(0, 1000);
   if (!wish) return { error: "Schreib kurz, was du planen willst." };
   const supabase = await db();
@@ -464,6 +471,10 @@ export async function planWithAi(request: string, groupId: string | null, date: 
     recent,
     players,
     principles,
+    current: current
+      .filter((item) => isId(item.exerciseId) && exercises.some((exercise) => exercise.id === item.exerciseId))
+      .map((item) => ({ exerciseId: item.exerciseId, minutes: Math.min(90, Math.max(5, Math.round(Number(item.minutes)) || 10)) }))
+      .slice(0, 20),
   });
   if ("error" in answer) return { error: answer.error };
 

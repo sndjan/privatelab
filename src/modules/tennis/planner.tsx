@@ -1,10 +1,24 @@
 "use client";
 
 import {
-  ArrowDownIcon,
-  ArrowUpIcon,
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  ArrowLeftRightIcon,
+  CheckIcon,
   ChevronLeftIcon,
   DicesIcon,
+  GripVerticalIcon,
+  InfoIcon,
   Loader2Icon,
   SparklesIcon,
   MinusIcon,
@@ -16,11 +30,11 @@ import {
   XIcon,
 } from "lucide-react";
 import { ViewLink as Link } from "@/lib/query/view-link";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -54,6 +68,7 @@ import {
   type PlanItem,
   type StandIn,
 } from "./data";
+import { ExerciseDetails } from "./exercise-details";
 import { Chip } from "./exercise-form";
 
 const PATH = "/m/tennis";
@@ -100,6 +115,8 @@ export function Planner({
   const [values, setValues] = useState(initial);
   const [favorites, setFavorites] = useState(() => new Set(savedFavorites));
   const [picking, setPicking] = useState<{ index: number | null; phase: Phase } | null>(null);
+  // The plan item whose details are open.
+  const [showing, setShowing] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
   const [, startFavorite] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -163,11 +180,24 @@ export function Planner({
     setPicking(null);
   }
 
-  function move(index: number, by: number) {
-    const next = [...plan];
-    const [item] = next.splice(index, 1);
-    next.splice(index + by, 0, item);
-    setPlan(next);
+  // Ids for drag and drop: the exercise, numbered if it is in the plan twice.
+  // Swapping an exercise changes the id, so the new one fades in.
+  const itemIds = plan.map(
+    (item, index) => `${item.exerciseId}#${plan.slice(0, index).filter((entry) => entry.exerciseId === item.exerciseId).length}`,
+  );
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const dndId = useId();
+
+  function onDragEnd({ active, over }: DragEndEvent) {
+    if (!over || active.id === over.id) return;
+    setPlan(arrayMove(plan, itemIds.indexOf(String(active.id)), itemIds.indexOf(String(over.id))));
+  }
+
+  function setMinutes(index: number, by: number) {
+    setPlan(plan.map((entry, at) => (at === index ? { ...entry, minutes: Math.min(90, Math.max(5, entry.minutes + by)) } : entry)));
   }
 
   function toggleFavorite(exerciseId: string) {
@@ -344,86 +374,89 @@ export function Planner({
         </p>
       )}
 
-      <ol className="space-y-2">
-        {plan.map((item, index) => {
-          const exercise = byId.get(item.exerciseId)!;
-          return (
-            // The key changes when an exercise is swapped, so the new one fades in.
-            <li key={`${index}-${item.exerciseId}`} className="rounded-xl border bg-card p-3 shadow-xs animate-in fade-in-0 zoom-in-[0.98] duration-300">
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPicking({ index, phase: exercise.phase })}
-                  className="w-24 shrink-0 cursor-pointer self-start"
-                  aria-label={`${exercise.name} austauschen`}
-                >
-                  <Court diagram={exercise.diagram} horizontal midcourt={showsMidcourt(exercise, group?.stage)} className="w-full" />
-                </button>
-                <div className="min-w-0 flex-1 space-y-1">
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-mono">
-                      {formatClock(ranges[index].start)}–{formatClock(ranges[index].end)}
-                    </span>{" "}
-                    · {phaseName(exercise.phase)}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setPicking({ index, phase: exercise.phase })}
-                    className="block cursor-pointer text-left leading-tight font-medium"
-                  >
-                    {exercise.name}
-                  </button>
-                  <p className="line-clamp-2 text-sm text-muted-foreground">{exercise.summary}</p>
-                  {!fitsPlayers(exercise, kidCount) && (
-                    <p className="text-xs text-debt">Passt nicht für {kidCount} Kinder ({playersLabel(exercise)})</p>
+      <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={onDragEnd}>
+        <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+          <ol className="space-y-2">
+            {plan.map((item, index) => {
+              const exercise = byId.get(item.exerciseId)!;
+              return (
+                <PlanRow key={itemIds[index]} id={itemIds[index]}>
+                  {(handle) => (
+                    <>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowing(index)}
+                          className="w-24 shrink-0 cursor-pointer self-start"
+                          aria-label={`${exercise.name}: Details`}
+                        >
+                          <Court diagram={exercise.diagram} horizontal midcourt={showsMidcourt(exercise, group?.stage)} className="w-full" />
+                        </button>
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <p className="text-xs text-muted-foreground">
+                            <span className="font-mono">
+                              {formatClock(ranges[index].start)}–{formatClock(ranges[index].end)}
+                            </span>{" "}
+                            · {phaseName(exercise.phase)}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setShowing(index)}
+                            className="block cursor-pointer text-left leading-tight font-medium"
+                          >
+                            {exercise.name}
+                          </button>
+                          <p className="line-clamp-2 text-sm text-muted-foreground">{exercise.summary}</p>
+                          <FitWarnings exercise={exercise} kids={kidCount} group={group} />
+                        </div>
+                        {handle}
+                      </div>
+                      <div className="mt-2 flex items-center gap-0.5">
+                        <Button variant="ghost" size="icon" aria-label="Kürzer" onClick={() => setMinutes(index, -5)}>
+                          <MinusIcon />
+                        </Button>
+                        <span className="w-16 text-center font-mono text-sm whitespace-nowrap">{item.minutes} Min.</span>
+                        <Button variant="ghost" size="icon" aria-label="Länger" onClick={() => setMinutes(index, 5)}>
+                          <PlusIcon />
+                        </Button>
+                        <div className="ml-auto flex items-center gap-0.5 text-muted-foreground">
+                          {values.groupId && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-pressed={isFavorite(exercise.id)}
+                              aria-label="Lieblingsübung der Gruppe"
+                              title="Lieblingsübung der Gruppe"
+                              onClick={() => toggleFavorite(exercise.id)}
+                            >
+                              <StarIcon className={cn(isFavorite(exercise.id) && "fill-amber-400 text-amber-500")} />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" aria-label="Andere Übung würfeln" title="Würfeln" onClick={() => reroll(index)}>
+                            <DicesIcon />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Übung austauschen"
+                            title="Austauschen"
+                            onClick={() => setPicking({ index, phase: exercise.phase })}
+                          >
+                            <ArrowLeftRightIcon />
+                          </Button>
+                          <Button variant="ghost" size="icon" aria-label="Entfernen" title="Entfernen" onClick={() => setPlan(plan.filter((_, at) => at !== index))}>
+                            <XIcon />
+                          </Button>
+                        </div>
+                      </div>
+                    </>
                   )}
-                  {group?.stage && !fitsStage(exercise, group.stage) && (
-                    <p className="text-xs text-debt">Für {exercise.stages.map(stageName).join(", ")} gemacht, nicht für {stageName(group.stage)}</p>
-                  )}
-                  {group && !group.serves && exercise.focus.includes("Aufschlag") && (
-                    <p className="text-xs text-debt">Mit Aufschlag, die Gruppe schlägt noch nicht auf</p>
-                  )}
-                </div>
-              </div>
-              <div className="mt-2 flex items-center gap-0.5">
-                <Button variant="ghost" size="icon" aria-label="Kürzer" onClick={() => setPlan(plan.map((entry, at) => (at === index ? { ...entry, minutes: Math.max(5, entry.minutes - 5) } : entry)))}>
-                  <MinusIcon />
-                </Button>
-                <span className="w-16 text-center font-mono text-sm whitespace-nowrap">{item.minutes} Min.</span>
-                <Button variant="ghost" size="icon" aria-label="Länger" onClick={() => setPlan(plan.map((entry, at) => (at === index ? { ...entry, minutes: Math.min(90, entry.minutes + 5) } : entry)))}>
-                  <PlusIcon />
-                </Button>
-                <div className="ml-auto flex items-center gap-0.5 text-muted-foreground">
-                  {values.groupId && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-pressed={isFavorite(exercise.id)}
-                      aria-label="Lieblingsübung der Gruppe"
-                      title="Lieblingsübung der Gruppe"
-                      onClick={() => toggleFavorite(exercise.id)}
-                    >
-                      <StarIcon className={cn(isFavorite(exercise.id) && "fill-amber-400 text-amber-500")} />
-                    </Button>
-                  )}
-                  <Button variant="ghost" size="icon" aria-label="Andere Übung würfeln" title="Andere Übung" onClick={() => reroll(index)}>
-                    <DicesIcon />
-                  </Button>
-                  <Button variant="ghost" size="icon" aria-label="Nach oben" disabled={index === 0} onClick={() => move(index, -1)}>
-                    <ArrowUpIcon />
-                  </Button>
-                  <Button variant="ghost" size="icon" aria-label="Nach unten" disabled={index === plan.length - 1} onClick={() => move(index, 1)}>
-                    <ArrowDownIcon />
-                  </Button>
-                  <Button variant="ghost" size="icon" aria-label="Entfernen" onClick={() => setPlan(plan.filter((_, at) => at !== index))}>
-                    <XIcon />
-                  </Button>
-                </div>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+                </PlanRow>
+              );
+            })}
+          </ol>
+        </SortableContext>
+      </DndContext>
 
       {exercises.length > 0 && (
         <Button variant="ghost" className="w-full border border-dashed" onClick={() => setPicking({ index: null, phase: "game" })}>
@@ -438,6 +471,36 @@ export function Planner({
           {sessionId ? "Speichern" : "Stunde speichern"}
         </Button>
       </div>
+
+      <ExerciseDialog
+        exercise={showing !== null && plan[showing] ? (byId.get(plan[showing].exerciseId) ?? null) : null}
+        groupStage={group?.stage}
+        warnings={(exercise) => <FitWarnings exercise={exercise} kids={kidCount} group={group} />}
+        onOpenChange={(open) => !open && setShowing(null)}
+        actions={
+          showing !== null && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  reroll(showing);
+                }}
+              >
+                <DicesIcon /> Würfeln
+              </Button>
+              <Button
+                onClick={() => {
+                  const exercise = byId.get(plan[showing].exerciseId)!;
+                  setShowing(null);
+                  setPicking({ index: showing, phase: exercise.phase });
+                }}
+              >
+                <ArrowLeftRightIcon /> Austauschen
+              </Button>
+            </>
+          )
+        }
+      />
 
       <ExercisePicker
         open={picking !== null}
@@ -475,6 +538,7 @@ function ExercisePicker({
 }) {
   const [phase, setPhase] = useState<Phase | null>(initialPhase);
   const [query, setQuery] = useState("");
+  const [preview, setPreview] = useState<Exercise | null>(null);
   const [wasOpen, setWasOpen] = useState(open);
   // Each opening starts on the phase of the exercise being replaced.
   if (open !== wasOpen) {
@@ -516,14 +580,11 @@ function ExercisePicker({
         )}
         <ul className="-mx-2 min-h-0 flex-1 divide-y overflow-y-auto">
           {shown.map((exercise) => (
-            <li key={exercise.id}>
+            <li key={exercise.id} className={cn("flex items-start", !fits(exercise) && "opacity-50")}>
               <button
                 type="button"
                 onClick={() => onPick(exercise)}
-                className={cn(
-                  "flex w-full cursor-pointer gap-3 rounded-lg p-2 text-left hover:bg-accent",
-                  !fits(exercise) && "opacity-50",
-                )}
+                className="flex min-w-0 flex-1 cursor-pointer gap-3 rounded-lg p-2 text-left hover:bg-accent"
               >
                 <Court diagram={exercise.diagram} horizontal midcourt={showsMidcourt(exercise, stage)} className="w-16 shrink-0 self-start" />
                 <span className="min-w-0 space-y-0.5">
@@ -535,11 +596,121 @@ function ExercisePicker({
                   {playersLabel(exercise) && <span className="block text-xs text-muted-foreground">{playersLabel(exercise)}</span>}
                 </span>
               </button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="mt-1 shrink-0 text-muted-foreground"
+                aria-label={`${exercise.name}: Details`}
+                title="Details"
+                onClick={() => setPreview(exercise)}
+              >
+                <InfoIcon />
+              </Button>
             </li>
           ))}
           {shown.length === 0 && <li className="p-4 text-center text-sm text-muted-foreground">Nichts gefunden.</li>}
         </ul>
+        <ExerciseDialog
+          exercise={preview}
+          groupStage={stage}
+          onOpenChange={(open) => !open && setPreview(null)}
+          actions={
+            preview && (
+              <Button
+                onClick={() => {
+                  setPreview(null);
+                  onPick(preview);
+                }}
+              >
+                <CheckIcon /> Diese nehmen
+              </Button>
+            )
+          }
+        />
       </DialogContent>
+    </Dialog>
+  );
+}
+
+// One exercise of the plan, sortable by its grip (pointer or keyboard).
+function PlanRow({ id, children }: { id: string; children: (handle: React.ReactNode) => React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const handle = (
+    <button
+      type="button"
+      ref={setActivatorNodeRef}
+      {...attributes}
+      {...listeners}
+      aria-label="Verschieben"
+      title="Ziehen zum Verschieben"
+      className="-mt-1 -mr-1 flex size-9 shrink-0 cursor-grab touch-none items-center justify-center self-start rounded-md text-muted-foreground/60 hover:text-foreground active:cursor-grabbing"
+    >
+      <GripVerticalIcon className="size-5" />
+    </button>
+  );
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn(
+        "rounded-xl border bg-card p-3 shadow-xs animate-in fade-in-0 zoom-in-[0.98] duration-300",
+        isDragging && "relative z-10 shadow-lg ring-2 ring-brand/40",
+      )}
+    >
+      {children(handle)}
+    </li>
+  );
+}
+
+// Why an exercise may not suit the group: number of kids, stage, serves.
+function FitWarnings({ exercise, kids, group }: { exercise: Exercise; kids: number | null; group: Group | undefined }) {
+  return (
+    <>
+      {!fitsPlayers(exercise, kids) && (
+        <p className="text-xs text-debt">
+          Passt nicht für {kids} Kinder ({playersLabel(exercise)})
+        </p>
+      )}
+      {group?.stage && !fitsStage(exercise, group.stage) && (
+        <p className="text-xs text-debt">
+          Für {exercise.stages.map(stageName).join(", ")} gemacht, nicht für {stageName(group.stage)}
+        </p>
+      )}
+      {group && !group.serves && exercise.focus.includes("Aufschlag") && (
+        <p className="text-xs text-debt">Mit Aufschlag, die Gruppe schlägt noch nicht auf</p>
+      )}
+    </>
+  );
+}
+
+// An exercise's details in a dialog, with buttons for what to do with it.
+function ExerciseDialog({
+  exercise,
+  groupStage,
+  warnings,
+  actions,
+  onOpenChange,
+}: {
+  exercise: Exercise | null;
+  groupStage?: Stage | null;
+  warnings?: (exercise: Exercise) => React.ReactNode;
+  actions?: React.ReactNode;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={exercise !== null} onOpenChange={onOpenChange}>
+      {exercise && (
+        <DialogContent className="flex max-h-[90dvh] flex-col">
+          <DialogHeader>
+            <DialogTitle>{exercise.name}</DialogTitle>
+          </DialogHeader>
+          <div className="-mx-6 min-h-0 flex-1 space-y-2 overflow-y-auto px-6">
+            {warnings?.(exercise)}
+            <ExerciseDetails exercise={exercise} groupStage={groupStage} showNotes />
+          </div>
+          {actions && <DialogFooter className="gap-2">{actions}</DialogFooter>}
+        </DialogContent>
+      )}
     </Dialog>
   );
 }
@@ -557,6 +728,9 @@ function AiPlanner({
   groups: Group[];
 }) {
   const [request, setRequest] = useState("");
+  // With a plan in the planner, the request changes it; "Neu planen" starts over.
+  const [fresh, setFresh] = useState(false);
+  const editing = values.plan.length > 0 && !fresh;
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -567,26 +741,31 @@ function AiPlanner({
     setNote(null);
     startTransition(async () => {
       try {
-        const result = await planWithAi(request, values.groupId, values.date);
+        const result = await planWithAi(request, values.groupId, values.date, editing ? values.plan : []);
         if (result.error !== null) {
           setError(result.error);
           return;
         }
         const group = groups.find((entry) => entry.id === (result.groupId ?? values.groupId));
         const minutes = result.plan.reduce((sum, item) => sum + item.minutes, 0);
+        const groupChanged = Boolean(result.groupId && result.groupId !== values.groupId);
         const undo = onPlan({
           groupId: group?.id ?? values.groupId,
           date: result.date ?? values.date,
-          startTime: result.startTime ?? (result.groupId && group ? group.startTime : values.startTime),
+          startTime: result.startTime ?? (groupChanged && group ? group.startTime : values.startTime),
           minutes,
-          focus: result.focus,
+          focus: editing ? (result.focus ?? values.focus) : result.focus,
           plan: result.plan,
         });
+        if (editing) setRequest("");
+        setFresh(false);
         setNote(
           [result.created.length > 0 && `Neu in der Sammlung: ${result.created.join(", ")}.`, result.note].filter(Boolean).join(" ") ||
             null,
         );
-        toast.success("Stunde geplant, schau sie dir an und speichere", { action: { label: "Rückgängig", onClick: undo } });
+        toast.success(editing ? "Stunde geändert, schau sie dir an und speichere" : "Stunde geplant, schau sie dir an und speichere", {
+          action: { label: "Rückgängig", onClick: undo },
+        });
       } catch {
         setError("Die KI ist gerade nicht erreichbar.");
       }
@@ -596,9 +775,20 @@ function AiPlanner({
   return (
     <Card className="gap-3 py-4">
       <CardContent className="space-y-2 px-4">
-        <label htmlFor="ai-plan" className="flex items-center gap-2 text-sm font-medium">
-          <SparklesIcon className="size-4 text-brand" /> Mit KI planen
-        </label>
+        <div className="flex items-center gap-2">
+          <label htmlFor="ai-plan" className="flex flex-1 items-center gap-2 text-sm font-medium">
+            <SparklesIcon className="size-4 text-brand" /> {editing ? "Mit KI ändern" : "Mit KI planen"}
+          </label>
+          {values.plan.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setFresh(!fresh)}
+              className="cursor-pointer text-xs text-muted-foreground underline-offset-2 hover:underline"
+            >
+              {editing ? "Stattdessen neu planen" : "Diese Stunde ändern"}
+            </button>
+          )}
+        </div>
         <Textarea
           id="ai-plan"
           rows={2}
@@ -611,17 +801,23 @@ function AiPlanner({
               ask();
             }
           }}
-          placeholder="z. B. Vorhandfokus für die U10, zum Aufwärmen Tic Tac Toe und zwei Spiele"
+          placeholder={
+            editing
+              ? "z. B. Passt gut, aber tausch die zweite Übung gegen etwas mit mehr Laufen und mach das Spiel länger"
+              : "z. B. Vorhandfokus für die U10, zum Aufwärmen Tic Tac Toe und zwei Spiele"
+          }
           enterKeyHint="send"
           className="min-h-0 resize-none"
         />
         <div className="flex items-center gap-3">
           <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-            Nimmt Übungen aus deiner Sammlung, legt fehlende neu an. Gespeichert wird erst mit „Stunde speichern“.
+            {editing
+              ? "Ändert nur, was du sagst, der Rest bleibt. Gespeichert wird erst mit „Speichern“."
+              : "Nimmt Übungen aus deiner Sammlung, legt fehlende neu an. Gespeichert wird erst mit „Stunde speichern“."}
           </p>
           <Button variant="brand" size="sm" onClick={ask} disabled={pending || !request.trim()}>
             {pending ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-            {pending ? "Plant …" : "Planen"}
+            {pending ? (editing ? "Ändert …" : "Plant …") : editing ? "Ändern" : "Planen"}
           </Button>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
