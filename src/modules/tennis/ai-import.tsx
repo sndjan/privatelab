@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { importExercises, inventExercisesWithAi } from "./actions";
 import { Court } from "./court";
-import { aiPrompt, parseExercises, phaseName, playersLabel, type ExerciseInput } from "./data";
+import { aiPrompt, parseExercises, phaseName, playersLabel, showsMidcourt, type ExerciseInput } from "./data";
 import { useTennis } from "./use-tennis";
 
 // New exercises from Claude: describe what you need, look at what it wrote
@@ -156,7 +156,7 @@ export function AiImport({ existing }: { existing: string[] }) {
                         </span>
                       </span>
                     </span>
-                    <Court diagram={exercise.diagram} horizontal className="w-full" />
+                    <Court diagram={exercise.diagram} horizontal midcourt={showsMidcourt(exercise)} className="w-full" />
                     {exercise.summary && <span className="text-xs">{exercise.summary}</span>}
                     {exercise.variations.harder && (
                       <span className="text-xs text-muted-foreground">Schwerer: {exercise.variations.harder}</span>

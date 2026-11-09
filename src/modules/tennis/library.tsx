@@ -5,16 +5,20 @@ import { ViewLink as Link } from "@/lib/query/view-link";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Court } from "./court";
-import { focusTags, phases, type Exercise, type Phase } from "./data";
+import { focusTags, phases, showsMidcourt, stages, type Exercise, type Phase, type Stage } from "./data";
 import { Chip } from "./exercise-form";
 
 const PATH = "/m/tennis";
 
-// All exercises, filtered by text, phase and focus as you type.
+// All exercises, filtered by text, phase, focus and Play+Stay stage as you type.
+// A stage shows the exercises made for it, plus those made for any stage.
 export function Library({ exercises, favoriteIds }: { exercises: Exercise[]; favoriteIds: string[] }) {
   const [query, setQuery] = useState("");
   const [phase, setPhase] = useState<Phase | null>(null);
   const [focus, setFocus] = useState<string | null>(null);
+  const [stage, setStage] = useState<Stage | null>(null);
+  // Only stages some exercise is made for.
+  const usedStages = stages.filter((entry) => exercises.some((exercise) => exercise.stages.includes(entry.id)));
   const favorites = new Set(favoriteIds);
 
   const search = query.trim().toLowerCase();
@@ -22,6 +26,7 @@ export function Library({ exercises, favoriteIds }: { exercises: Exercise[]; fav
     (exercise) =>
       (!phase || exercise.phase === phase) &&
       (!focus || exercise.focus.includes(focus)) &&
+      (!stage || exercise.stages.length === 0 || exercise.stages.includes(stage)) &&
       (!search || `${exercise.name} ${exercise.summary} ${exercise.description}`.toLowerCase().includes(search)),
   );
 
@@ -49,6 +54,12 @@ export function Library({ exercises, favoriteIds }: { exercises: Exercise[]; fav
             {tag}
           </Chip>
         ))}
+        {usedStages.length > 0 && <span className="w-px shrink-0 bg-border" />}
+        {usedStages.map((entry) => (
+          <Chip key={entry.id} active={stage === entry.id} onClick={() => setStage(stage === entry.id ? null : entry.id)}>
+            {entry.name}
+          </Chip>
+        ))}
       </div>
 
       {phases.map((entry) => {
@@ -63,7 +74,7 @@ export function Library({ exercises, favoriteIds }: { exercises: Exercise[]; fav
               {list.map((exercise) => (
                 <li key={exercise.id}>
                   <Link href={`${PATH}?exercise=${exercise.id}`} className="flex gap-3 p-3 active:bg-accent">
-                    <Court diagram={exercise.diagram} horizontal className="w-20 shrink-0 self-start" />
+                    <Court diagram={exercise.diagram} horizontal midcourt={showsMidcourt(exercise, stage)} className="w-20 shrink-0 self-start" />
                     <span className="min-w-0 flex-1 space-y-0.5">
                       <span className="flex items-center gap-1.5 font-medium">
                         {favorites.has(exercise.id) && <StarIcon className="size-3.5 shrink-0 fill-amber-400 text-amber-500" />}

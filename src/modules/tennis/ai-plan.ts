@@ -11,6 +11,8 @@ import {
   principlesForPrompt,
   slotsFor,
   stageLabel,
+  stageName,
+  stages,
   weekdayNames,
   type Exercise,
   type Group,
@@ -50,6 +52,11 @@ const newExercise = {
     focus: { type: "array", items: { type: "string", enum: [...focusTags] } },
     players_min: { type: "integer", description: "0 if any number" },
     players_max: { type: "integer", description: "0 if any number" },
+    stages: {
+      type: "array",
+      description: "Play+Stay stages it is made for (red small court, orange midcourt, green/yellow full court); empty if any",
+      items: { type: "string", enum: stages.map((stage) => stage.id) },
+    },
     variations: {
       type: "object",
       description: "One short German sentence each, empty if there is nothing to say",
@@ -64,7 +71,7 @@ const newExercise = {
     },
     diagram: { type: "array", items: diagramItem },
   },
-  required: ["name", "phase", "minutes", "summary", "description", "tips", "focus", "players_min", "players_max", "variations", "diagram"],
+  required: ["name", "phase", "minutes", "summary", "description", "tips", "focus", "players_min", "players_max", "stages", "variations", "diagram"],
   additionalProperties: false,
 } as const;
 
@@ -111,7 +118,7 @@ export type AiPlanAnswer = {
 };
 
 // How a good exercise for the collection looks; shared by both requests.
-const exerciseGuide = `A new exercise is kid-friendly and in German: a catchy name, a one-sentence summary, a 2-5 sentence description (setup, rules, points, rotation), 2-3 short cues to call out, the variations (easier, harder, for fewer and for more kids; this is what keeps a block from getting boring), and a court sketch with 3-12 items (coordinates in meters from the net center: x across from -8 to 8, doubles sidelines at ±5.49, singles sidelines at ±4.12; y along from -14.5 to 14.5, service lines at ±6.4, baselines at ±11.89; the coach's half is y < 0; "run" and "shot" arrows go from x,y to x2,y2; pieces use 0 for x2/y2; player labels 1-3 characters, empty for other pieces). Prefer game forms (with or against each other, points, records, team contests) over plain drills, and forms that run without the coach feeding every ball.`;
+const exerciseGuide = `A new exercise is kid-friendly and in German: a catchy name, a one-sentence summary, a 2-5 sentence description (setup, rules, points, rotation), 2-3 short cues to call out, the variations (easier, harder, for fewer and for more kids; this is what keeps a block from getting boring), and a court sketch with 3-12 items (coordinates in meters from the net center: x across from -8 to 8, doubles sidelines at ±5.49, singles sidelines at ±4.12; y along from -14.5 to 14.5, service lines ("T-Linie") at ±6.4, midcourt lines (baseline of the Orange court) at ±9, baselines at ±11.89; the coach's half is y < 0; "run" and "shot" arrows go from x,y to x2,y2; pieces use 0 for x2/y2; player labels 1-3 characters, empty for other pieces). Prefer game forms (with or against each other, points, records, team contests) over plain drills, and forms that run without the coach feeding every ball.`;
 
 const system = `You plan tennis training sessions for a club coach in Bavaria (BTV C-Trainer training) who trains groups of children and teenagers (beginners to intermediate). The coach writes a short request in German; you answer with the session as JSON.
 
@@ -120,7 +127,8 @@ How to build a session (BTV "Planung von Trainingseinheiten"):
 - Keep blocks short: 5-10 minutes for kids, at most 15. Kids keep their focus with quick changes.
 - Do exactly what the request asks: a focus ("Vorhandfokus") means technique blocks and games that train it; named exercises are used in the named part; "zwei Spiele" means two game items.
 - Match named exercises generously ("tic tac toe" matches "Tic-Tac-Toe-Staffel"). Only if nothing in the collection fits, add it to new_exercises.
-- Respect the number of kids: never pick an exercise whose player range excludes them. Fit the kids' age and Play+Stay stage (red: small court, orange: midcourt, green: full court).
+- Respect the number of kids: never pick an exercise whose player range excludes them. Fit the kids' age and Play+Stay stage (red: small court, orange: midcourt, green: full court); exercises tagged with other stages only don't fit. For an Orange group, the kids play from the service line ("T-Linie") and the midcourt line, not from the full-court baseline.
+- A group that doesn't serve yet gets no serve exercises. A group with "games between blocks" gets a short playful game (a warm-up game) after every technique block.
 - Prefer the group's favorites and avoid what it played in its last sessions, unless asked for.
 - Pick the group the request names (names can be partial or misspelled); otherwise keep the preselected one. Resolve dates like "heute", "morgen" or "Mittwoch" from today's date; otherwise use null.
 - Write the note in German, addressed to the coach with "du", only when something could not be done as asked.
@@ -139,6 +147,7 @@ function exerciseLine(exercise: Exercise) {
     `${exercise.minutes} Min.`,
     exercise.focus.join("/") || "-",
     playersLabel(exercise) ?? "beliebig viele Kinder",
+    exercise.stages.length ? exercise.stages.map(stageName).join("/") : "alle Stufen",
     exercise.summary,
     hasVariations(exercise.variations) ? "has variations" : "",
   ].join(" | ");
@@ -154,6 +163,8 @@ function groupLine(group: Group, players: Player[], today: string) {
     kids.length ? `${kids.length} kids` : "number of kids unknown",
     agesLabel(kids, today) ? `aged ${agesLabel(kids, today)}` : null,
     group.stage ? `Play+Stay ${stageLabel(group.stage)}` : null,
+    group.serves ? null : "doesn't serve yet",
+    group.gamesBetween ? "games between blocks" : null,
     group.note ? `note: ${group.note}` : null,
   ]
     .filter(Boolean)
@@ -282,11 +293,13 @@ ${groups
   )
   .join("\n") || "(no groups)"}
 
-Usual shape for the preselected group: ${slotsFor(groups.find((group) => group.id === groupId)?.minutes ?? 60)
+Usual shape for the preselected group: ${slotsFor(groups.find((group) => group.id === groupId)?.minutes ?? 60, {
+    gamesBetween: groups.find((group) => group.id === groupId)?.gamesBetween,
+  })
     .map((slot) => `${phaseName(slot.phase)} ${slot.minutes}`)
     .join(" + ")}
 
-Collection (id | name | part | minutes | focus | kids | summary | variations):
+Collection (id | name | part | minutes | focus | kids | stages | summary | variations):
 ${exercises.map(exerciseLine).join("\n")}`;
 
   const answer = await ask<AiPlanAnswer>(system, `${context}\n\nRequest from the coach:\n${request}`, schema);

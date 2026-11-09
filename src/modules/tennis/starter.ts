@@ -1,4 +1,4 @@
-import type { DiagramItem, ExerciseInput } from "./data";
+import type { DiagramItem, ExerciseInput, Stage } from "./data";
 
 // Starter collection: well-known, kid-friendly drills and games, offered on an
 // empty module. Every exercise is the user's own row afterwards, so it can be
@@ -18,7 +18,8 @@ const feeding = [coach(0.5, -8.5), basket(1.6, -8.5)];
 const queue = (x: number, y: number, count = 3) =>
   Array.from({ length: count }, (_, index) => kid(x, y + index * 1.3, String(index + 2)));
 
-const exercises: Omit<ExerciseInput, "playersMin" | "playersMax" | "variations">[] = [
+// `stages`: only for exercises made for one court (e.g. Midcourt); otherwise any.
+const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations" | "stages"> & { stages?: Stage[] })[] = [
   // --- Aufwärmen --------------------------------------------------------------
   {
     name: "Linien-Alarm",
@@ -729,6 +730,66 @@ const exercises: Omit<ExerciseInput, "playersMin" | "playersMax" | "variations">
     focus: ["Taktik", "Beinarbeit"],
     diagram: { items: [kid(0, -11, "A"), kid(0, 11, "C"), kid(-5.8, -12.5, "B"), kid(5.8, 12.5, "D"), ball(-2, -12.5), ball(-1, -13), ball(0, -13.3), shot(0, -10.5, 2.5, 9)] },
   },
+
+  // --- Midcourt (Play+Stay Orange) ---------------------------------------------
+  // Grundschläge von der T-Linie (Aufschlaglinie) und der Midcourt-Linie
+  // (Grundlinie des Orange-Felds, ca. 9 m vom Netz), Aufschlag von dort.
+  {
+    name: "Vorne – Hinten",
+    phase: "technique",
+    minutes: 10,
+    summary: "Grundschläge im Wechsel: ein kurzer Ball an der T-Linie, ein langer an der Midcourt-Linie.",
+    description:
+      "Das Kind startet an der T-Linie. Der Trainer spielt einen kurzen Ball, das Kind schlägt ihn von der T-Linie, läuft rückwärts zur Midcourt-Linie und schlägt dort den langen Ball. Dann Vorhand und Rückhand tauschen. Nach 4 Bällen ist das nächste Kind dran; auf dem Rückweg Bälle einsammeln. Ziel: jeder Ball übers Netz ins Orange-Feld.",
+    tips: ["Nach dem Schlag gleich zurück!", "Seitlich stellen, dann schlagen", "Treffpunkt vor dem Körper"],
+    focus: ["Vorhand", "Rückhand", "Beinarbeit"],
+    stages: ["orange"],
+    diagram: {
+      items: [...feeding, kid(-1.5, 6.4, "1"), run(-1.5, 6.4, -1.5, 9), ...queue(3.3, 10.5, 2), shot(0.5, -8.5, -1.5, 5.8), shot(0.5, -8.5, -2.5, 8.6)],
+    },
+  },
+  {
+    name: "Midcourt-Rekord",
+    phase: "game",
+    minutes: 10,
+    summary: "Paare spielen miteinander von der Midcourt-Linie: Wie viele Ballwechsel schafft ihr am Stück?",
+    description:
+      "Je zwei Kinder spielen sich im Orange-Feld von der Midcourt-Linie aus zu, nur Grundschläge. Gezählt wird laut, wie viele Bälle übers Netz gehen. Jedes Paar versucht, seinen Rekord zu brechen, am Ende gibt es einen Gruppenrekord. Wer schon sicher ist, spielt nur cross oder abwechselnd Vorhand und Rückhand.",
+    tips: ["Laut mitzählen!", "Hoch übers Netz, dann fällt er rein", "Nach jedem Schlag zurück zur Mitte"],
+    focus: ["Vorhand", "Rückhand", "Ballgefühl"],
+    stages: ["orange"],
+    diagram: {
+      items: [kid(-2, -9, "A"), kid(-2, 9, "B"), kid(2.5, -9, "C"), kid(2.5, 9, "D"), shot(-2, -8.6, -1.8, 8.4), shot(2.5, 8.6, 2.3, -8.4)],
+    },
+  },
+  {
+    name: "Aufschlag-Leiter",
+    phase: "technique",
+    minutes: 10,
+    summary: "Aufschlag zuerst von der T-Linie; jeder Treffer im Aufschlagfeld ist eine Sprosse zurück bis zur Midcourt-Linie.",
+    description:
+      "Die Kinder schlagen von der T-Linie ins Aufschlagfeld gegenüber auf. Wer trifft, geht einen großen Schritt zurück, drei Sprossen bis zur Midcourt-Linie. Wer dort zweimal trifft, darf ein Hütchen im Aufschlagfeld abschießen. Bei Fehlern bleibt man stehen, nie zurück nach vorne.",
+    tips: ["Ball hoch werfen, über den Kopf", "Ellbogen hoch wie beim Werfen", "Ruhig, kein Zeitdruck"],
+    focus: ["Aufschlag"],
+    stages: ["orange"],
+    diagram: {
+      items: [kid(1.5, 6.4, "1"), kid(2.5, 7.7, "2"), kid(3.3, 9, "3"), cone(1, 7.7), cone(1, 9), cone(-2.5, -4), shot(1.5, 6.2, -2.3, -4.5)],
+    },
+  },
+  {
+    name: "Midcourt-Match",
+    phase: "game",
+    minutes: 15,
+    summary: "Gegeneinander im Orange-Feld mit Aufschlag von der Midcourt-Linie: König des Platzes.",
+    description:
+      "Zwei Kinder spielen einen Punkt im Orange-Feld, mit Aufschlag von der Midcourt-Linie (wer noch unsicher ist, spielt von unten ein). Der Gewinner bleibt auf der Königsseite, der Verlierer stellt sich hinten an und der Nächste fordert. Wer auf der Königsseite einen Punkt gewinnt, bekommt einen Punkt. Wer hat am Ende die meisten?",
+    tips: ["Erst sicher, dann fest", "In die freie Ecke spielen", "Nach dem Aufschlag bereit machen"],
+    focus: ["Taktik", "Aufschlag"],
+    stages: ["orange"],
+    diagram: {
+      items: [kid(-1, -9, "K"), kid(1, 9, "1"), ...queue(6.4, 9.5, 2), shot(1, 8.6, -2, -4), run(6.4, 9.5, 1.4, 9.2)],
+    },
+  },
 ];
 
 // For how many kids each exercise works: [min, max], null = no limit. Also in
@@ -751,6 +812,10 @@ export const starterPlayers: Record<string, [number | null, number | null]> = {
   "Aufschlag-Wurf": [null, null],
   "Rein, Schlag, Volley, Raus": [null, 6],
   "Hinter die T-Linie": [2, null],
+  "Vorne – Hinten": [null, 6],
+  "Midcourt-Rekord": [2, null],
+  "Aufschlag-Leiter": [null, null],
+  "Midcourt-Match": [3, 8],
   "Stationen-Zirkel": [3, null],
   "Cross-Duell": [4, null],
   "Lob über den Trainer": [null, null],
@@ -1178,12 +1243,37 @@ export const starterVariations: Record<string, [string, string, string, string]>
     "1 gegen 1.",
     "Teams zu dritt, jeder Punkt Spielerwechsel.",
   ],
+  "Vorne – Hinten": [
+    "Zuwerfen statt zuspielen, Ball darf zweimal aufspringen.",
+    "Trainer ruft erst beim Zuspiel „Vorhand!“ oder „Rückhand!“, oder Ziel-Hütchen im Feld treffen.",
+    "Jedes Kind 6 Bälle am Stück.",
+    "Zweite Reihe an der anderen Seite, Trainer spielt abwechselnd.",
+  ],
+  "Midcourt-Rekord": [
+    "Ball darf zweimal aufspringen, oder von der T-Linie starten.",
+    "Nur cross, nur Rückhand, oder abwechselnd Vorhand und Rückhand.",
+    "Ein Kind spielt mit dem Trainer.",
+    "Mehrere Paare quer im Orange-Feld, Paare wechseln nach jedem Rekordversuch.",
+  ],
+  "Aufschlag-Leiter": [
+    "Von unten aufschlagen, oder Aufschlagfeld größer machen (bis zur Midcourt-Linie).",
+    "Nur Treffer in der Hütchen-Hälfte zählen, oder zwei Treffer pro Sprosse.",
+    "Jedes Kind 5 Aufschläge am Stück.",
+    "Aufschlag auf beiden Seiten der Mittellinie, zwei Reihen.",
+  ],
+  "Midcourt-Match": [
+    "Einspielen von unten statt Aufschlag, oder der Trainer spielt jeden Punkt ein.",
+    "Punkt nur gültig, wenn der Aufschlag sitzt, oder 2 gegen 2 im Doppel.",
+    "Bis 7 gegeneinander mit Aufschlagwechsel.",
+    "Zwei Orange-Felder, Gewinner steigt ein Feld auf, Verlierer ab.",
+  ],
 };
 
 export const starterExercises: ExerciseInput[] = exercises.map((exercise) => {
   const [easier, harder, fewer, more] = starterVariations[exercise.name] ?? ["", "", "", ""];
   return {
     ...exercise,
+    stages: exercise.stages ?? [],
     playersMin: starterPlayers[exercise.name]?.[0] ?? null,
     playersMax: starterPlayers[exercise.name]?.[1] ?? null,
     variations: { easier, harder, fewer, more },

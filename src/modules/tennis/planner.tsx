@@ -29,7 +29,11 @@ import { cn } from "@/lib/utils";
 import { planWithAi, saveSession, setFavorite } from "./actions";
 import { Court } from "./court";
 import {
+  fitsGroup,
   fitsPlayers,
+  fitsStage,
+  showsMidcourt,
+  stageName,
   focusTags,
   formatClock,
   formatSessionDate,
@@ -46,6 +50,7 @@ import {
   type Group,
   type Holiday,
   type Phase,
+  type Stage,
   type PlanItem,
   type StandIn,
 } from "./data";
@@ -113,9 +118,14 @@ export function Planner({
     return Math.max(0, players[groupId] - (sessionId && groupId === initial.groupId ? absent : 0));
   }
   const kidCount = kids();
+  const groupOf = (groupId: string | null) => groups.find((group) => group.id === groupId);
+  const group = groupOf(values.groupId);
+  const fits = (exercise: Exercise) => fitsGroup(exercise, { players: kidCount, stage: group?.stage, serves: group?.serves });
 
   function context(groupId = values.groupId, focus = values.focus) {
     return {
+      stage: groupOf(groupId)?.stage,
+      serves: groupOf(groupId)?.serves,
       exercises,
       favorites: new Set(exercises.filter((exercise) => groupId && favorites.has(`${groupId}:${exercise.id}`)).map((exercise) => exercise.id)),
       recent: new Set(groupId ? recent[groupId] ?? [] : []),
@@ -126,7 +136,11 @@ export function Planner({
 
   function update(change: Partial<PlannerValues>, regenerate = false) {
     const next = { ...values, ...change };
-    if (regenerate) next.plan = generatePlan(next.minutes, context(next.groupId, next.focus));
+    if (regenerate) {
+      next.plan = generatePlan(next.minutes, context(next.groupId, next.focus), Math.random, {
+        gamesBetween: groupOf(next.groupId)?.gamesBetween,
+      });
+    }
     setValues(next);
   }
 
@@ -343,7 +357,7 @@ export function Planner({
                   className="w-24 shrink-0 cursor-pointer self-start"
                   aria-label={`${exercise.name} austauschen`}
                 >
-                  <Court diagram={exercise.diagram} horizontal className="w-full" />
+                  <Court diagram={exercise.diagram} horizontal midcourt={showsMidcourt(exercise, group?.stage)} className="w-full" />
                 </button>
                 <div className="min-w-0 flex-1 space-y-1">
                   <p className="text-xs text-muted-foreground">
@@ -362,6 +376,12 @@ export function Planner({
                   <p className="line-clamp-2 text-sm text-muted-foreground">{exercise.summary}</p>
                   {!fitsPlayers(exercise, kidCount) && (
                     <p className="text-xs text-debt">Passt nicht für {kidCount} Kinder ({playersLabel(exercise)})</p>
+                  )}
+                  {group?.stage && !fitsStage(exercise, group.stage) && (
+                    <p className="text-xs text-debt">Für {exercise.stages.map(stageName).join(", ")} gemacht, nicht für {stageName(group.stage)}</p>
+                  )}
+                  {group && !group.serves && exercise.focus.includes("Aufschlag") && (
+                    <p className="text-xs text-debt">Mit Aufschlag, die Gruppe schlägt noch nicht auf</p>
                   )}
                 </div>
               </div>
@@ -425,7 +445,8 @@ export function Planner({
         exercises={exercises}
         initialPhase={picking?.phase ?? "game"}
         isFavorite={isFavorite}
-        kids={kidCount}
+        fits={fits}
+        stage={group?.stage ?? null}
         onPick={pick}
       />
     </div>
@@ -438,7 +459,8 @@ function ExercisePicker({
   exercises,
   initialPhase,
   isFavorite,
-  kids,
+  fits,
+  stage,
   onPick,
 }: {
   open: boolean;
@@ -446,7 +468,9 @@ function ExercisePicker({
   exercises: Exercise[];
   initialPhase: Phase;
   isFavorite: (id: string) => boolean;
-  kids: number | null;
+  // Whether it suits the group (kids, stage, serves); the others are greyed out and sorted last.
+  fits: (exercise: Exercise) => boolean;
+  stage: Stage | null;
   onPick: (exercise: Exercise) => void;
 }) {
   const [phase, setPhase] = useState<Phase | null>(initialPhase);
@@ -466,7 +490,7 @@ function ExercisePicker({
     .filter((exercise) => (search ? `${exercise.name} ${exercise.summary}`.toLowerCase().includes(search) : !phase || exercise.phase === phase))
     .sort(
       (a, b) =>
-        Number(fitsPlayers(b, kids)) - Number(fitsPlayers(a, kids)) ||
+        Number(fits(b)) - Number(fits(a)) ||
         Number(isFavorite(b.id)) - Number(isFavorite(a.id)) ||
         a.name.localeCompare(b.name, "de"),
     );
@@ -498,10 +522,10 @@ function ExercisePicker({
                 onClick={() => onPick(exercise)}
                 className={cn(
                   "flex w-full cursor-pointer gap-3 rounded-lg p-2 text-left hover:bg-accent",
-                  !fitsPlayers(exercise, kids) && "opacity-50",
+                  !fits(exercise) && "opacity-50",
                 )}
               >
-                <Court diagram={exercise.diagram} horizontal className="w-16 shrink-0 self-start" />
+                <Court diagram={exercise.diagram} horizontal midcourt={showsMidcourt(exercise, stage)} className="w-16 shrink-0 self-start" />
                 <span className="min-w-0 space-y-0.5">
                   <span className="flex items-center gap-1 font-medium">
                     {isFavorite(exercise.id) && <StarIcon className="size-3.5 fill-amber-400 text-amber-500" />}

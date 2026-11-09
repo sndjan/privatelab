@@ -41,6 +41,8 @@ export type Exercise = {
   playersMax: number | null;
   // How to make it easier or harder, or fit fewer or more kids ("" = none).
   variations: Variations;
+  // Play+Stay stages the exercise is made for; empty = any.
+  stages: Stage[];
 };
 
 export const variationKinds = [
@@ -78,6 +80,12 @@ export type Group = {
   coach: string;
   // Play+Stay stage: ball, racket and court size; null = not set.
   stage: Stage | null;
+  // Whether the kids serve yet; if not, exercises with the focus "Aufschlag"
+  // are left out when planning.
+  serves: boolean;
+  // Short playful games between the technique blocks instead of one game at
+  // the end (see slotsFor).
+  gamesBetween: boolean;
 };
 
 // The DTB/BTV Play+Stay stages, by age (6-13 years over 3-4 years).
@@ -95,6 +103,23 @@ export const stageLabel = (stage: Stage) => {
   const entry = stages.find((candidate) => candidate.id === stage)!;
   return `${entry.name} (${entry.court})`;
 };
+export const stageName = (stage: Stage) => stages.find((candidate) => candidate.id === stage)!.name;
+
+// Reads stages from the database or an AI's JSON, in the order of `stages`.
+export function parseStages(value: unknown): Stage[] {
+  const list = Array.isArray(value) ? value : [];
+  return stages.map((stage) => stage.id).filter((id) => list.includes(id));
+}
+
+// Whether an exercise is made for the stage (always, if either is unknown).
+export const fitsStage = (exercise: Pick<Exercise, "stages">, stage: Stage | null | undefined) =>
+  !stage || exercise.stages.length === 0 || exercise.stages.includes(stage);
+
+// Whether a sketch shows the midcourt line (the Orange court's baseline):
+// in a session of an Orange group, or without a group for an exercise made
+// for Orange.
+export const showsMidcourt = (exercise: Pick<Exercise, "stages">, groupStage?: Stage | null) =>
+  groupStage ? groupStage === "orange" : exercise.stages.includes("orange");
 
 // A date I stand in for a group's regular coach.
 export type StandIn = { id: string; groupId: string; date: string; note: string };
@@ -152,6 +177,8 @@ export const court = {
   singles: 4.115,
   service: 6.4,
   baseline: 11.885,
+  // Baseline of the Play+Stay Orange court (18 m long, singles width).
+  midcourt: 9,
 };
 
 export const pieceTypes = ["coach", "player", "cone", "target", "basket", "ball"] as const;
@@ -202,7 +229,11 @@ const round5 = (value: number) => Math.max(5, Math.round(value / 5) * 5);
 // The shape of a session: warm-up, one technique block per ~10 minutes (kids
 // keep their focus better with short blocks), a game and (from 45 minutes on)
 // a short finish. 60 minutes = 10 + 10 + 10 + 10 + 15 + 5.
-export function slotsFor(total: number): Slot[] {
+// With `gamesBetween`, every technique block is followed by a short playful
+// game (a warm-up game, which young kids love), then the closing game:
+// 60 minutes = 10 + 10 + 5 + 10 + 5 + 15 + 5.
+export function slotsFor(total: number, { gamesBetween = false }: { gamesBetween?: boolean } = {}): Slot[] {
+  if (gamesBetween) return slotsWithGamesBetween(total);
   const warmup = round5(total * 0.17);
   const game = round5(total * 0.25);
   const cooldown = total >= 90 ? 10 : total >= 45 ? 5 : 0;
@@ -220,6 +251,24 @@ export function slotsFor(total: number): Slot[] {
   ];
 }
 
+function slotsWithGamesBetween(total: number): Slot[] {
+  const warmup = round5(total * 0.17);
+  const cooldown = total >= 90 ? 10 : total >= 45 ? 5 : 0;
+  const rest = Math.max(5, total - warmup - cooldown);
+  // Pairs of 10 minutes technique + 5 minutes game; the closing game keeps at least 10.
+  const pairs = Math.max(1, Math.floor((rest - 10) / 15));
+  const game = Math.max(5, rest - pairs * 15);
+  return [
+    { phase: "warmup", minutes: warmup },
+    ...Array.from({ length: pairs }, () => [
+      { phase: "technique" as const, minutes: 10 },
+      { phase: "warmup" as const, minutes: 5 },
+    ]).flat(),
+    { phase: "game", minutes: game },
+    ...(cooldown ? [{ phase: "cooldown" as const, minutes: cooldown }] : []),
+  ];
+}
+
 export type PickContext = {
   exercises: Exercise[];
   // Favorites of the group: picked about four times as often.
@@ -229,7 +278,20 @@ export type PickContext = {
   focus: string | null;
   // Kids who are there; exercises that don't work for that many are skipped.
   players: number | null;
+  // The group's Play+Stay stage: exercises made for other stages are skipped.
+  stage?: Stage | null;
+  // False if the kids don't serve yet: serve exercises are skipped.
+  serves?: boolean;
 };
+
+// Whether an exercise suits the group: number of kids, stage and serves.
+export function fitsGroup(exercise: Exercise, context: Pick<PickContext, "players" | "stage" | "serves">) {
+  return (
+    fitsPlayers(exercise, context.players) &&
+    fitsStage(exercise, context.stage) &&
+    (context.serves !== false || !exercise.focus.includes("Aufschlag"))
+  );
+}
 
 // Whether an exercise works for this many kids (always, if unknown).
 export function fitsPlayers(exercise: Pick<Exercise, "playersMin" | "playersMax">, players: number | null) {
@@ -257,12 +319,14 @@ function weight(exercise: Exercise, context: PickContext) {
   if (context.favorites.has(exercise.id)) value *= 4;
   if (context.recent.has(exercise.id)) value *= 0.25;
   if (context.focus && exercise.focus.includes(context.focus)) value *= 3;
+  // Made for the group's stage (e.g. Midcourt drills for an Orange group).
+  if (context.stage && exercise.stages.includes(context.stage)) value *= 2;
   return value;
 }
 
 // Picks a random exercise for the phase, weighted by favorites, focus and
 // what the group played lately. Never one of `taken`. Prefers exercises that
-// work for the number of kids; only if none does, any will do.
+// suit the group (number of kids, stage, serves); only if none does, any will do.
 export function pickExercise(phase: Phase, context: PickContext, taken: Set<string>, random = Math.random) {
   const candidates = [true, false].flatMap((fitting) =>
     [phase, ...fallback[phase]].map((candidatePhase) => ({ candidatePhase, fitting })),
@@ -272,7 +336,7 @@ export function pickExercise(phase: Phase, context: PickContext, taken: Set<stri
       (exercise) =>
         exercise.phase === candidatePhase &&
         !taken.has(exercise.id) &&
-        (!fitting || fitsPlayers(exercise, context.players)),
+        (!fitting || fitsGroup(exercise, context)),
     );
     if (pool.length === 0) continue;
     const weights = pool.map((exercise) => weight(exercise, context));
@@ -286,10 +350,15 @@ export function pickExercise(phase: Phase, context: PickContext, taken: Set<stri
   return undefined;
 }
 
-export function generatePlan(total: number, context: PickContext, random = Math.random): PlanItem[] {
+export function generatePlan(
+  total: number,
+  context: PickContext,
+  random = Math.random,
+  { gamesBetween = false }: { gamesBetween?: boolean } = {},
+): PlanItem[] {
   const taken = new Set<string>();
   const plan: PlanItem[] = [];
-  for (const slot of slotsFor(total)) {
+  for (const slot of slotsFor(total, { gamesBetween })) {
     const exercise = pickExercise(slot.phase, context, taken, random);
     if (!exercise) continue;
     taken.add(exercise.id);
@@ -467,6 +536,7 @@ export function cleanExercise(value: Record<string, unknown>): ExerciseInput | n
     playersMin,
     playersMax: playersMin !== null && playersMax !== null && playersMax < playersMin ? null : playersMax,
     variations: parseVariations(value.variations),
+    stages: parseStages(value.stages),
   };
 }
 
@@ -519,6 +589,7 @@ ${existing.length > 0 ? `Diese Übungen habe ich schon, bitte nichts Gleiches:\n
     "focus": ["Vorhand"],
     "playersMin": 2,
     "playersMax": null,
+    "stages": ["orange"],
     "variations": {
       "easier": "Wie es leichter wird, z. B. zuwerfen statt zuspielen, größeres Ziel",
       "harder": "Wie es schwerer wird, z. B. kleineres Ziel, nur Rückhand, auf Zeit",
@@ -531,13 +602,14 @@ ${existing.length > 0 ? `Diese Übungen habe ich schon, bitte nichts Gleiches:\n
 
 "focus" nur aus: ${focusTags.join(", ")}.
 "playersMin"/"playersMax": für wie viele Kinder die Übung mindestens/höchstens funktioniert (z. B. 4 für Teams 2 gegen 2), null wenn egal.
+"stages": für welche Play+Stay-Stufen die Übung gemacht ist, aus ${stages.map((stage) => `"${stage.id}" (${stage.name}, ${stage.court})`).join(", ")}; [] wenn für alle.
 "variations": je ein Satz, damit die Übung über 10 Minuten nicht langweilig wird und zu jeder Gruppe passt; "" wenn es nichts gibt.
 
 ${principlesForPrompt(principles)}
 
 Das Diagramm zeigt den Platz von oben, Koordinaten in Metern ab der Netzmitte:
 - x quer zum Platz: Doppel-Seitenlinien bei -5.49 und 5.49, Einzel-Seitenlinien bei -4.12 und 4.12, Mittellinie bei 0. Erlaubt: -8 bis 8.
-- y längs: Netz bei 0, Aufschlaglinien bei -6.4 und 6.4, Grundlinien bei -11.89 und 11.89. Erlaubt: -14.5 bis 14.5.
+- y längs: Netz bei 0, Aufschlaglinien (T-Linie) bei -6.4 und 6.4, Midcourt-Linien (Grundlinie im Orange-Feld) bei -9 und 9, Grundlinien bei -11.89 und 11.89. Erlaubt: -14.5 bis 14.5.
 - Die Trainerseite ist oben (y negativ), die Kinder stehen meist unten (y positiv).
 Elemente:
 - {"type": "coach", "x": 0, "y": -9}  Trainer

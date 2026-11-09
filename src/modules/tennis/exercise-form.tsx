@@ -11,7 +11,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { saveExercise } from "./actions";
-import { focusTags, phases, variationKinds, type Diagram, type ExerciseInput, type Phase, type Variations } from "./data";
+import {
+  focusTags,
+  phases,
+  stages as allStages,
+  variationKinds,
+  type Diagram,
+  type ExerciseInput,
+  type Phase,
+  type Stage,
+  type Variations,
+} from "./data";
 import { DiagramEditor } from "./diagram-editor";
 
 const PATH = "/m/tennis";
@@ -29,6 +39,7 @@ export function ExerciseForm({ id, initial }: { id: string | null; initial: Exer
   const [playersMin, setPlayersMin] = useState(initial.playersMin === null ? "" : String(initial.playersMin));
   const [playersMax, setPlayersMax] = useState(initial.playersMax === null ? "" : String(initial.playersMax));
   const [variations, setVariations] = useState<Variations>(initial.variations);
+  const [stages, setStages] = useState<Stage[]>(initial.stages);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +60,7 @@ export function ExerciseForm({ id, initial }: { id: string | null; initial: Exer
           playersMin: playersMin ? Number(playersMin) : null,
           playersMax: playersMax ? Number(playersMax) : null,
           variations,
+          stages,
         });
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "Speichern fehlgeschlagen.");
@@ -140,6 +152,31 @@ export function ExerciseForm({ id, initial }: { id: string | null; initial: Exer
           </p>
 
           <div className="space-y-2">
+            <span className="text-sm font-medium">Play+Stay-Stufe</span>
+            <div className="flex flex-wrap gap-1.5">
+              {allStages.map((stage) => (
+                <Chip
+                  key={stage.id}
+                  active={stages.includes(stage.id)}
+                  onClick={() =>
+                    setStages(
+                      allStages
+                        .map((entry) => entry.id)
+                        .filter((id) => (id === stage.id ? !stages.includes(id) : stages.includes(id))),
+                    )
+                  }
+                >
+                  {stage.name} · {stage.court}
+                </Chip>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Für welches Feld die Übung gemacht ist; nichts gewählt = für alle. „Stunde planen“ nimmt für eine Gruppe
+              lieber Übungen ihrer Stufe. Mit Orange zeigt die Skizze die Midcourt-Linie.
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="exercise-summary">In einem Satz</Label>
             <Input
               id="exercise-summary"
@@ -219,7 +256,7 @@ export function ExerciseForm({ id, initial }: { id: string | null; initial: Exer
           <CardTitle>Skizze</CardTitle>
         </CardHeader>
         <CardContent>
-          <DiagramEditor value={diagram} onChange={setDiagram} />
+          <DiagramEditor value={diagram} onChange={setDiagram} midcourt={stages.includes("orange")} />
         </CardContent>
       </Card>
 

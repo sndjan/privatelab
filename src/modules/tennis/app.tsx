@@ -49,6 +49,7 @@ import {
   parseDiagram,
   phaseName,
   playersLabel,
+  showsMidcourt,
   stageLabel,
   stages,
   timeline,
@@ -113,6 +114,7 @@ const newExercise = {
   playersMin: null,
   playersMax: null,
   variations: noVariations,
+  stages: [],
 };
 
 const sessionEnd = (session: Session) => formatClock(timeline(session.startTime, session.plan).at(-1)?.end ?? 0);
@@ -237,6 +239,8 @@ function Overview() {
                     playerCount(group.id) > 0 && `${playerCount(group.id)} Kinder`,
                     ages(group.id),
                     group.stage && stageLabel(group.stage),
+                    !group.serves && "ohne Aufschlag",
+                    group.gamesBetween && "Spiele zwischendurch",
                     group.note,
                   ]
                     .filter(Boolean)
@@ -511,7 +515,9 @@ function PlanView({ sessionId, groupId, date }: { sessionId: string | null; grou
         recent: new Set(group ? recent[group.id] : []),
         focus: null,
         players: count > 0 ? count : null,
-      }),
+        stage: group?.stage,
+        serves: group?.serves,
+      }, Math.random, { gamesBetween: group?.gamesBetween }),
     };
   }
 
@@ -556,6 +562,7 @@ function SessionView({ sessionId }: { sessionId: string }) {
         players={players}
         absent={session.absent}
         notes={session.notes}
+        stage={group?.stage}
       />
       <div className="mx-auto max-w-2xl space-y-4 print:hidden">
         <div className="-ml-2 flex items-center gap-1">
@@ -596,7 +603,7 @@ function SessionView({ sessionId }: { sessionId: string }) {
         {items.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Keine Übungen in dieser Stunde.</p>
         ) : (
-          <SessionPlan date={session.date} startTime={session.startTime} items={items} />
+          <SessionPlan date={session.date} startTime={session.startTime} items={items} stage={group?.stage} />
         )}
 
         <Card>
@@ -695,6 +702,11 @@ function ExerciseView({ exerciseId, edit }: { exerciseId: string; edit: boolean 
         <Badge variant="secondary">{phaseName(exercise.phase)}</Badge>
         <Badge variant="secondary">{exercise.minutes} Min.</Badge>
         {playersLabel(exercise) && <Badge variant="secondary">{playersLabel(exercise)}</Badge>}
+        {exercise.stages.map((stage) => (
+          <Badge key={stage} variant="secondary">
+            {stageLabel(stage)}
+          </Badge>
+        ))}
         {exercise.focus.map((tag) => (
           <Badge key={tag} variant="outline">
             {tag}
@@ -703,7 +715,7 @@ function ExerciseView({ exerciseId, edit }: { exerciseId: string; edit: boolean 
       </div>
 
       <div className="space-y-4">
-        <Court diagram={exercise.diagram} horizontal className="w-full" />
+        <Court diagram={exercise.diagram} horizontal midcourt={showsMidcourt(exercise)} className="w-full" />
         <div className="space-y-3">
           {exercise.summary && <p className="font-medium">{exercise.summary}</p>}
           {exercise.description && <p className="text-sm whitespace-pre-line">{exercise.description}</p>}
@@ -902,7 +914,7 @@ function GroupView({ groupId }: { groupId: string }) {
             {favorites.map((exercise) => (
               <li key={exercise.id}>
                 <Link href={`${PATH}?exercise=${exercise.id}`} className="block space-y-1">
-                  <Court diagram={parseDiagram(exercise.diagram)} horizontal className="w-full" />
+                  <Court diagram={parseDiagram(exercise.diagram)} horizontal midcourt={showsMidcourt(exercise, group.stage)} className="w-full" />
                   <span className="block text-sm leading-tight">{exercise.name}</span>
                 </Link>
               </li>
@@ -976,8 +988,31 @@ function GroupView({ groupId }: { groupId: string }) {
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-muted-foreground">Ball, Schläger und Feldgröße. Die KI plant Übungen dafür.</p>
+              <p className="text-xs text-muted-foreground">
+                Ball, Schläger und Feldgröße. „Stunde planen“ nimmt lieber Übungen für diese Stufe, bei Orange zeigen die
+                Skizzen die Midcourt-Linie.
+              </p>
             </div>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">Planen</legend>
+              <input type="hidden" name="options" value="1" />
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" name="serves" defaultChecked={group.serves} className="mt-0.5 size-4 accent-brand" />
+                <span>
+                  Die Kinder schlagen schon auf
+                  <span className="block text-xs text-muted-foreground">Wenn nicht, plant „Stunde planen“ keine Aufschlag-Übungen.</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" name="gamesBetween" defaultChecked={group.gamesBetween} className="mt-0.5 size-4 accent-brand" />
+                <span>
+                  Spiele zwischendurch
+                  <span className="block text-xs text-muted-foreground">
+                    Nach jedem Technikblock ein kurzes Aufwärmspiel, z. B. 60 Min. = 10 + 10 + 5 + 10 + 5 + 15 + 5.
+                  </span>
+                </span>
+              </label>
+            </fieldset>
             <div className="space-y-2">
               <Label htmlFor="group-coach">Wer trainiert die Gruppe normalerweise?</Label>
               <Input id="group-coach" name="coach" maxLength={60} defaultValue={group.coach} placeholder="Ich" />
