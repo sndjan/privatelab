@@ -81,8 +81,8 @@ const schema = {
     group_id: { type: ["string", "null"], description: "id of the group the session is for, null if none fits" },
     date: { type: ["string", "null"], description: "YYYY-MM-DD, null to keep the default" },
     start_time: { type: ["string", "null"], description: "HH:MM, null to use the group's time" },
-    // A string enum or null; the API rejects an enum on `type: ["string", "null"]`.
-    focus: { anyOf: [{ type: "string", enum: [...focusTags] }, { type: "null" }] },
+    // "" for none: the API rejects an enum next to null (also via anyOf).
+    focus: { type: "string", enum: ["", ...focusTags], description: "empty if no focus" },
     items: {
       type: "array",
       description: "The session in order",
