@@ -5,11 +5,11 @@
 // Amounts in cents, so sums never round wrong.
 export type Rates = {
   start: number; // Startgebühr, for everyone who played
-  point: number; // Mannschaftspunkt (MP) lost
+  point: number; // Mannschaftspunkt (MP) lost; half of it for a draw
   mass: number; // Maß, marked by hand with an "M" next to the name
   error: number; // per Fehlwurf
   golden: number; // per Goldener (see analyzeSheet)
-  two: number; // per Zweier ins Volle
+  two: number; // per Zweier ins volle Bild (see analyzeSheet)
   under: number; // total below the threshold
 };
 
@@ -41,6 +41,9 @@ export type Line = {
   // True once a Wurfschein was read for this player, so twos and golden
   // are known rather than 0 by default.
   sheet: boolean;
+  // Substituted at half time: the two players share the block's costs, so
+  // each pays half of every fee.
+  half: boolean;
   paid: boolean;
 };
 
@@ -72,16 +75,19 @@ export const columns: { id: keyof Rates; label: string; short: string }[] = [
 
 export function feesOf(line: Line, rates: Rates, threshold: number): Fees {
   const played = line.started;
-  const fees = {
+  const full = {
     start: played ? rates.start : 0,
-    // A draw (0,5 MP) is not a lost point.
-    point: played && line.mp !== null && line.mp < 0.5 ? rates.point : 0,
+    // A draw (0,5 MP) costs half a lost point.
+    point: !played || line.mp === null || line.mp >= 1 ? 0 : line.mp >= 0.5 ? Math.round(rates.point / 2) : rates.point,
     mass: line.mass ? rates.mass : 0,
     error: Math.max(0, line.errors) * rates.error,
     golden: Math.max(0, line.golden) * rates.golden,
     two: Math.max(0, line.twos) * rates.two,
     under: played && line.total !== null && line.total < threshold ? rates.under : 0,
   };
+  const fees = line.half
+    ? (Object.fromEntries(Object.entries(full).map(([key, cents]) => [key, Math.round(cents / 2)])) as typeof full)
+    : full;
   return { ...fees, sum: Object.values(fees).reduce((a, b) => a + b, 0) };
 }
 
@@ -152,8 +158,10 @@ export type SheetResult = {
   warnings: string[];
 };
 
-// Zweier ins Volle: a 2 in the first 15 throws of a Satz.
-// Goldener: the last throw of a Satz is a 0 while only one pin was standing.
+// Zweier: a 2 thrown at the full picture, all nine pins standing. That is
+// every throw in die Vollen (1–15) and, in the Abräumen (16–30), the first
+// throw after the pins were set up again.
+// Goldener: throw 29 knocks nothing over while a single pin was standing.
 // In the Abräumen, the pins standing follow from the throws: 9 at the start,
 // minus what fell, set up again once all 9 are down. A Fehlwurf counts 0 and
 // leaves the pins as they were.
@@ -165,32 +173,32 @@ export function analyzeSheet(sets: SheetSet[]): SheetResult {
     if (throws.length !== 30) {
       result.warnings.push(`${label}: ${throws.length} statt 30 Würfe gelesen.`);
     }
-    throws.slice(0, 15).forEach((pins, i) => {
-      if (pins === 2) {
-        result.twos += 1;
-        result.twoAt.push(`${label}, Wurf ${i + 1}`);
-      }
-    });
     const volle = throws.slice(0, 15).reduce((a, b) => a + b, 0);
     const abraeumer = throws.slice(15, 30).reduce((a, b) => a + b, 0);
     if (set.volle !== null && set.volle !== volle) result.warnings.push(`${label}: Volle ergeben ${volle}, auf dem Zettel steht ${set.volle}.`);
     if (set.abraeumer !== null && set.abraeumer !== abraeumer)
       result.warnings.push(`${label}: Abräumer ergeben ${abraeumer}, auf dem Zettel steht ${set.abraeumer}.`);
 
-    if (throws.length < 30) return;
     let standing = 9;
-    for (let i = 15; i < 29; i++) {
-      standing -= throws[i];
+    throws.forEach((pins, i) => {
+      // In die Vollen, every throw is at the full picture.
+      if (i < 15) standing = 9;
+      if (standing === 9 && pins === 2) {
+        result.twos += 1;
+        result.twoAt.push(`${label}, Wurf ${i + 1}`);
+      }
+      if (i === 28 && standing === 1 && pins === 0) {
+        result.golden += 1;
+        result.goldenAt.push(`${label}, Wurf 29`);
+      }
+      if (i < 15) return;
+      standing -= pins;
       if (standing < 0) {
         result.warnings.push(`${label}: Wurf ${i + 1} hat mehr Kegel als noch standen.`);
         standing = 0;
       }
       if (standing === 0) standing = 9;
-    }
-    if (standing === 1 && throws[29] === 0) {
-      result.golden += 1;
-      result.goldenAt.push(`${label}, Wurf 30`);
-    }
+    });
   });
   return result;
 }
@@ -221,19 +229,32 @@ export type Report = {
 
 export type ThrowSheet = { name: string; sets: SheetSet[] };
 
+// A substitute shares the block of the player before them: both get the
+// block's figures and pay half.
 export function linesFromReport(report: Report): Line[] {
-  return report.players.map((player) => ({
-    name: player.name,
-    started: true,
-    errors: player.errors,
-    total: player.total,
-    mp: player.mp,
-    mass: player.mass,
-    twos: 0,
-    golden: 0,
-    sheet: false,
-    paid: false,
-  }));
+  const lines: Line[] = [];
+  for (const player of report.players) {
+    const starter = lines.at(-1);
+    if (player.substitute && starter) {
+      starter.half = true;
+      lines.push({ ...starter, name: player.name, mass: player.mass, half: true });
+      continue;
+    }
+    lines.push({
+      name: player.name,
+      started: true,
+      errors: player.errors,
+      total: player.total,
+      mp: player.mp,
+      mass: player.mass,
+      twos: 0,
+      golden: 0,
+      sheet: false,
+      half: false,
+      paid: false,
+    });
+  }
+  return lines;
 }
 
 export const emptyLine = (name = ""): Line => ({
@@ -246,6 +267,7 @@ export const emptyLine = (name = ""): Line => ({
   twos: 0,
   golden: 0,
   sheet: false,
+  half: false,
   paid: false,
 });
 
@@ -281,6 +303,7 @@ export function cleanLine(input: Partial<Line>): Line {
     twos: count(input.twos, 99),
     golden: count(input.golden, 9),
     sheet: input.sheet === true,
+    half: input.half === true,
     paid: input.paid === true,
   };
 }
