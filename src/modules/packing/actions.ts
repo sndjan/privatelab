@@ -89,7 +89,21 @@ export async function loadStarter() {
     }
   }
 
+  await linkPlaces(supabase);
   revalidatePath(PATH);
+}
+
+// Lists named "Nach <Ort>" without a place get that place's inventory.
+async function linkPlaces(supabase: Awaited<ReturnType<typeof db>>, onlyListId?: string) {
+  const [lists, places] = await Promise.all([
+    supabase.from("packing_lists").select("id, name, place_id").is("place_id", null).then(check),
+    supabase.from("packing_places").select("id, name").then(check),
+  ]);
+  for (const list of lists) {
+    if (onlyListId && list.id !== onlyListId) continue;
+    const place = places.find((entry) => `nach ${entry.name}`.toLowerCase() === list.name.toLowerCase());
+    if (place) check(await supabase.from("packing_lists").update({ place_id: place.id }).eq("id", list.id));
+  }
 }
 
 // --- Lists ----------------------------------------------------------------
@@ -101,12 +115,18 @@ export async function createList(formData: FormData) {
   const supabase = await db();
   const created = check(await supabase.from("packing_lists").insert({ name }).select("id").single());
   check(await supabase.from("packing_sections").insert({ list_id: created.id, name: "Allgemein" }));
+  await linkPlaces(supabase, created.id);
   revalidatePath(PATH);
   redirect(`${PATH}?list=${created.id}&edit=1`);
 }
 
-export async function updateList(id: string, values: { name?: string; starred?: boolean }) {
-  const row = { ...values, ...(values.name !== undefined && { name: clean(values.name, 80) }) };
+export async function updateList(id: string, values: { name?: string; starred?: boolean; placeId?: string | null }) {
+  const { placeId, ...rest } = values;
+  const row = {
+    ...rest,
+    ...(values.name !== undefined && { name: clean(values.name, 80) }),
+    ...(placeId !== undefined && { place_id: placeId }),
+  };
   if (row.name === "") return;
   const supabase = await db();
   check(await supabase.from("packing_lists").update(row).eq("id", id));
@@ -123,9 +143,50 @@ export async function deleteList(formData: FormData) {
 // Ticks, chip switches and resets are saved without re-rendering the page:
 // the list keeps their state on the client, so tapping stays instant.
 
+// Ticked one-off items are deleted, the rest unticked.
 export async function resetList(listId: string) {
   const supabase = await db();
+  check(await supabase.from("packing_items").delete().eq("list_id", listId).eq("once", true).eq("done", true));
   check(await supabase.from("packing_items").update({ done: false }).eq("list_id", listId).eq("done", true));
+}
+
+// "Nur diesmal": an item for this trip only. Returns the new id for the cache.
+export async function addOnceItem(listId: string, sectionId: string, name: string) {
+  const value = clean(name, 80);
+  if (!value) return null;
+  const supabase = await db();
+  const created = check(
+    await supabase
+      .from("packing_items")
+      .insert({ list_id: listId, section_id: sectionId, name: value, once: true, sort: 10000 })
+      .select("id")
+      .single(),
+  );
+  return created.id as string;
+}
+
+// Undo of a reset: brings back the one-off items it deleted, ticked.
+export async function restoreOnceItems(listId: string, items: { sectionId: string; name: string; note: string | null }[]) {
+  if (items.length === 0) return;
+  const supabase = await db();
+  check(
+    await supabase.from("packing_items").insert(
+      items.map((item) => ({
+        list_id: listId,
+        section_id: item.sectionId,
+        name: clean(item.name, 80),
+        note: item.note ? clean(item.note, 200) : null,
+        once: true,
+        done: true,
+        sort: 10000,
+      })),
+    ),
+  );
+}
+
+export async function removeOnceItem(id: string) {
+  const supabase = await db();
+  check(await supabase.from("packing_items").delete().eq("id", id).eq("once", true));
 }
 
 export async function tickItems(ids: string[], done: boolean) {
@@ -267,24 +328,41 @@ export async function deletePlace(formData: FormData) {
 }
 
 export async function addInventoryItem(formData: FormData) {
-  const name = text(formData, "name", 80);
-  const quantity = Math.max(0, Math.min(999, Math.round(Number(formData.get("quantity") ?? 1)) || 0));
-  if (!name) return;
-  const placeId = String(formData.get("placeId"));
+  const quantity = Math.round(Number(formData.get("quantity") ?? 1)) || 0;
+  await putStock(String(formData.get("placeId")), text(formData, "name", 80), quantity);
+  revalidatePath(PATH);
+}
+
+// Names are unique per place regardless of case: an existing entry gets the new number.
+async function putStock(placeId: string, name: string, quantity: number) {
+  const value = clean(name, 80);
+  if (!value) return;
+  const amount = Math.max(0, Math.min(999, Math.round(quantity)));
   const supabase = await db();
-  // Names are unique per place regardless of case: update an existing entry.
-  const existing = check(
+  const existing = check(await supabase.from("packing_inventory").select("id, name").eq("place_id", placeId)).find(
+    (entry) => entry.name.toLowerCase() === value.toLowerCase(),
+  );
+  if (existing) {
+    check(await supabase.from("packing_inventory").update({ quantity: amount }).eq("id", existing.id));
+  } else {
+    check(await supabase.from("packing_inventory").insert({ place_id: placeId, name: value, quantity: amount }));
+  }
+}
+
+// From a list's inventory section: saved without re-rendering the page, the
+// list keeps the numbers in the browser cache (like ticks).
+export async function addStock(placeId: string, name: string, quantity: number) {
+  await putStock(placeId, name, quantity);
+}
+
+export async function setStock(id: string, quantity: number) {
+  const supabase = await db();
+  check(
     await supabase
       .from("packing_inventory")
-      .select("id, name")
-      .eq("place_id", placeId),
-  ).find((entry) => entry.name.toLowerCase() === name.toLowerCase());
-  if (existing) {
-    check(await supabase.from("packing_inventory").update({ quantity }).eq("id", existing.id));
-  } else {
-    check(await supabase.from("packing_inventory").insert({ place_id: placeId, name, quantity }));
-  }
-  revalidatePath(PATH);
+      .update({ quantity: Math.max(0, Math.min(999, Math.round(quantity))) })
+      .eq("id", id),
+  );
 }
 
 export async function setInventoryQuantity(id: string, quantity: number) {

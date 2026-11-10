@@ -11,6 +11,7 @@ import { thesisQuery, type ThesisData } from "./query";
 const tabData: Record<TabId, ThesisData[]> = {
   overview: ["settings", "phases", "todos", "log", "sources", "protocols", "people", "events", "infos", "sections", "milestones"],
   writing: ["sections", "sources", "documents", "settings", "phases", "imageUrls"],
+  notes: ["notes"],
   todos: ["phases", "todos", "protocols", "people"],
   events: ["events", "people", "protocols", "milestones", "settings"],
   calendar: ["settings", "events", "todos", "phases", "milestones", "people"],

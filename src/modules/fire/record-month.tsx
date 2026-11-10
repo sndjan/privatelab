@@ -136,7 +136,7 @@ export function RecordMonth({ accounts, netWorth, defaultMonth, edit }: Props) {
             {accounts.map((account) => (
               <div key={account.id} className="flex items-center gap-3 py-3">
                 <Label htmlFor={`record-${defaultMonth}-${account.id}`} className="flex min-w-0 flex-1 flex-col items-start gap-1">
-                  <span className="truncate">{account.name}</span>
+                  <span className="max-w-full truncate">{account.name}</span>
                   <span className="text-xs font-normal text-muted-foreground">
                     {account.kind === "debt" && "Restschuld · "}
                     {account.lastBalance === undefined
@@ -152,13 +152,13 @@ export function RecordMonth({ accounts, netWorth, defaultMonth, edit }: Props) {
                   value={values[account.id] ?? ""}
                   onChange={(event) => setValues({ ...values, [account.id]: event.target.value })}
                   placeholder={account.lastBalance === undefined ? "" : formatAmount(account.lastBalance)}
-                  className={`h-11 w-32 text-right font-mono ${account.kind === "debt" ? "text-debt" : ""}`}
+                  className={`h-11 w-28 shrink-0 text-right font-mono sm:w-32 ${account.kind === "debt" ? "text-debt" : ""}`}
                 />
               </div>
             ))}
           </div>
 
-          <div className="flex items-baseline justify-between gap-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <span className="text-[13px] text-muted-foreground">{edit ? "Vermögen in diesem Monat" : "Neues Vermögen"}</span>
             <span className="flex items-baseline gap-2.5" aria-live="polite">
               {change !== 0 && (

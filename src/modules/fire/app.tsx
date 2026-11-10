@@ -1,7 +1,8 @@
 "use client";
 
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Trash2Icon } from "lucide-react";
+import { ChevronRightIcon, Trash2Icon } from "lucide-react";
+import { confirmSubmit } from "@/components/confirm-dialog";
 import { SubmitButton } from "@/components/submit-button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -256,70 +257,54 @@ export function FireApp() {
 
         {history.length > 0 && (
           <CardContent className="space-y-3">
-            <Table className="min-w-[560px]">
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="sticky left-0 z-10 bg-card text-muted-foreground">Monat</TableHead>
-                  {accounts.map((account) => (
-                    <TableHead key={account.id} className="text-right text-muted-foreground">
-                      {account.name}
-                    </TableHead>
-                  ))}
-                  <TableHead className="text-right">Vermögen</TableHead>
-                  <TableHead>
-                    <span className="sr-only">Aktionen</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="font-mono">
-                {[...history].reverse().map((row) => (
-                  <TableRow key={row.month}>
-                    <TableCell className="sticky left-0 z-10 bg-card font-sans">{formatMonth(row.month)}</TableCell>
+            <MonthList history={history} accounts={accounts} />
+            <div className="hidden sm:block">
+              <Table className="min-w-[560px]">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="sticky left-0 z-10 bg-card text-muted-foreground">Monat</TableHead>
                     {accounts.map((account) => (
-                      <TableCell
-                        key={account.id}
-                        className={`text-right ${account.kind === "debt" && row.entered.has(account.id) ? "text-debt" : ""}`}
-                      >
-                        {row.entered.has(account.id) ? (
-                          formatPlain(signedBalance(account.kind, row.byAccount.get(account.id) ?? 0))
-                        ) : (
-                          <span className="text-muted-foreground" aria-label="kein Eintrag">
-                            ·
-                          </span>
-                        )}
-                      </TableCell>
+                      <TableHead key={account.id} className="text-right text-muted-foreground">
+                        {account.name}
+                      </TableHead>
                     ))}
-                    <TableCell className="text-right font-medium">{formatPlain(row.netWorth)}</TableCell>
-                    <TableCell className="flex justify-end py-1">
-                      <RecordMonth
-                        edit={{
-                          values: Object.fromEntries(
-                            [...row.entered].map((id) => [id, row.byAccount.get(id) ?? 0]),
-                          ),
-                        }}
-                        defaultMonth={row.month.slice(0, 7)}
-                        netWorth={row.netWorth}
-                        accounts={accounts
-                          .filter((account) => !account.archived || row.entered.has(account.id))
-                          .map((account) => ({ ...account, lastBalance: row.byAccount.get(account.id) }))}
-                      />
-                      <form action={deleteMonth}>
-                        <input type="hidden" name="month" value={row.month} />
-                        <SubmitButton
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`${formatMonth(row.month)} löschen`}
-                          className="text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2Icon />
-                        </SubmitButton>
-                      </form>
-                    </TableCell>
+                    <TableHead className="text-right">Vermögen</TableHead>
+                    <TableHead>
+                      <span className="sr-only">Aktionen</span>
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <p className="text-[13px] text-muted-foreground">· = kein Eintrag in diesem Monat; es zählt der letzte bekannte Stand.</p>
+                </TableHeader>
+                <TableBody className="font-mono">
+                  {[...history].reverse().map((row) => (
+                    <TableRow key={row.month}>
+                      <TableCell className="sticky left-0 z-10 bg-card font-sans">{formatMonth(row.month)}</TableCell>
+                      {accounts.map((account) => (
+                        <TableCell
+                          key={account.id}
+                          className={`text-right ${account.kind === "debt" && row.entered.has(account.id) ? "text-debt" : ""}`}
+                        >
+                          {row.entered.has(account.id) ? (
+                            formatPlain(signedBalance(account.kind, row.byAccount.get(account.id) ?? 0))
+                          ) : (
+                            <span className="text-muted-foreground" aria-label="kein Eintrag">
+                              ·
+                            </span>
+                          )}
+                        </TableCell>
+                      ))}
+                      <TableCell className="text-right font-medium">{formatPlain(row.netWorth)}</TableCell>
+                      <TableCell className="flex justify-end py-1">
+                        <MonthActions row={row} accounts={accounts} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <p className="text-[13px] text-muted-foreground">
+              <span className="sm:hidden">(Betrag)</span>
+              <span className="hidden sm:inline">·</span> = kein Eintrag in diesem Monat; es zählt der letzte bekannte Stand.
+            </p>
           </CardContent>
         )}
       </Card>
@@ -345,6 +330,91 @@ export function FireApp() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+type HistoryRow = ReturnType<typeof buildHistory>[number];
+
+// Phones: one row per month with net worth and change, tap for the accounts,
+// editing and deleting. The table needs more width than a phone has.
+function MonthList({ history, accounts }: { history: HistoryRow[]; accounts: Account[] }) {
+  const rows = [...history].reverse();
+  return (
+    <ul className="-mx-2 divide-y sm:hidden">
+      {rows.map((row, index) => {
+        const before = rows[index + 1];
+        const diff = before ? row.netWorth - before.netWorth : null;
+        return (
+          <li key={row.month}>
+            <details className="group">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 rounded-md px-2 py-2 active:bg-accent [&::-webkit-details-marker]:hidden">
+                <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
+                <span className="flex-1">{formatMonth(row.month)}</span>
+                <span className="flex flex-col items-end">
+                  <span className="font-mono font-medium">{formatMoney(row.netWorth)}</span>
+                  {diff !== null && diff !== 0 && (
+                    <span className={`font-mono text-xs ${diff > 0 ? "text-brand" : "text-debt"}`}>{formatSignedMoney(diff)}</span>
+                  )}
+                </span>
+              </summary>
+              <div className="space-y-1 pr-2 pb-2 pl-8">
+                <dl className="divide-y text-sm">
+                  {accounts
+                    .filter((account) => row.entered.has(account.id) || row.byAccount.has(account.id))
+                    .map((account) => (
+                      <div key={account.id} className="flex items-baseline gap-3 py-1.5">
+                        <dt className="min-w-0 flex-1 truncate text-muted-foreground">{account.name}</dt>
+                        <dd className={`font-mono ${account.kind === "debt" && row.entered.has(account.id) ? "text-debt" : ""}`}>
+                          {row.entered.has(account.id) ? (
+                            formatPlain(signedBalance(account.kind, row.byAccount.get(account.id) ?? 0))
+                          ) : (
+                            <span className="text-muted-foreground" title="kein Eintrag, letzter Stand">
+                              ({formatPlain(signedBalance(account.kind, row.byAccount.get(account.id) ?? 0))})
+                            </span>
+                          )}
+                        </dd>
+                      </div>
+                    ))}
+                </dl>
+                <div className="-mr-2 flex justify-end">
+                  <MonthActions row={row} accounts={accounts} />
+                </div>
+              </div>
+            </details>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// Edit and delete one month, in the table and in the phone list.
+function MonthActions({ row, accounts }: { row: HistoryRow; accounts: Account[] }) {
+  return (
+    <>
+      <RecordMonth
+        edit={{
+          values: Object.fromEntries([...row.entered].map((id) => [id, row.byAccount.get(id) ?? 0])),
+        }}
+        defaultMonth={row.month.slice(0, 7)}
+        netWorth={row.netWorth}
+        accounts={accounts
+          .filter((account) => !account.archived || row.entered.has(account.id))
+          .map((account) => ({ ...account, lastBalance: row.byAccount.get(account.id) }))}
+      />
+      <form action={deleteMonth}>
+        <input type="hidden" name="month" value={row.month} />
+        <SubmitButton
+          variant="ghost"
+          size="icon"
+          aria-label={`${formatMonth(row.month)} löschen`}
+          className="text-muted-foreground hover:text-destructive"
+          onClick={confirmSubmit({ title: `${formatMonth(row.month)} löschen?`, description: "Alle Kontostände dieses Monats." })}
+        >
+          <Trash2Icon />
+        </SubmitButton>
+      </form>
+    </>
   );
 }
 

@@ -1,12 +1,13 @@
 "use client";
 
-import { ChevronRightIcon, RotateCcwIcon } from "lucide-react";
+import { ChevronRightIcon, MinusIcon, PlusIcon, RotateCcwIcon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { isShown, progress, type Chip, type Item, type Section } from "./data";
+import { isShown, progress, type Chip, type Item, type Section, type Stock } from "./data";
 
 const UNDO_MS = 6000;
 
@@ -17,18 +18,32 @@ export function Checklist({
   chips,
   onTick,
   onReset,
+  onRestore,
   onChip,
   onEdit,
+  onAddOnce,
+  onRemoveOnce,
+  place,
+  inventory,
+  onStock,
+  onAddStock,
 }: {
   sections: Section[];
   items: Item[];
   chips: Chip[];
   onTick: (ids: string[], done: boolean) => void;
   onReset: () => void;
+  onRestore: (ticked: Item[]) => void;
   onChip: (chip: Chip) => void;
   onEdit: () => void;
+  onAddOnce: (name: string) => void;
+  onRemoveOnce: (id: string) => void;
+  place: { id: string; name: string } | null;
+  inventory: Stock[];
+  onStock: (id: string, quantity: number) => void;
+  onAddStock: (name: string) => void;
 }) {
-  const [undo, setUndo] = useState<string[] | null>(null);
+  const [undo, setUndo] = useState<Item[] | null>(null);
 
   useEffect(() => {
     if (!undo) return;
@@ -37,11 +52,12 @@ export function Checklist({
   }, [undo]);
 
   const { done, total } = progress(items, chips);
-  const ticked = items.filter((item) => item.done).map((item) => item.id);
-  const hidden = items.filter((item) => !isShown(item, chips));
+  const ticked = items.filter((item) => item.done);
+  const hidden = items.filter((item) => !item.once && !isShown(item, chips));
+  const once = items.filter((item) => item.once);
   const chipName = (id: string | null) => chips.find((chip) => chip.id === id)?.name;
 
-  if (items.length === 0) {
+  if (items.filter((item) => !item.once).length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 py-12 text-muted-foreground">
         <p>Noch leer.</p>
@@ -103,7 +119,7 @@ export function Checklist({
       )}
 
       {sections.map((section) => {
-        const shown = items.filter((item) => item.sectionId === section.id && isShown(item, chips));
+        const shown = items.filter((item) => !item.once && item.sectionId === section.id && isShown(item, chips));
         if (shown.length === 0) return null;
         const complete = shown.every((item) => item.done);
         return (
@@ -116,6 +132,21 @@ export function Checklist({
         );
       })}
 
+      <section aria-label="Nur diesmal" className="space-y-1.5">
+        <h3 className={cn("px-1 text-sm font-medium text-muted-foreground", once.length > 0 && once.every((item) => item.done) && "text-brand")}>
+          Nur diesmal
+        </h3>
+        <div className="divide-y overflow-hidden rounded-xl border bg-card">
+          {once.length > 0 && <ItemRows items={openFirst(once)} onTick={onTick} onRemove={onRemoveOnce} bare />}
+          <AddRow
+            label="Nur diesmal mitnehmen"
+            placeholder="+ Nur diesmal, z. B. Geschenk für Oma"
+            maxLength={80}
+            onAdd={onAddOnce}
+          />
+        </div>
+      </section>
+
       {hidden.length > 0 && (
         <details className="group">
           <summary className="flex h-10 cursor-pointer list-none items-center gap-1 px-1 text-sm text-muted-foreground [&::-webkit-details-marker]:hidden">
@@ -125,6 +156,8 @@ export function Checklist({
           <ItemRows items={hidden} onTick={onTick} muted label={(item) => chipName(item.chipId)} />
         </details>
       )}
+
+      {place && <PlaceStock place={place} inventory={inventory} onStock={onStock} onAdd={onAddStock} />}
 
       {undo && (
         <div
@@ -136,7 +169,7 @@ export function Checklist({
             variant="ghost"
             className="h-10 text-brand"
             onClick={() => {
-              onTick(undo, true);
+              onRestore(undo);
               setUndo(null);
             }}
           >
@@ -156,21 +189,26 @@ function openFirst(items: Item[]) {
 function ItemRows({
   items,
   onTick,
+  onRemove,
   muted = false,
+  bare = false,
   label,
 }: {
   items: Item[];
   onTick: (ids: string[], done: boolean) => void;
+  onRemove?: (id: string) => void;
   muted?: boolean;
+  // Inside a card that has its own border.
+  bare?: boolean;
   label?: (item: Item) => string | undefined;
 }) {
   return (
-    <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+    <ul className={cn("divide-y", !bare && "overflow-hidden rounded-xl border bg-card")}>
       {items.map((item) => (
-        <li key={item.id}>
+        <li key={item.id} className="flex items-center">
           <label
             className={cn(
-              "flex min-h-12 cursor-pointer items-center gap-3 px-4 py-2 select-none active:bg-accent",
+              "flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-3 px-4 py-2 select-none active:bg-accent",
               (item.done || muted) && "text-muted-foreground",
             )}
           >
@@ -187,8 +225,133 @@ function ItemRows({
               {item.note && !item.done && <span className="text-xs text-muted-foreground">{item.note}</span>}
             </span>
           </label>
+          {onRemove && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="mr-1 size-10 shrink-0 text-muted-foreground hover:text-destructive"
+              aria-label={`${item.name} entfernen`}
+              disabled={item.id.startsWith("tmp-")}
+              onClick={() => onRemove(item.id)}
+            >
+              <XIcon />
+            </Button>
+          )}
         </li>
       ))}
     </ul>
+  );
+}
+
+// What is already at the destination, from its inventory. 0 = not there, so
+// it has to come along. Changing a number changes the inventory itself.
+function PlaceStock({
+  place,
+  inventory,
+  onStock,
+  onAdd,
+}: {
+  place: { id: string; name: string };
+  inventory: Stock[];
+  onStock: (id: string, quantity: number) => void;
+  onAdd: (name: string) => void;
+}) {
+  const there = inventory.filter((entry) => entry.quantity > 0).length;
+  return (
+    <details className="group space-y-1.5">
+      <summary className="flex h-10 cursor-pointer list-none items-center gap-1 px-1 text-sm font-medium text-muted-foreground [&::-webkit-details-marker]:hidden">
+        <ChevronRightIcon className="size-4 transition-transform group-open:rotate-90" />
+        <span className="flex-1">Schon in {place.name}</span>
+        <span className="font-mono text-xs tabular-nums">
+          {there}/{inventory.length}
+        </span>
+      </summary>
+      <div className="divide-y overflow-hidden rounded-xl border bg-card">
+        {inventory.length === 0 && (
+          <p className="px-4 py-3 text-sm text-muted-foreground">Noch nichts im Inventar von {place.name}.</p>
+        )}
+        {inventory.map((entry) => {
+          const temp = entry.id.startsWith("tmp-");
+          return (
+            <div key={entry.id} className="flex min-h-12 items-center gap-2 pr-1 pl-4">
+              <span className={cn("min-w-0 flex-1 truncate", entry.quantity === 0 && "text-muted-foreground")}>
+                {entry.name}
+                {entry.quantity === 0 && <span className="ml-2 text-xs">nicht da</span>}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-10 text-muted-foreground"
+                aria-label={`${entry.name}: einer weniger`}
+                disabled={temp || entry.quantity === 0}
+                onClick={() => onStock(entry.id, entry.quantity - 1)}
+              >
+                <MinusIcon />
+              </Button>
+              <span aria-live="polite" className="w-6 text-center font-mono tabular-nums">
+                {entry.quantity}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-10 text-muted-foreground"
+                aria-label={`${entry.name}: einer mehr`}
+                disabled={temp || entry.quantity >= 999}
+                onClick={() => onStock(entry.id, entry.quantity + 1)}
+              >
+                <PlusIcon />
+              </Button>
+            </div>
+          );
+        })}
+        <AddRow label={`Ins Inventar von ${place.name}`} placeholder={`+ In ${place.name}`} maxLength={80} onAdd={onAdd} />
+      </div>
+    </details>
+  );
+}
+
+// One field: Enter adds and keeps the keyboard open for the next one.
+function AddRow({
+  label,
+  placeholder,
+  maxLength,
+  onAdd,
+}: {
+  label: string;
+  placeholder: string;
+  maxLength: number;
+  onAdd: (name: string) => void;
+}) {
+  const [value, setValue] = useState("");
+  return (
+    <form
+      className="relative"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const name = value.trim();
+        if (!name) return;
+        setValue("");
+        onAdd(name);
+      }}
+    >
+      <Input
+        aria-label={label}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        enterKeyHint="enter"
+        className="h-12 rounded-none border-0 bg-card px-4 pr-10 shadow-none focus-visible:ring-0"
+      />
+      {value.trim() && (
+        <button
+          type="submit"
+          aria-label={label}
+          className="absolute inset-y-0 right-0 flex w-10 cursor-pointer items-center justify-center text-brand"
+        >
+          <PlusIcon className="size-5" />
+        </button>
+      )}
+    </form>
   );
 }

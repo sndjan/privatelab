@@ -11,6 +11,7 @@ import { DocumentsTab } from "./documents-tab";
 import { Overview } from "./overview";
 import { EventsTab } from "./events-tab";
 import { LogTab } from "./log-tab";
+import { NotesTab } from "./notes-tab";
 import { BreakGate } from "./planning";
 import { ProtocolsTab } from "./protocols-tab";
 import { QuickTodo } from "./quick-todo";
@@ -55,6 +56,7 @@ export function ThesisApp({ userId }: { userId: string }) {
         <BreakGate today={today}>
           {tab === "overview" && <Overview today={today} />}
           {tab === "writing" && <WritingTab />}
+          {tab === "notes" && <NotesTab noteId={param("note")} query={param("q")} />}
           {tab === "todos" && <TodosTab today={today} />}
           {tab === "events" && <EventsTab today={today} />}
           {tab === "calendar" && <CalendarTab today={today} />}

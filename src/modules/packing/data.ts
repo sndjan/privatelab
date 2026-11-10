@@ -9,7 +9,11 @@ export type Item = {
   name: string;
   note: string | null;
   done: boolean;
+  // Only for this trip; resetting the list deletes it once ticked.
+  once: boolean;
 };
+
+export type Stock = { id: string; name: string; quantity: number };
 
 // An item counts (and shows in its section) unless its chip is switched off.
 export function isShown(item: { chipId: string | null }, chips: Chip[]) {

@@ -131,6 +131,9 @@ export type LogEntry = { id: string; day: string; hours: number; text: string; p
 // participants: free text from before people existed; personIds are the chips.
 export type Protocol = { id: string; date: string; title: string; participants: string; personIds: string[]; body: string };
 
+// A free Markdown note outside the thesis text, e.g. the Zielvereinbarung.
+export type Note = { id: string; title: string; body: string; pinned: boolean; createdAt: string; updatedAt: string };
+
 export type DocumentCategory = "literature" | "guideline" | "draft" | "other";
 
 export const documentCategories: { value: DocumentCategory; label: string }[] = [
@@ -179,6 +182,7 @@ export const isImage = (document: Pick<ThesisDocument, "mimeType">) =>
 export const tabs = [
   { id: "overview", label: "Überblick" },
   { id: "writing", label: "Schreiben" },
+  { id: "notes", label: "Notizen" },
   { id: "todos", label: "To-dos" },
   { id: "events", label: "Termine" },
   { id: "calendar", label: "Kalender" },

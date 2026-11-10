@@ -176,11 +176,22 @@ function NewListForm() {
 
 function ListView({ listId, startInEditMode }: { listId: string; startInEditMode: boolean }) {
   const {
-    data: { list, sections, items, chips },
+    data: { list, sections, items, chips, places, place, inventory },
   } = useSuspenseQuery(dataQuery("packing", "list", { id: listId }));
   if (!list) return <Gone what="Diese Liste" />;
 
-  return <ListScreen list={list} sections={sections} items={items} chips={chips} startInEditMode={startInEditMode} />;
+  return (
+    <ListScreen
+      list={list}
+      sections={sections}
+      items={items}
+      chips={chips}
+      places={places}
+      place={place}
+      inventory={inventory}
+      startInEditMode={startInEditMode}
+    />
+  );
 }
 
 // --- One place and its inventory --------------------------------------------

@@ -3,7 +3,7 @@
 // Deutsche Zitierweise with footnotes, IEEE), all in German, and BibLaTeX
 // entries for LaTeX with biber. Plain string formatting, no lookups and no AI.
 
-export type SourceKind = "web" | "article" | "book" | "chapter" | "software";
+export type SourceKind = "web" | "article" | "book" | "chapter" | "software" | "standard" | "video" | "report" | "thesis";
 export type SourceStatus = "found" | "read" | "cited";
 
 export type Source = {
@@ -18,12 +18,14 @@ export type Source = {
   month: number | null;
   day: number | null;
   title: string;
-  // Site name (web), journal (article) or book title (chapter).
+  // Site name (web), journal (article), book title (chapter), platform
+  // (video) or archive (thesis).
   container: string;
   volume: string;
   issue: string;
   pages: string;
   edition: string;
+  // Software version, the standard's number (standard) or the kind of thesis.
   version: string;
   publisher: string;
   doi: string;
@@ -123,6 +125,57 @@ export const sourceKinds: { value: SourceKind; label: string; fields: Partial<Re
       version: { label: "Version", hint: "z. B. 18.3.1" },
       publisher: { label: "Herausgeber / Plattform", hint: "z. B. GitHub. Entfällt, wenn gleich den Autor:innen." },
       url: { label: "URL", required: true },
+    },
+  },
+  {
+    value: "standard",
+    label: "Norm / Standard",
+    fields: {
+      authors: { label: "Herausgeber", hint: "z. B. DIN Deutsches Institut für Normung e. V. oder International Organization for Standardization" },
+      year: { label: "Jahr", required: true, hint: "Ausgabe der Norm" },
+      version: { label: "Nummer der Norm", required: true, hint: "z. B. DIN EN ISO 9241-110:2020" },
+      title: { label: "Titel der Norm", required: true },
+      publisher: { label: "Verlag", hint: "z. B. DIN Media (früher Beuth). Entfällt, wenn gleich dem Herausgeber." },
+      url: { label: "URL" },
+      accessed: { label: "Abgerufen am" },
+    },
+  },
+  {
+    value: "video",
+    label: "Video (z. B. YouTube)",
+    fields: {
+      authors: { label: "Kanal / Person", required: true, hint: "Wer das Video hochgeladen hat, z. B. Fireship." },
+      date: { label: "Veröffentlicht am", hint: "Leer lassen, wenn kein Datum angegeben ist (o. J.)." },
+      title: { label: "Titel des Videos", required: true },
+      container: { label: "Plattform", required: true, hint: "z. B. YouTube, Vimeo" },
+      url: { label: "URL", required: true },
+      accessed: { label: "Abgerufen am" },
+    },
+  },
+  {
+    value: "report",
+    label: "Bericht / Whitepaper",
+    fields: {
+      authors: { label: "Autor:innen / Organisation", required: true },
+      year: { label: "Jahr", required: true },
+      title: { label: "Titel", required: true },
+      issue: { label: "Nummer", hint: "Berichts- oder Reihennummer, falls vorhanden" },
+      publisher: { label: "Herausgeber / Institution", hint: "Entfällt, wenn gleich den Autor:innen." },
+      doi: { label: "DOI" },
+      url: { label: "URL", hint: "Nur ohne DOI." },
+    },
+  },
+  {
+    value: "thesis",
+    label: "Abschlussarbeit / Dissertation",
+    fields: {
+      authors: { label: "Autor:in", required: true },
+      year: { label: "Jahr", required: true },
+      title: { label: "Titel", required: true },
+      version: { label: "Art der Arbeit", required: true, hint: "z. B. Bachelorarbeit, Masterarbeit, Dissertation" },
+      publisher: { label: "Hochschule", required: true },
+      container: { label: "Archiv / Datenbank", hint: "z. B. OPUS, ProQuest. Leer bei unveröffentlichten Arbeiten." },
+      url: { label: "URL" },
     },
   },
 ];
@@ -268,7 +321,7 @@ export function apa(source: Source): Segment[] {
     if (text) segments.push({ text, italic });
   };
   const singleAuthor = source.authors.length === 1 ? source.authors[0].trim() : null;
-  const date = `(${apaDate(source, source.kind === "web")}).`;
+  const date = `(${apaDate(source, source.kind === "web" || source.kind === "video")}).`;
   const link = doiUrl(source.doi) || source.url.trim();
   const titleItalic = source.kind !== "article" && source.kind !== "chapter";
 
@@ -278,6 +331,13 @@ export function apa(source: Source): Segment[] {
     if (source.kind === "software") {
       const version = source.version.trim() ? `(Version ${source.version.trim().replace(/^v(?=\d)/i, "")}) ` : "";
       return ` ${version}[Computersoftware]`;
+    }
+    if (source.kind === "standard") return source.version.trim() ? ` (${source.version.trim()})` : "";
+    if (source.kind === "video") return " [Video]";
+    if (source.kind === "report") return source.issue.trim() ? ` (Bericht Nr. ${source.issue.trim()})` : "";
+    if (source.kind === "thesis") {
+      const details = [source.version.trim(), source.publisher.trim()].filter(Boolean).join(", ");
+      return details ? ` [${details}]` : "";
     }
     return "";
   })();
@@ -337,15 +397,21 @@ export function apa(source: Source): Segment[] {
       if (source.publisher.trim()) add(`${closed(source.publisher.trim())} `);
       break;
     }
-    case "software": {
+    case "software":
+    case "standard":
+    case "report": {
       const publisher = source.publisher.trim();
       if (publisher && publisher !== singleAuthor) add(`${closed(publisher)} `);
       break;
     }
+    case "video":
+    case "thesis":
+      if (source.container.trim()) add(`${closed(source.container.trim())} `);
+      break;
   }
 
   if (link) {
-    add(source.kind === "web" && source.accessed ? `Abgerufen am ${germanLongDate(source.accessed)}, von ${link}` : link);
+    add((source.kind === "web" || source.kind === "standard") && source.accessed ? `Abgerufen am ${germanLongDate(source.accessed)}, von ${link}` : link);
   }
 
   // Merge neighbors with the same style and drop the trailing space.
@@ -439,6 +505,11 @@ const italic = (text: string): Segment => ({ text: text.trim(), italic: true });
 const yearOf = (source: Source) => (source.year === null ? "o. J." : String(source.year));
 const pagesOf = (source: Source) => (source.pages.trim() ? `S. ${dash(source.pages)}` : "");
 const versionOf = (source: Source) => source.version.trim().replace(/^v(?=\d)/i, "");
+// The publisher, unless it's the only author (e.g. a report by the BSI).
+const ownPublisher = (source: Source) => {
+  const publisher = source.publisher.trim();
+  return source.authors.length === 1 && source.authors[0].trim() === publisher ? "" : publisher;
+};
 const linkOf = (source: Source) => doiUrl(source.doi) || source.url.trim();
 // "a, b, c" with the last joined by `and`.
 const joinLast = (names: string[], and: string) =>
@@ -459,7 +530,7 @@ function harvard(source: Source): Segment[] {
   const head = `${slashNames(source.authors, nameFamilyFirst, "et al.")} (${yearOf(source)}): `;
   const title = source.title.trim();
   const link = linkOf(source);
-  const online = link ? `, [online] ${link}${source.kind === "web" && source.accessed ? ` [abgerufen am ${germanLongDate(source.accessed)}]` : ""}` : "";
+  const online = link ? `, [online] ${link}${(source.kind === "web" || source.kind === "standard" || source.kind === "video") && source.accessed ? ` [abgerufen am ${germanLongDate(source.accessed)}]` : ""}` : "";
   switch (source.kind) {
     case "web":
       return segmentsOf([head, title, source.container.trim() && `, ${source.container.trim()}`, online, "."]);
@@ -502,6 +573,35 @@ function harvard(source: Source): Segment[] {
         " [Software]",
         source.publisher.trim() && `, ${source.publisher.trim()}`,
         online,
+        ".",
+      ]);
+    case "standard":
+      return segmentsOf([
+        head,
+        source.version.trim() && `${source.version.trim()}: `,
+        italic(title),
+        source.publisher.trim() && `, ${source.publisher.trim()}`,
+        online,
+        ".",
+      ]);
+    case "video":
+      return segmentsOf([head, italic(title), " [Video]", source.container.trim() && `, ${source.container.trim()}`, online, "."]);
+    case "report":
+      return segmentsOf([
+        head,
+        italic(title),
+        source.issue.trim() && `, Nr. ${source.issue.trim()}`,
+        ownPublisher(source) && `, ${ownPublisher(source)}`,
+        doiUrl(source.doi) ? `, ${doiUrl(source.doi)}` : source.url.trim() && `, [online] ${source.url.trim()}`,
+        ".",
+      ]);
+    case "thesis":
+      return segmentsOf([
+        head,
+        italic(title),
+        source.version.trim() && `, ${source.version.trim()}`,
+        source.publisher.trim() && `, ${source.publisher.trim()}`,
+        source.url.trim() && `, [online] ${source.url.trim()}`,
         ".",
       ]);
   }
@@ -565,6 +665,47 @@ function deutsch(source: Source): Segment[] {
         head,
         title,
         versionOf(source) && `, Version ${versionOf(source)}`,
+        source.publisher.trim() && `, ${source.publisher.trim()}`,
+        `, ${year}`,
+        url,
+        ".",
+      ]);
+    case "standard":
+      // Norms are listed by their number: DIN EN ISO 9241-110:2020: Titel, Beuth, 2020.
+      return segmentsOf([
+        source.version.trim() ? `${source.version.trim()}: ` : head,
+        title,
+        source.publisher.trim() ? `, ${source.publisher.trim()}` : source.authors.length > 0 && `, ${slashNames(source.authors, fullName, "u. a.")}`,
+        `, ${year}`,
+        url,
+        source.accessed && ` (abgerufen am ${germanLongDate(source.accessed)})`,
+        ".",
+      ]);
+    case "video":
+      return segmentsOf([
+        head,
+        `${title} [Video]`,
+        source.container.trim() && `, ${source.container.trim()}`,
+        source.year !== null && `, ${year}`,
+        url,
+        source.accessed && ` (abgerufen am ${germanLongDate(source.accessed)})`,
+        ".",
+      ]);
+    case "report":
+      return segmentsOf([
+        head,
+        title,
+        source.issue.trim() && `, Nr. ${source.issue.trim()}`,
+        ownPublisher(source) && `, ${ownPublisher(source)}`,
+        `, ${year}`,
+        doi || url,
+        ".",
+      ]);
+    case "thesis":
+      return segmentsOf([
+        head,
+        title,
+        source.version.trim() && `, ${source.version.trim()}`,
         source.publisher.trim() && `, ${source.publisher.trim()}`,
         `, ${year}`,
         url,
@@ -639,6 +780,45 @@ function ieee(source: Source): Segment[] {
         `${year}.`,
         online,
       ]);
+    case "standard":
+      return segmentsOf([
+        italic(source.title),
+        source.version.trim() && `, ${source.version.trim()}`,
+        ", ",
+        source.publisher.trim() ? `${source.publisher.trim()}, ` : names && `${names}, `,
+        `${year}.`,
+        online,
+      ]);
+    case "video":
+      return segmentsOf([
+        head,
+        `${quoted}, `,
+        source.container.trim() && `${source.container.trim()}, `,
+        source.year !== null && `${year}. `,
+        "[Video]. ",
+        source.accessed && `Zugegriffen: ${germanLongDate(source.accessed)}.`,
+        online,
+      ]);
+    case "report":
+      return segmentsOf([
+        head,
+        `${quoted}, `,
+        ownPublisher(source) && `${ownPublisher(source)}, `,
+        source.issue.trim() && `Bericht ${source.issue.trim()}, `,
+        year,
+        doi,
+        ".",
+        !doi && online,
+      ]);
+    case "thesis":
+      return segmentsOf([
+        head,
+        `${quoted}, `,
+        source.version.trim() && `${source.version.trim()}, `,
+        source.publisher.trim() && `${source.publisher.trim()}, `,
+        `${year}.`,
+        online,
+      ]);
   }
 }
 
@@ -694,12 +874,18 @@ const bibNames = (names: string[]) =>
     .map((name) => (isPerson(name) ? latex(name) : `{${latex(name)}}`))
     .join(" and ");
 
+// Only types every style above knows: a norm and a report are @report (with
+// type and number), a video @online with "Video" after the title.
 const bibTypes: Record<SourceKind, string> = {
   web: "online",
   article: "article",
   book: "book",
   chapter: "incollection",
   software: "software",
+  standard: "report",
+  video: "online",
+  report: "report",
+  thesis: "thesis",
 };
 
 const pad = (value: number) => String(value).padStart(2, "0");
@@ -716,7 +902,7 @@ export function biblatex(source: Source) {
   add("title", latex(source.title));
   if (source.year !== null) {
     let date = String(source.year);
-    if (source.kind === "web" && source.month !== null) {
+    if ((source.kind === "web" || source.kind === "video") && source.month !== null) {
       date += `-${pad(source.month)}`;
       if (source.day !== null) date += `-${pad(source.day)}`;
     }
@@ -745,10 +931,31 @@ export function biblatex(source: Source) {
       add("version", latex(source.version.replace(/^v(?=\d)/i, "")));
       add("publisher", latex(source.publisher));
       break;
+    case "standard":
+      add("type", "Norm");
+      add("number", latex(source.version));
+      add("institution", latex(source.publisher || source.authors[0] || ""));
+      break;
+    case "video":
+      add("titleaddon", "Video");
+      add("organization", latex(source.container));
+      break;
+    case "report":
+      add("type", "Bericht");
+      add("number", latex(source.issue));
+      add("institution", latex(source.publisher || source.authors[0] || ""));
+      break;
+    case "thesis":
+      add("type", latex(source.version));
+      add("institution", latex(source.publisher));
+      add("howpublished", latex(source.container));
+      break;
   }
   add("doi", doi);
   if (!doi) add("url", source.url.trim());
-  if (source.kind === "web" && source.accessed) add("urldate", source.accessed);
+  if ((source.kind === "web" || source.kind === "standard" || source.kind === "video") && source.accessed) {
+    add("urldate", source.accessed);
+  }
 
   const width = Math.max(...fields.map(([name]) => name.length));
   const body = fields.map(([name, value]) => `  ${name.padEnd(width)} = {${value}}`).join(",\n");

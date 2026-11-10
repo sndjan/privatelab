@@ -46,7 +46,7 @@ import {
 } from "./actions";
 import type { Chip, Item, Section } from "./data";
 
-type State = { sections: Section[]; items: Item[]; chips: Chip[]; starred: boolean };
+type State = { sections: Section[]; items: Item[]; chips: Chip[]; starred: boolean; placeId: string | null };
 type Change =
   | { type: "sections"; ids: string[] }
   | { type: "items"; sectionId: string; ids: string[] }
@@ -57,7 +57,8 @@ type Change =
   | { type: "deleteItem"; id: string }
   | { type: "addChip"; chip: Chip }
   | { type: "deleteChip"; id: string }
-  | { type: "star"; starred: boolean };
+  | { type: "star"; starred: boolean }
+  | { type: "place"; placeId: string | null };
 
 function reduce(state: State, change: Change): State {
   switch (change.type) {
@@ -96,6 +97,8 @@ function reduce(state: State, change: Change): State {
       };
     case "star":
       return { ...state, starred: change.starred };
+    case "place":
+      return { ...state, placeId: change.placeId };
   }
 }
 
@@ -116,15 +119,20 @@ export function Editor({
   sections,
   items,
   chips,
+  places,
   onDone,
 }: {
-  list: { id: string; name: string; starred: boolean };
+  list: { id: string; name: string; starred: boolean; placeId: string | null };
   sections: Section[];
   items: Item[];
   chips: Chip[];
+  places: { id: string; name: string }[];
   onDone: () => void;
 }) {
-  const [state, apply] = useOptimistic<State, Change>({ sections, items, chips, starred: list.starred }, reduce);
+  const [state, apply] = useOptimistic<State, Change>(
+    { sections, items, chips, starred: list.starred, placeId: list.placeId },
+    reduce,
+  );
   const [, startTransition] = useTransition();
   const router = useRouter();
   const [editing, setEditing] = useState<Item | null>(null);
@@ -215,6 +223,33 @@ export function Editor({
         />
       </div>
 
+      {places.length > 0 && (
+        <div className="flex items-center gap-3">
+          <Label htmlFor={`${dndId}-place`} className="shrink-0 font-normal text-muted-foreground">
+            Inventar zeigen von
+          </Label>
+          <Select
+            value={state.placeId ?? "none"}
+            onValueChange={(value) => {
+              const placeId = value === "none" ? null : value;
+              run({ type: "place", placeId }, () => updateList(list.id, { placeId }));
+            }}
+          >
+            <SelectTrigger id={`${dndId}-place`} className="w-44 bg-card">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Keinem Ort</SelectItem>
+              {places.map((place) => (
+                <SelectItem key={place.id} value={place.id}>
+                  {place.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       <DndContext
         id={dndId}
         sensors={sensors}
@@ -244,7 +279,7 @@ export function Editor({
                   run(
                     {
                       type: "addItem",
-                      item: { id: tempId(), sectionId: section.id, chipId: null, name, note: null, done: false },
+                      item: { id: tempId(), sectionId: section.id, chipId: null, name, note: null, done: false, once: false },
                     },
                     () => addItem(list.id, section.id, name, sort),
                   )

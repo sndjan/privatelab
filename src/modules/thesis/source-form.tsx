@@ -213,7 +213,7 @@ export function SourceForm({ source, today, style }: Props) {
           {input("volume", { maxLength: 20 })}
           {input("issue", { maxLength: 20 })}
           {input("edition", { maxLength: 20 })}
-          {input("version", { maxLength: 40, className: "font-mono" })}
+          {input("version", { maxLength: 40, className: values.kind === "thesis" ? undefined : "font-mono" })}
           {input("pages", { maxLength: 30 })}
         </div>
       )}

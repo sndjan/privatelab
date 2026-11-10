@@ -6,6 +6,7 @@ import {
   emptySettings,
   type Break,
   type Milestone,
+  type Note,
   normalizeOverviewLayout,
   type DocumentCategory,
   type EventKind,
@@ -200,6 +201,22 @@ export async function loadProtocol(id: string): Promise<Protocol | null> {
   const supabase = await createClient();
   const { data } = await supabase.from("thesis_protocols").select(protocolColumns).eq("id", id).maybeSingle();
   return data ? toProtocol(data as ProtocolRow) : null;
+}
+
+export async function loadNotes(): Promise<Note[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("thesis_notes")
+    .select("id, title, body, pinned, created_at, updated_at")
+    .order("updated_at", { ascending: false });
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    body: row.body,
+    pinned: row.pinned,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
 }
 
 export async function loadPeople(): Promise<Person[]> {

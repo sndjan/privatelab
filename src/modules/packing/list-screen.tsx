@@ -6,9 +6,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { dataQuery, type LoaderResult } from "@/lib/query/data";
 import { ViewLink as Link } from "@/lib/query/view-link";
-import { resetList, setChipActive, tickItems } from "./actions";
+import { addOnceItem, addStock, removeOnceItem, resetList, restoreOnceItems, setChipActive, setStock, tickItems } from "./actions";
 import { Checklist } from "./checklist";
-import type { Chip, Item, Section } from "./data";
+import type { Chip, Item, Section, Stock } from "./data";
 import { Editor } from "./editor";
 
 const PATH = "/m/packing";
@@ -25,12 +25,18 @@ export function ListScreen({
   sections,
   items,
   chips,
+  places,
+  place,
+  inventory,
   startInEditMode,
 }: {
-  list: { id: string; name: string; starred: boolean };
+  list: { id: string; name: string; starred: boolean; placeId: string | null };
   sections: Section[];
   items: Item[];
   chips: Chip[];
+  places: { id: string; name: string }[];
+  place: { id: string; name: string } | null;
+  inventory: Stock[];
   startInEditMode: boolean;
 }) {
   const [editing, setEditing] = useState(startInEditMode);
@@ -56,8 +62,78 @@ export function ListScreen({
     );
   }
 
+  // Ticked one-off items go, everything else is unticked.
   function reset() {
-    change((data) => ({ items: data.items.map((item) => ({ ...item, done: false })) }), () => resetList(list.id));
+    change(
+      (data) => ({
+        items: data.items.filter((item) => !(item.once && item.done)).map((item) => ({ ...item, done: false })),
+      }),
+      () => resetList(list.id),
+    );
+  }
+
+  // Undo of a reset: ticks again what was ticked and brings back the deleted one-off items.
+  function restore(ticked: Item[]) {
+    const kept = ticked.filter((item) => !item.once).map((item) => item.id);
+    const gone = ticked.filter((item) => item.once);
+    change(
+      (data) => ({
+        items: [
+          ...data.items.map((item) => (kept.includes(item.id) ? { ...item, done: true } : item)),
+          ...gone.map((item) => ({ ...item, listId: list.id, id: `tmp-${item.id}` })),
+        ],
+      }),
+      async () => {
+        await Promise.all([tickItems(kept, true), restoreOnceItems(list.id, gone)]);
+        // The restored one-off items have new ids.
+        if (gone.length > 0) await queryClient.invalidateQueries({ queryKey: listKey });
+      },
+    );
+  }
+
+  function addOnce(name: string) {
+    const sectionId = sections[0]?.id;
+    if (!sectionId) return;
+    const temp = `tmp-${Math.random().toString(36).slice(2)}`;
+    change(
+      (data) => ({
+        items: [...data.items, { id: temp, listId: list.id, sectionId, chipId: null, name, note: null, done: false, once: true }],
+      }),
+      async () => {
+        const id = await addOnceItem(list.id, sectionId, name);
+        queryClient.setQueryData(listKey, (data) =>
+          data && id ? { ...data, items: data.items.map((item) => (item.id === temp ? { ...item, id } : item)) } : data,
+        );
+      },
+    );
+  }
+
+  function removeOnce(id: string) {
+    change((data) => ({ items: data.items.filter((item) => item.id !== id) }), () => removeOnceItem(id));
+  }
+
+  // The destination's inventory, changed from inside the list.
+  function changeStock(id: string, quantity: number) {
+    change(
+      (data) => ({ inventory: data.inventory.map((entry) => (entry.id === id ? { ...entry, quantity } : entry)) }),
+      () => setStock(id, quantity).finally(() => queryClient.invalidateQueries({ queryKey: ["packing", "place"] })),
+    );
+  }
+
+  function newStock(name: string) {
+    if (!place) return;
+    const existing = inventory.find((entry) => entry.name.toLowerCase() === name.toLowerCase());
+    if (existing) return changeStock(existing.id, Math.max(existing.quantity, 1));
+    change(
+      (data) => ({
+        inventory: [...data.inventory, { id: `tmp-${name}`, name, quantity: 1 }].sort((a, b) => a.name.localeCompare(b.name, "de")),
+      }),
+      async () => {
+        await addStock(place.id, name, 1);
+        await queryClient.invalidateQueries({ queryKey: listKey });
+        void queryClient.invalidateQueries({ queryKey: ["packing", "place"] });
+      },
+    );
   }
 
   function toggleChip(chip: Chip) {
@@ -76,7 +152,14 @@ export function ListScreen({
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       {editing ? (
-        <Editor list={list} sections={sections} items={items} chips={chips} onDone={toggleMode} />
+        <Editor
+          list={list}
+          sections={sections}
+          items={items.filter((item) => !item.once)}
+          chips={chips}
+          places={places}
+          onDone={toggleMode}
+        />
       ) : (
         <>
           <div className="-ml-2 flex items-center gap-1">
@@ -96,8 +179,15 @@ export function ListScreen({
             chips={chips}
             onTick={tick}
             onReset={reset}
+            onRestore={restore}
             onChip={toggleChip}
             onEdit={toggleMode}
+            onAddOnce={addOnce}
+            onRemoveOnce={removeOnce}
+            place={place}
+            inventory={inventory}
+            onStock={changeStock}
+            onAddStock={newStock}
           />
         </>
       )}

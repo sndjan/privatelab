@@ -455,6 +455,39 @@ export async function deleteProtocol(formData: FormData) {
 
 // --- Appointments and deadlines -----------------------------------------------
 
+// --- Notes --------------------------------------------------------------------
+
+export async function createNote(): Promise<string> {
+  const { supabase } = await db();
+  const created = check(await supabase.from("thesis_notes").insert({}).select("id").single());
+  revalidatePath(PATH);
+  return created.id as string;
+}
+
+// Saved as typed, like the thesis text: no re-render.
+export async function saveNote(id: string, patch: { title?: string; body?: string; pinned?: boolean }) {
+  if (!isId(id)) throw new Error("Invalid note");
+  const { supabase } = await db();
+  check(
+    await supabase
+      .from("thesis_notes")
+      .update({
+        ...(patch.title !== undefined && { title: String(patch.title).slice(0, 200) }),
+        ...(patch.body !== undefined && { body: String(patch.body).replace(/\r\n/g, "\n").slice(0, 200000) }),
+        ...(patch.pinned !== undefined && { pinned: patch.pinned === true }),
+        ...((patch.title !== undefined || patch.body !== undefined) && { updated_at: new Date().toISOString() }),
+      })
+      .eq("id", id),
+  );
+}
+
+export async function deleteNote(id: string) {
+  if (!isId(id)) throw new Error("Invalid note");
+  const { supabase } = await db();
+  check(await supabase.from("thesis_notes").delete().eq("id", id));
+  revalidatePath(PATH);
+}
+
 export async function saveEvent(formData: FormData) {
   const title = text(formData, "title", 200);
   if (!title) throw new Error("Title missing");
