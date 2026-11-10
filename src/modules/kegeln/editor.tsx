@@ -183,7 +183,7 @@ export function GameEditor({ game }: { game?: Game }) {
         <CardHeader>
           <CardTitle>2. Wurfscheine (optional)</CardTitle>
           <CardDescription>
-            Für die Zweier ins Volle und die Goldenen. Ein Foto pro Spieler oder eine PDF mit allen. Ohne Wurfschein trägst du
+            Für die Zweier (auf das volle Bild) und die Goldenen. Ein Foto pro Spieler oder eine PDF mit allen. Ohne Wurfschein trägst du
             sie unten selbst ein.
           </CardDescription>
         </CardHeader>
@@ -448,6 +448,10 @@ function PlayerRow({
         </label>
         <label className="flex items-center gap-2">
           <Checkbox checked={line.mass} onCheckedChange={(checked) => onChange({ mass: checked === true })} /> Maß
+        </label>
+        <label className="flex items-center gap-2">
+          <Checkbox checked={line.half} onCheckedChange={(checked) => onChange({ half: checked === true })} /> ausgewechselt (halbe
+          Kosten)
         </label>
         <span className="ml-auto font-semibold whitespace-nowrap tabular-nums">{formatEuro(fees.sum)}</span>
       </div>

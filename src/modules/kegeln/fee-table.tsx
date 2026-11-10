@@ -56,7 +56,10 @@ function FeeList({ rows, shown, threshold, nicknames, onPaid }: Inner) {
         return (
           <li key={index} className={cn("flex items-start gap-3 py-2.5", row.line.paid && onPaid && "text-muted-foreground")}>
             <div className="min-w-0 flex-1">
-              <p className="truncate font-medium">{name}</p>
+              <p className="truncate font-medium">
+                {name}
+                {row.line.half && <span className="font-normal text-muted-foreground"> (ausgewechselt, halbe Kosten)</span>}
+              </p>
               <p className="text-xs leading-relaxed text-muted-foreground">
                 {parts.length === 0
                   ? "nichts"
@@ -124,6 +127,7 @@ function FeeGrid({ rows, shown, threshold, rates, nicknames, onPaid }: Inner) {
             <tr key={index} className={cn("border-b last:border-0", line.paid && onPaid && "text-muted-foreground")}>
               <th scope="row" className="py-2 pr-2 text-left font-medium whitespace-nowrap">
                 {displayName(line.name, nicknames)}
+                {line.half && <span className="font-normal text-muted-foreground"> (½)</span>}
               </th>
               {shown.map((column) => (
                 <td key={column.id} className="px-1.5 py-2 text-right whitespace-nowrap">
