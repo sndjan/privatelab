@@ -89,6 +89,14 @@ export const moduleMeta: ModuleMeta[] = [
     status: "live",
   },
   {
+    id: "kegeln",
+    name: "Kegelkasse",
+    description: "Spielbericht und Wurfschein abfotografieren: Fehler, Zweier, Goldene und Maß werden zur Tabelle, wer was in die Kasse zahlt.",
+    icon: "🎳",
+    category: "alltag",
+    status: "live",
+  },
+  {
     id: "health",
     name: "Gesundheit-Dashboard",
     description: "Schlaf, Sport, Gewicht und andere Gesundheitswerte im Überblick.",

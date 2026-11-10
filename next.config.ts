@@ -4,6 +4,11 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  experimental: {
+    // The Kegelkasse sends photos and PDFs of match reports to a server
+    // action; 4 MB stays under Vercel's 4.5 MB request limit.
+    serverActions: { bodySizeLimit: "4mb" },
+  },
   async headers() {
     return [
       {
