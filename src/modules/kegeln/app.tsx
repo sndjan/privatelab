@@ -260,20 +260,20 @@ function SeasonView() {
           <thead>
             <tr className="border-b text-xs text-muted-foreground">
               <th scope="col" className="py-2 text-left font-medium">Spieler</th>
-              <th scope="col" className="py-2 text-right font-medium">Spiele</th>
-              <th scope="col" className="py-2 text-right font-medium">Fehler</th>
-              <th scope="col" className="py-2 text-right font-medium">Gesamt</th>
-              <th scope="col" className="py-2 text-right font-medium">offen</th>
+              <th scope="col" className="hidden py-2 pl-3 text-right font-medium sm:table-cell">Spiele</th>
+              <th scope="col" className="py-2 pl-3 text-right font-medium">Fehler</th>
+              <th scope="col" className="py-2 pl-3 text-right font-medium">Gesamt</th>
+              <th scope="col" className="py-2 pl-3 text-right font-medium">offen</th>
             </tr>
           </thead>
           <tbody>
             {players.map((player) => (
               <tr key={player.name} className="border-b last:border-0">
                 <th scope="row" className="py-2 text-left font-medium">{displayName(player.name, settings.nicknames)}</th>
-                <td className="py-2 text-right">{player.games}</td>
-                <td className="py-2 text-right">{player.errors}</td>
-                <td className="py-2 text-right font-semibold">{formatEuro(player.sum)}</td>
-                <td className="py-2 text-right text-muted-foreground">{player.open > 0 ? formatEuro(player.open) : "–"}</td>
+                <td className="hidden py-2 pl-3 text-right whitespace-nowrap sm:table-cell">{player.games}</td>
+                <td className="py-2 pl-3 text-right whitespace-nowrap">{player.errors}</td>
+                <td className="py-2 pl-3 text-right whitespace-nowrap font-semibold">{formatEuro(player.sum)}</td>
+                <td className="py-2 pl-3 text-right whitespace-nowrap text-muted-foreground">{player.open > 0 ? formatEuro(player.open) : "–"}</td>
               </tr>
             ))}
           </tbody>
