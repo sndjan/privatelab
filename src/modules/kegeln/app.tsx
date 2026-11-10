@@ -11,12 +11,14 @@ import { deleteGame, setPaid } from "./actions";
 import { displayName, feesOf, formatEuro, gameSum, nameKey, openSum, type Game } from "./data";
 import { GameEditor } from "./editor";
 import { FeeTable } from "./fee-table";
+import { RulesView } from "./rules";
 import { SettingsView } from "./settings";
 import { PATH, useKegelnData, usePatch, useRefresh } from "./store";
 
 const tabs = [
   { id: "games", label: "Spiele" },
   { id: "season", label: "Saison" },
+  { id: "rules", label: "Regeln" },
   { id: "settings", label: "Einstellungen" },
 ] as const;
 
@@ -56,7 +58,7 @@ export function KegelnApp() {
               <Link
                 href={entry.id === "games" ? PATH : `${PATH}?tab=${entry.id}`}
                 aria-current={entry.id === tab ? "page" : undefined}
-                className={`flex h-9 items-center justify-center rounded-md px-3 text-sm whitespace-nowrap transition-colors ${
+                className={`flex h-9 items-center justify-center rounded-md px-2 text-sm whitespace-nowrap sm:px-3 transition-colors ${
                   entry.id === tab ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -68,6 +70,7 @@ export function KegelnApp() {
       </nav>
       {tab === "games" && <GamesList />}
       {tab === "season" && <SeasonView />}
+      {tab === "rules" && <RulesView />}
       {tab === "settings" && <SettingsView />}
     </div>
   );
