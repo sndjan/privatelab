@@ -4,9 +4,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Report, ReportPlayer, SheetSet, ThrowSheet } from "./data";
 
-const MODEL = "claude-opus-5-5";
-// On a refusal, the API re-runs the request on a fallback model by itself.
-const FALLBACK = { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const };
+// The cheapest model: reading printed numbers off a sheet doesn't need more,
+// and the sums in data.ts catch what it misreads.
+const MODEL = "claude-haiku-5-5";
 
 const client = () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 export const hasAiKey = () => Boolean(process.env.ANTHROPIC_API_KEY);
@@ -29,19 +29,22 @@ function aiError(error: unknown) {
 
 async function ask<T>(upload: Upload, system: string, prompt: string, schema: Record<string, unknown>): Promise<T> {
   if (!hasAiKey()) throw new Error("Zum Auslesen braucht es einen ANTHROPIC_API_KEY.");
-  const file: Anthropic.Beta.BetaContentBlockParam =
+  const file: Anthropic.ContentBlockParam =
     upload.kind === "pdf"
       ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: upload.data } }
       : { type: "image", source: { type: "base64", media_type: upload.mediaType, data: upload.data } };
   try {
-    const response = await client().beta.messages.create({
-      ...FALLBACK,
-      model: MODEL,
-      max_tokens: 32000,
-      output_config: { effort: "medium", format: { type: "json_schema", schema } },
-      system,
-      messages: [{ role: "user", content: [file, { type: "text", text: prompt }] }],
-    });
+    // Streamed: the SDK refuses a non-streamed request whose max_tokens could
+    // take longer than 10 minutes.
+    const response = await client()
+      .messages.stream({
+        model: MODEL,
+        max_tokens: 32000,
+        output_config: { effort: "medium", format: { type: "json_schema", schema } },
+        system,
+        messages: [{ role: "user", content: [file, { type: "text", text: prompt }] }],
+      })
+      .finalMessage();
     if (response.stop_reason === "refusal") throw new Error("Die KI hat die Anfrage abgelehnt.");
     if (response.stop_reason !== "end_turn") throw new Error("Die KI hat keine vollständige Antwort geliefert.");
     const text = response.content.find((block) => block.type === "text");
