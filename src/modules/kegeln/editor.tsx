@@ -1,6 +1,6 @@
 "use client";
 
-import { CameraIcon, FileUpIcon, Loader2Icon, PlusIcon, TrashIcon, TriangleAlertIcon } from "lucide-react";
+import { CameraIcon, FileUpIcon, ImageIcon, Loader2Icon, PlusIcon, TrashIcon, TriangleAlertIcon } from "lucide-react";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -255,7 +255,7 @@ export function GameEditor({ game }: { game?: Game }) {
             <Field label="Saison">
               <Input value={draft.season} maxLength={20} placeholder="2026-27" onChange={(event) => setDraft({ ...draft, season: event.target.value })} />
             </Field>
-            <div className="col-span-1 flex items-end gap-1 sm:col-span-3">
+            <div className="col-span-2 flex items-end gap-1 sm:col-span-3">
               {[
                 { value: true, label: "Heim" },
                 { value: false, label: "Auswärts" },
@@ -263,7 +263,7 @@ export function GameEditor({ game }: { game?: Game }) {
                 <Button
                   key={option.label}
                   type="button"
-                  size="sm"
+                  className="h-9 flex-1 sm:flex-none"
                   variant={draft.home === option.value ? "default" : "outline"}
                   onClick={() => setDraft({ ...draft, home: draft.home === option.value ? null : option.value })}
                 >
@@ -343,7 +343,8 @@ function UploadButtons({
   again?: boolean;
 }) {
   const camera = useRef<HTMLInputElement>(null);
-  const picker = useRef<HTMLInputElement>(null);
+  const gallery = useRef<HTMLInputElement>(null);
+  const pdf = useRef<HTMLInputElement>(null);
   const take = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
@@ -356,15 +357,21 @@ function UploadButtons({
       </p>
     );
   }
+  // Three inputs, because a picker that takes images and PDFs at once opens
+  // the file manager on Android instead of the gallery.
   return (
-    <div className="flex flex-col gap-2 sm:flex-row">
+    <div className="grid gap-2 sm:grid-cols-3">
       <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" onChange={take} />
-      <input ref={picker} type="file" accept="image/*,application/pdf" multiple={multiple} className="hidden" onChange={take} />
+      <input ref={gallery} type="file" accept="image/*" multiple={multiple} className="hidden" onChange={take} />
+      <input ref={pdf} type="file" accept="application/pdf" multiple={multiple} className="hidden" onChange={take} />
       <Button size="lg" variant={again ? "outline" : "default"} disabled={disabled} onClick={() => camera.current?.click()}>
         <CameraIcon /> {again ? "Neu fotografieren" : "Foto aufnehmen"}
       </Button>
-      <Button size="lg" variant="outline" disabled={disabled} onClick={() => picker.current?.click()}>
-        <FileUpIcon /> {multiple ? "Fotos oder PDF wählen" : "Foto oder PDF wählen"}
+      <Button size="lg" variant="outline" disabled={disabled} onClick={() => gallery.current?.click()}>
+        <ImageIcon /> Aus der Galerie
+      </Button>
+      <Button size="lg" variant="outline" disabled={disabled} onClick={() => pdf.current?.click()}>
+        <FileUpIcon /> PDF wählen
       </Button>
     </div>
   );
@@ -395,16 +402,15 @@ function PlayerRow({
   const count = (value: string) => Math.max(0, Math.min(99, Math.round(Number(value) || 0)));
   return (
     <li className="space-y-3 rounded-lg border p-3">
-      <div className="flex items-center gap-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
         <Input
           value={line.name}
           maxLength={80}
           placeholder="Nachname, Vorname"
           aria-label="Name"
-          className="h-9 flex-1 font-medium"
+          className="h-9 font-medium"
           onChange={(event) => onChange({ name: event.target.value })}
         />
-        <span className="w-20 text-right font-semibold tabular-nums">{formatEuro(fees.sum)}</span>
         <Button type="button" size="icon" variant="ghost" aria-label="Spieler entfernen" onClick={onRemove}>
           <TrashIcon />
         </Button>
@@ -435,7 +441,7 @@ function PlayerRow({
           </select>
         </Label>
       </div>
-      <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
         <label className="flex items-center gap-2">
           <Checkbox checked={line.started} onCheckedChange={(checked) => onChange({ started: checked === true })} /> gespielt
           (Startgebühr)
@@ -443,6 +449,7 @@ function PlayerRow({
         <label className="flex items-center gap-2">
           <Checkbox checked={line.mass} onCheckedChange={(checked) => onChange({ mass: checked === true })} /> Maß
         </label>
+        <span className="ml-auto font-semibold whitespace-nowrap tabular-nums">{formatEuro(fees.sum)}</span>
       </div>
       {line.sheet && note && (
         <p className="text-xs text-muted-foreground">
