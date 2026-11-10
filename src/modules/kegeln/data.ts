@@ -11,9 +11,21 @@ export type Rates = {
   golden: number; // per Goldener (see analyzeSheet)
   two: number; // per Zweier ins volle Bild (see analyzeSheet)
   under: number; // total below the threshold
+  conduct: number; // unsportliches Verhalten, ticked by hand
+  late: number; // zu spät gekommen, ticked by hand
 };
 
-export const defaultRates: Rates = { start: 100, point: 100, mass: 250, error: 30, golden: 30, two: 50, under: 100 };
+export const defaultRates: Rates = {
+  start: 100,
+  point: 100,
+  mass: 250,
+  error: 30,
+  golden: 30,
+  two: 50,
+  under: 100,
+  conduct: 500,
+  late: 500,
+};
 export const DEFAULT_THRESHOLD = 550;
 export const DEFAULT_TEAM = "Jedesheim";
 
@@ -41,6 +53,9 @@ export type Line = {
   // True once a Wurfschein was read for this player, so twos and golden
   // are known rather than 0 by default.
   sheet: boolean;
+  // Penalties ticked by hand, not on any document.
+  conduct: boolean;
+  late: boolean;
   // Substituted at half time: the two players share the block's costs, so
   // each pays half of every fee.
   half: boolean;
@@ -71,6 +86,8 @@ export const columns: { id: keyof Rates; label: string; short: string }[] = [
   { id: "golden", label: "Goldener", short: "Gold." },
   { id: "two", label: "2er", short: "2er" },
   { id: "under", label: "unter", short: "unter" },
+  { id: "conduct", label: "Unsportlich", short: "Unsportl." },
+  { id: "late", label: "Zu spät", short: "Zu spät" },
 ];
 
 export function feesOf(line: Line, rates: Rates, threshold: number): Fees {
@@ -85,9 +102,11 @@ export function feesOf(line: Line, rates: Rates, threshold: number): Fees {
     two: Math.max(0, line.twos) * rates.two,
     under: played && line.total !== null && line.total < threshold ? rates.under : 0,
   };
-  const fees = line.half
+  const shared = line.half
     ? (Object.fromEntries(Object.entries(full).map(([key, cents]) => [key, Math.round(cents / 2)])) as typeof full)
     : full;
+  // Penalties are personal: not shared with a substitute, due even without playing.
+  const fees = { ...shared, conduct: line.conduct ? rates.conduct : 0, late: line.late ? rates.late : 0 };
   return { ...fees, sum: Object.values(fees).reduce((a, b) => a + b, 0) };
 }
 
@@ -250,6 +269,8 @@ export function linesFromReport(report: Report): Line[] {
       twos: 0,
       golden: 0,
       sheet: false,
+      conduct: false,
+      late: false,
       half: false,
       paid: false,
     });
@@ -267,6 +288,8 @@ export const emptyLine = (name = ""): Line => ({
   twos: 0,
   golden: 0,
   sheet: false,
+  conduct: false,
+  late: false,
   half: false,
   paid: false,
 });
@@ -303,6 +326,8 @@ export function cleanLine(input: Partial<Line>): Line {
     twos: count(input.twos, 99),
     golden: count(input.golden, 9),
     sheet: input.sheet === true,
+    conduct: input.conduct === true,
+    late: input.late === true,
     half: input.half === true,
     paid: input.paid === true,
   };
