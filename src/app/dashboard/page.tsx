@@ -5,7 +5,8 @@ import { PlannedModules } from "@/components/planned-modules";
 import { RememberedDashboard, RememberSession } from "@/components/session-hint";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { modules, plannedModules } from "@/modules/registry";
+import { moduleMeta } from "@/modules/meta";
+import { plannedModules } from "@/modules/registry";
 
 export default function DashboardPage() {
   return (
@@ -26,7 +27,9 @@ async function VisibleModules() {
   const supabase = await createClient();
   const { data } = await supabase.from("modules").select("id");
   const visibleIds = new Set((data ?? []).map((row) => row.id));
-  const visible = modules.filter((module) => visibleIds.has(module.id));
+  // Plain metadata, not the registry entries: ModuleGrid is a client
+  // component and can't receive their Page components.
+  const visible = moduleMeta.filter((meta) => meta.status === "live" && visibleIds.has(meta.id));
 
   return (
     <div className="space-y-12">

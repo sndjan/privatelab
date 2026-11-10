@@ -4,7 +4,7 @@ import { Loading } from "@/components/loading";
 import { ModuleGrid } from "@/components/module-grid";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { modules } from "@/modules/registry";
+import { moduleMeta } from "@/modules/meta";
 
 export default function Home() {
   return (
@@ -32,5 +32,7 @@ async function PublicModules() {
   const { data } = await supabase.from("modules").select("id").eq("visibility", "public");
   const publicIds = new Set((data ?? []).map((row) => row.id));
 
-  return <ModuleGrid modules={modules.filter((module) => publicIds.has(module.id))} />;
+  // Plain metadata: ModuleGrid is a client component and can't receive the
+  // registry's Page components.
+  return <ModuleGrid modules={moduleMeta.filter((meta) => meta.status === "live" && publicIds.has(meta.id))} />;
 }
