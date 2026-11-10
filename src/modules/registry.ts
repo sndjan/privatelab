@@ -6,6 +6,7 @@ import type { ComponentType } from "react";
 import type { CurrentUser } from "@/lib/auth";
 import EventsModule from "./events";
 import FireModule from "./fire";
+import FokusModule from "./fokus";
 import { moduleMeta, type ModuleMeta } from "./meta";
 import NochmalModule from "./nochmal";
 import PackingModule from "./packing";
@@ -32,6 +33,7 @@ export type ModuleDefinition = ModuleMeta & {
 const pages: Record<string, ComponentType<ModulePageProps>> = {
   events: EventsModule,
   fire: FireModule,
+  fokus: FokusModule,
   nochmal: NochmalModule,
   packing: PackingModule,
   tennis: TennisModule,

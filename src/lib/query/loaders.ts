@@ -1,6 +1,7 @@
 import type { CurrentUser } from "@/lib/auth";
 import { eventsLoaders } from "@/modules/events/loaders";
 import { fireLoaders } from "@/modules/fire/loaders";
+import { fokusLoaders } from "@/modules/fokus/loaders";
 import { nochmalLoaders } from "@/modules/nochmal/loaders";
 import { packingLoaders } from "@/modules/packing/loaders";
 import { tennisLoaders } from "@/modules/tennis/loaders";
@@ -18,6 +19,7 @@ export type Loader = (params: Record<string, string>, user: CurrentUser) => Prom
 export const loaders = {
   events: eventsLoaders,
   fire: fireLoaders,
+  fokus: fokusLoaders,
   nochmal: nochmalLoaders,
   packing: packingLoaders,
   tennis: tennisLoaders,
