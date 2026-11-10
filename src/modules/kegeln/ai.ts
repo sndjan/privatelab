@@ -93,7 +93,7 @@ const reportSchema = {
           ges: { type: "integer" },
           sp: { type: "number" },
           mp: { type: ["number", "null"], description: "Mannschaftspunkt of this player: 1, 0.5 or 0; null if not printed" },
-          handMarks: { type: "string", description: "Handwritten letters or marks next to this player's name or block, e.g. 'M'; empty if none" },
+          handMarks: { type: "string", description: "Handwritten letters or marks next to this player's name or block, e.g. 'M' (upper or lower case); empty if none" },
           substitute: { type: "boolean", description: "true if this player was substituted in during the match" },
         },
         required: ["name", "sets", "volle", "abr", "fe", "ges", "sp", "mp", "handMarks", "substitute"],
@@ -169,7 +169,7 @@ export async function readReport(upload: Upload, team: string): Promise<Report> 
       total: int(player.ges),
       mp: mp === null || ![0, 0.5, 1].includes(mp) ? null : mp,
       // A handwritten "M" next to the name marks a Maß.
-      mass: /\bM\b/.test(text(player.handMarks, 40)),
+      mass: /\bm\b/i.test(text(player.handMarks, 40)),
       substitute: player.substitute === true,
     };
   });
