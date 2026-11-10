@@ -81,6 +81,14 @@ export const moduleMeta: ModuleMeta[] = [
     status: "live",
   },
   {
+    id: "fokus",
+    name: "Fokusküche",
+    description: "Fokus-Timer, der nebenbei ein Menü kocht: 3 × 45 Minuten, dazwischen 15 Minuten Tee.",
+    icon: "🍳",
+    category: "alltag",
+    status: "live",
+  },
+  {
     id: "health",
     name: "Gesundheit-Dashboard",
     description: "Schlaf, Sport, Gewicht und andere Gesundheitswerte im Überblick.",
