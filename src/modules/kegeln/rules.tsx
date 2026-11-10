@@ -47,6 +47,18 @@ export function RulesView() {
       amount: `${formatEuro(rates.golden)} pro Stück`,
       text: "Im 29. Wurf eines Durchgangs an einem einzelnen Kegel vorbei (eine 0, auch als Fehlwurf).",
     },
+    {
+      cents: rates.conduct,
+      title: "Unsportliches Verhalten",
+      amount: formatEuro(rates.conduct),
+      text: "Kreuzt man beim Spieler von Hand an.",
+    },
+    {
+      cents: rates.late,
+      title: "Zu spät gekommen",
+      amount: formatEuro(rates.late),
+      text: "Kreuzt man beim Spieler von Hand an.",
+    },
   ]
     // A fee switched off in the settings (0 €) isn't charged, so it isn't listed.
     .filter((rule) => rule.cents > 0);
@@ -86,7 +98,10 @@ export function RulesView() {
           <ul className="list-disc space-y-2 pl-5 text-sm text-muted-foreground">
             <li>Zweier und Goldene stehen nur auf dem Wurfschein. Ohne Wurfschein, etwa auswärts, trägst du sie von Hand ein.</li>
             <li>Gezählt werden nur unsere Spieler (Name enthält „{team}“), egal ob Heim oder Gast.</li>
-            <li>Bei einer Auswechslung zur Hälfte teilen sich beide Spieler die Kosten: jeder zahlt von allem die Hälfte.</li>
+            <li>
+              Bei einer Auswechslung zur Hälfte teilen sich beide Spieler die Kosten: jeder zahlt von allem die Hälfte. Strafen für
+              unsportliches Verhalten oder Zuspätkommen zahlt jeder selbst und ganz.
+            </li>
             <li>Gespeicherte Spiele behalten die Beträge, mit denen sie eingelesen wurden.</li>
           </ul>
         </CardContent>

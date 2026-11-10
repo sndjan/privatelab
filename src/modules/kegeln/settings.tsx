@@ -73,7 +73,7 @@ export function SettingsView() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {columns.map((column) => (
               <Label key={column.id} className="flex flex-col items-stretch gap-1.5 text-sm">
-                {column.id === "under" ? `unter ${threshold || "…"}` : column.id === "error" ? "pro Fehler" : column.id === "two" ? "pro 2er" : column.id === "golden" ? "pro Goldenem" : column.label}
+                {column.id === "under" ? `unter ${threshold || "…"}` : column.id === "error" ? "pro Fehler" : column.id === "two" ? "pro 2er" : column.id === "golden" ? "pro Goldenem" : column.id === "conduct" ? "Unsportlich" : column.id === "late" ? "Zu spät" : column.label}
                 <div className="relative">
                   <Input
                     inputMode="decimal"

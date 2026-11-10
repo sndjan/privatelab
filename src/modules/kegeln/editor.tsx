@@ -453,6 +453,16 @@ function PlayerRow({
           <Checkbox checked={line.half} onCheckedChange={(checked) => onChange({ half: checked === true })} /> ausgewechselt (halbe
           Kosten)
         </label>
+        {draft.rates.conduct > 0 && (
+          <label className="flex items-center gap-2">
+            <Checkbox checked={line.conduct} onCheckedChange={(checked) => onChange({ conduct: checked === true })} /> unsportlich
+          </label>
+        )}
+        {draft.rates.late > 0 && (
+          <label className="flex items-center gap-2">
+            <Checkbox checked={line.late} onCheckedChange={(checked) => onChange({ late: checked === true })} /> zu spät
+          </label>
+        )}
         <span className="ml-auto font-semibold whitespace-nowrap tabular-nums">{formatEuro(fees.sum)}</span>
       </div>
       {line.sheet && note && (
