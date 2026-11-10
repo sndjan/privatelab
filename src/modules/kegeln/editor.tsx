@@ -1,6 +1,6 @@
 "use client";
 
-import { CameraIcon, FileUpIcon, Loader2Icon, PlusIcon, TrashIcon, TriangleAlertIcon } from "lucide-react";
+import { CameraIcon, FileUpIcon, ImageIcon, Loader2Icon, PlusIcon, TrashIcon, TriangleAlertIcon } from "lucide-react";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -343,7 +343,8 @@ function UploadButtons({
   again?: boolean;
 }) {
   const camera = useRef<HTMLInputElement>(null);
-  const picker = useRef<HTMLInputElement>(null);
+  const gallery = useRef<HTMLInputElement>(null);
+  const pdf = useRef<HTMLInputElement>(null);
   const take = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
@@ -356,15 +357,21 @@ function UploadButtons({
       </p>
     );
   }
+  // Three inputs, because a picker that takes images and PDFs at once opens
+  // the file manager on Android instead of the gallery.
   return (
-    <div className="flex flex-col gap-2 sm:flex-row">
+    <div className="grid gap-2 sm:grid-cols-3">
       <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" onChange={take} />
-      <input ref={picker} type="file" accept="image/*,application/pdf" multiple={multiple} className="hidden" onChange={take} />
+      <input ref={gallery} type="file" accept="image/*" multiple={multiple} className="hidden" onChange={take} />
+      <input ref={pdf} type="file" accept="application/pdf" multiple={multiple} className="hidden" onChange={take} />
       <Button size="lg" variant={again ? "outline" : "default"} disabled={disabled} onClick={() => camera.current?.click()}>
         <CameraIcon /> {again ? "Neu fotografieren" : "Foto aufnehmen"}
       </Button>
-      <Button size="lg" variant="outline" disabled={disabled} onClick={() => picker.current?.click()}>
-        <FileUpIcon /> {multiple ? "Fotos oder PDF wählen" : "Foto oder PDF wählen"}
+      <Button size="lg" variant="outline" disabled={disabled} onClick={() => gallery.current?.click()}>
+        <ImageIcon /> Aus der Galerie
+      </Button>
+      <Button size="lg" variant="outline" disabled={disabled} onClick={() => pdf.current?.click()}>
+        <FileUpIcon /> PDF wählen
       </Button>
     </div>
   );
