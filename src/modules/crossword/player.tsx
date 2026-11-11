@@ -3,6 +3,7 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { Confetti } from "./confetti";
 import type { PublicCrossword } from "./puzzles";
 
 type Word = PublicCrossword["words"][number];
@@ -54,6 +55,8 @@ export function CrosswordPlayer({ puzzle }: { puzzle: PublicCrossword }) {
   const [cursor, setCursor] = useState<Cell | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const boardRef = useRef<HTMLDivElement>(null);
+  // Counts the moments the last right letter went in; each starts the confetti.
+  const [celebrations, setCelebrations] = useState(0);
 
   const ordered = useMemo(
     () => [...puzzle.words.filter((w) => w.dir === "across"), ...puzzle.words.filter((w) => w.dir === "down")],
@@ -132,6 +135,15 @@ export function CrosswordPlayer({ puzzle }: { puzzle: PublicCrossword }) {
     const next = letters.map((line) => [...line]);
     next[cursor.row][cursor.col] = letter;
     setLetters(next);
+    const wasSolved = puzzle.grid.every((line, r) => [...line].every((ch, c) => ch === "." || letters[r][c] === ch));
+    const nowSolved = puzzle.grid.every((line, r) => [...line].every((ch, c) => ch === "." || next[r][c] === ch));
+    if (nowSolved && !wasSolved) {
+      setCelebrations((count) => count + 1);
+      inputRef.current?.blur();
+      setSelected(null);
+      setCursor(null);
+      return;
+    }
     const cells = cellsOf(selected);
     const index = cells.findIndex((cell) => cell.row === cursor.row && cell.col === cursor.col);
     if (index < cells.length - 1) setCursor(cells[index + 1]);
@@ -285,9 +297,21 @@ export function CrosswordPlayer({ puzzle }: { puzzle: PublicCrossword }) {
         )}
       </div>
 
-      <p aria-live="polite" className="min-h-5 text-sm font-semibold text-brand">
-        {loaded && solved ? "Gelöst! Alle Wörter stimmen." : ""}
-      </p>
+      <div aria-live="polite">
+        {loaded && solved && (
+          <div
+            key={celebrations}
+            className={cn(
+              "rounded-xl bg-[#e3f2ea] px-4 py-3 text-center text-[#134634]",
+              celebrations > 0 && "animate-in duration-500 zoom-in-75 fade-in motion-reduce:animate-none",
+            )}
+          >
+            <p className="text-lg font-bold">🎉 Geschafft!</p>
+            <p className="text-sm">Alle Wörter stimmen.</p>
+          </div>
+        )}
+      </div>
+      <Confetti run={celebrations} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         {clueList("across", "Waagerecht")}
