@@ -9,7 +9,7 @@ import { getPuzzle, toPublic } from "@/modules/crossword/puzzles";
 // code). Works without signing in; there is no list of the other puzzles.
 
 export const metadata: Metadata = {
-  title: "Kreuzworträtsel",
+  title: "🧩 Kreuzwort Rätsel",
   robots: { index: false, follow: false },
 };
 

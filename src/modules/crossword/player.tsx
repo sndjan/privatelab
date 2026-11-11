@@ -225,6 +225,7 @@ export function CrosswordPlayer({ puzzle }: { puzzle: PublicCrossword }) {
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-3">
+      <h1 className="text-2xl font-bold tracking-tight">🧩 Kreuzwort Rätsel</h1>
       <div className="sticky top-[env(safe-area-inset-top)] z-10 grid min-h-14 grid-cols-[2.5rem_1fr_2.5rem] items-center rounded-xl bg-brand text-brand-foreground">
         <button type="button" aria-label="Vorheriger Begriff" className="flex h-full items-center justify-center" onClick={() => moveWord(-1)}>
           <ChevronLeftIcon className="size-5" />
