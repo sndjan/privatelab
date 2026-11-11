@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutGridIcon } from "lucide-react";
+import { LayoutGridIcon, LogInIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/logo";
@@ -59,6 +59,20 @@ export function AllModulesLink() {
     <Button asChild variant="ghost" size="icon" className="text-muted-foreground">
       <Link href="/dashboard" aria-label="Alle Module" title="Alle Module">
         <LayoutGridIcon />
+      </Link>
+    </Button>
+  );
+}
+
+// Sign-in button for visitors. Not on a crossword's secret link (/k/<code>):
+// whoever solves it has no account and shouldn't be pointed to one.
+export function LoginLink() {
+  const pathname = usePathname();
+  if (pathname.startsWith("/k/")) return null;
+  return (
+    <Button asChild variant="ghost" size="icon" className="text-muted-foreground">
+      <Link href="/login" aria-label="Anmelden" title="Anmelden">
+        <LogInIcon />
       </Link>
     </Button>
   );

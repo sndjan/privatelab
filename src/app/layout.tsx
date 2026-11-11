@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
-import { CircleUserRoundIcon, LogInIcon } from "lucide-react";
+import { CircleUserRoundIcon } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ConfirmDialogHost } from "@/components/confirm-dialog";
 import { Feedback } from "@/components/feedback";
-import { AllModulesLink, HeaderBrand, HeaderBrandFallback } from "@/components/header-brand";
+import { AllModulesLink, HeaderBrand, HeaderBrandFallback, LoginLink } from "@/components/header-brand";
 import { NavigationProgress } from "@/components/navigation-progress";
 import { ServiceWorker } from "@/components/service-worker";
 import { QueryProvider } from "@/lib/query/provider";
@@ -98,11 +98,10 @@ async function NavActions() {
     return (
       <>
         <RememberSession hint={null} />
-        <Button asChild variant="ghost" size="icon" className="text-muted-foreground">
-          <Link href="/login" aria-label="Anmelden" title="Anmelden">
-            <LogInIcon />
-          </Link>
-        </Button>
+        {/* Needs the URL, which is only known per request. */}
+        <Suspense>
+          <LoginLink />
+        </Suspense>
       </>
     );
   }
