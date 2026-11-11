@@ -4,6 +4,7 @@
 // supabase/migrations).
 import type { ComponentType } from "react";
 import type { CurrentUser } from "@/lib/auth";
+import CrosswordModule from "./crossword";
 import EventsModule from "./events";
 import FireModule from "./fire";
 import FokusModule from "./fokus";
@@ -32,6 +33,7 @@ export type ModuleDefinition = ModuleMeta & {
 };
 
 const pages: Record<string, ComponentType<ModulePageProps>> = {
+  crossword: CrosswordModule,
   events: EventsModule,
   fire: FireModule,
   fokus: FokusModule,

@@ -191,6 +191,14 @@ export const moduleMeta: ModuleMeta[] = [
     status: "live",
   },
   {
+    id: "crossword",
+    name: "Kreuzworträtsel",
+    description: "Kleine Kreuzworträtsel mit persönlichen Begriffen, jedes hinter einem geheimen Link, mit QR-Codes zum Ausdrucken.",
+    icon: "🧩",
+    category: "spiele",
+    status: "live",
+  },
+  {
     id: "games-olympics",
     name: "Spiele-Olympiade",
     description: "Turnier mit Freunden: Disziplinen, Teams, Punkte und Rangliste.",
