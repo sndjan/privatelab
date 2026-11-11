@@ -2,8 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Paths that work without being signed in. Module pages check visibility
-// themselves; /w/<token> is the public share page of a wishlist.
-const PUBLIC_PATHS = ["/", "/login", "/auth", "/m", "/offline", "/w"];
+// themselves; /w/<token> is the public share page of a wishlist and
+// /k/<code> a crossword opened by its secret link.
+const PUBLIC_PATHS = ["/", "/login", "/auth", "/m", "/offline", "/w", "/k"];
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some(
