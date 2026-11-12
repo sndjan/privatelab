@@ -204,7 +204,9 @@ export async function lookUpRules(place: PlaceCandidate): Promise<{ rules: Local
     if (sources.size === 0) {
       for (const block of blocks) {
         if (block.type !== "web_search_tool_result" || !Array.isArray(block.content)) continue;
-        for (const result of block.content.slice(0, 3)) sources.set(result.url, { title: result.title || result.url, url: result.url });
+        for (const result of block.content.slice(0, 3)) {
+          if (httpUrl(result.url)) sources.set(result.url, { title: result.title || result.url, url: result.url });
+        }
       }
     }
 

@@ -44,7 +44,7 @@ export async function guestName() {
 }
 
 export async function rememberGuestName(name: string) {
-  if (name) (await cookies()).set(NAME_COOKIE, name, { sameSite: "lax", secure, path: "/", maxAge: YEARS_2 });
+  if (name) (await cookies()).set(NAME_COOKIE, name, { httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: YEARS_2 });
 }
 
 async function loadClaimRows(itemIds: string[]) {

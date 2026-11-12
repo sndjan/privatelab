@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, hasModuleAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { askForExercises, askForPlan } from "./ai-plan";
 import {
@@ -29,6 +29,15 @@ const PATH = "/m/tennis";
 async function db() {
   const user = await getCurrentUser();
   if (!user) throw new Error("Not signed in");
+  return createClient();
+}
+
+// The AI costs money, so it is only for users with access to the module (RLS
+// protects the data, but not the request to Claude).
+async function dbForAi() {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Not signed in");
+  if (!(await hasModuleAccess(user, "tennis"))) throw new Error("No access");
   return createClient();
 }
 
@@ -103,7 +112,7 @@ export async function saveExercise(id: string | null, input: ExerciseInput) {
 export async function inventExercisesWithAi(request: string): Promise<{ exercises: ExerciseInput[] } | { error: string }> {
   const wish = request.trim().slice(0, 1000);
   if (!wish) return { error: "Schreib kurz, was du brauchst." };
-  await db();
+  await dbForAi();
   const [exercises, groups, players, principles] = await Promise.all([
     tennisLoaders.exercises(),
     tennisLoaders.groups(),
@@ -444,7 +453,7 @@ export async function planWithAi(
 ): Promise<AiPlanResult> {
   const wish = request.trim().slice(0, 1000);
   if (!wish) return { error: "Schreib kurz, was du planen willst." };
-  const supabase = await db();
+  const supabase = await dbForAi();
   const [groups, exercises, players, principles, favoriteRows, sessionRows] = await Promise.all([
     tennisLoaders.groups(),
     tennisLoaders.exercises(),

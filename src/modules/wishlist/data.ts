@@ -33,8 +33,10 @@ export function toWish(row: WishRow): Wish {
   return {
     id: row.id,
     title: row.title,
-    url: row.url,
-    imageUrl: row.image_url,
+    // The database can be written without the app's checks (Data API), and
+    // guests open these as links: only http(s) gets through.
+    url: httpUrl(row.url),
+    imageUrl: httpUrl(row.image_url),
     // numeric comes back as a string from PostgREST.
     price: row.price === null ? null : Number(row.price),
     currency: row.currency,

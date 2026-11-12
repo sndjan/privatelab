@@ -36,7 +36,32 @@ export async function requireAdmin() {
   return user;
 }
 
-// Only allow relative redirects within the app.
+// True for admins and users with a module_access row. For server actions that
+// cost money (AI requests) or use the secret key: RLS protects the data, but
+// not those.
+export async function hasModuleAccess(user: CurrentUser, moduleId: string) {
+  if (user.isAdmin) return true;
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("module_access")
+    .select("module_id")
+    .eq("user_id", user.id)
+    .eq("module_id", moduleId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return Boolean(data);
+}
+
+// Only allow relative redirects within the app. The value is resolved the way
+// a browser would: "/\\evil.com" and "/<tab>/evil.com" both start with one
+// slash but lead to another site, so the string alone can't be trusted.
 export function safeNext(next: string | null | undefined, fallback = "/dashboard") {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : fallback;
+  if (!next || !next.startsWith("/")) return fallback;
+  const base = "http://internal.invalid";
+  try {
+    const url = new URL(next, base);
+    return url.origin === base ? `${url.pathname}${url.search}${url.hash}` : fallback;
+  } catch {
+    return fallback;
+  }
 }

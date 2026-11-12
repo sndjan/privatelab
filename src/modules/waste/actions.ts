@@ -114,9 +114,14 @@ async function ensureRules(place: PlaceCandidate, user: { id: string; isAdmin: b
   // Kreis" or "Landkreis Alb-Donau-Kreis"), so rules already looked up for a
   // municipality of the same name in the same state are reused instead of
   // paying for a second lookup.
-  const sameTown = check(
-    await admin.from("waste_rules").select("key").ilike("name", place.name).ilike("state", place.state).limit(1),
-  ).at(0);
+  // The place comes from the browser: its text is matched literally, not as
+  // a pattern ("%" would match any municipality).
+  const literal = (value: string) => value.replace(/[\\%_]/g, "\\$&");
+  const sameTown = /[*]/.test(place.name + place.state)
+    ? undefined
+    : check(
+        await admin.from("waste_rules").select("key").ilike("name", literal(place.name)).ilike("state", literal(place.state)).limit(1),
+      ).at(0);
   const key = sameTown?.key ?? rulesKey(place);
   const known = sameTown ?? check(await admin.from("waste_rules").select("key").eq("key", key).maybeSingle());
   if (!known && !user.isAdmin) {
@@ -146,11 +151,22 @@ async function ensureRules(place: PlaceCandidate, user: { id: string; isAdmin: b
 
 // Starts the lookup again: for a failed or stuck one, anyone; for one that
 // worked (refresh), only admins. Returns false if there is nothing to do.
-async function claimLookup(key: string, refresh: boolean) {
+// Without admin rights a failed lookup can only be started again after
+// RETRY_FAILED_MS: every try costs web searches and two Opus calls, so a
+// client can't run up costs by retrying in a loop.
+const RETRY_FAILED_MS = 10 * 60_000;
+
+async function claimLookup(key: string, isAdmin: boolean) {
+  const refresh = isAdmin;
   const admin = createAdminClient();
   const stale = new Date(Date.now() - STALE_PENDING_MS).toISOString();
+  const cooledDown = new Date(Date.now() - RETRY_FAILED_MS).toISOString();
   const startedAt = new Date().toISOString();
-  const allowed = [`status.eq.failed`, `and(status.eq.pending,started_at.lt."${stale}")`, ...(refresh ? ["status.eq.ready"] : [])];
+  const allowed = [
+    isAdmin ? `status.eq.failed` : `and(status.eq.failed,started_at.lt."${cooledDown}")`,
+    `and(status.eq.pending,started_at.lt."${stale}")`,
+    ...(refresh ? ["status.eq.ready"] : []),
+  ];
   const claimed = check(
     await admin
       .from("waste_rules")
@@ -167,7 +183,9 @@ async function claimLookup(key: string, refresh: boolean) {
 
 export async function retryRules(key: string): Promise<Result> {
   const { user } = await requireAccess();
-  if (!(await claimLookup(text(key, 300), user.isAdmin))) return { error: "Die Regeln werden gerade schon abgerufen." };
+  if (!(await claimLookup(text(key, 300), user.isAdmin))) {
+    return { error: "Die Regeln werden gerade schon abgerufen oder der letzte Versuch ist erst ein paar Minuten her. Bitte gleich noch einmal versuchen." };
+  }
   return {};
 }
 

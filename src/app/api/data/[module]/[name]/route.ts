@@ -11,6 +11,7 @@ export async function GET(request: NextRequest, { params }: RouteContext<"/api/d
     const message = error instanceof Error ? error.message : "Error";
     const status = message === "Not signed in" ? 401 : message.startsWith("Unknown loader") ? 404 : 500;
     if (status === 500) console.error(`Loader ${module}/${name} failed:`, error);
-    return NextResponse.json({ error: message }, { status });
+    // Internal errors (e.g. database messages) stay in the server log.
+    return NextResponse.json({ error: status === 500 ? "Error" : message }, { status });
   }
 }

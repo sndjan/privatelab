@@ -5,8 +5,7 @@
 // shared with it (the Amazon app shares "<title> https://amzn.eu/d/…"), from
 // which Haiku takes the title; the owner reviews everything before saving.
 import Anthropic from "@anthropic-ai/sdk";
-import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
+import { publicGet } from "@/lib/public-fetch";
 import { amazonAsin, cleanAmazonUrl, isAmazon, isAmazonShortLink, withoutAffiliate } from "./amazon";
 import { cleanWish, httpUrl, parsePrice, type WishFields, type WishInput } from "./data";
 
@@ -18,39 +17,18 @@ export type LinkResult = { wish: WishInput; images: string[]; warning: string | 
 
 // --- Fetching -------------------------------------------------------------------
 
-function privateAddress(address: string) {
-  if (isIP(address) === 6) {
-    const lower = address.toLowerCase();
-    if (lower.startsWith("::ffff:")) return privateAddress(lower.slice(7));
-    return lower === "::1" || lower === "::" || /^f[cd]/.test(lower) || /^fe[89ab]/.test(lower);
-  }
-  const [a, b] = address.split(".").map(Number);
-  return (
-    a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224
-  );
-}
-
-// Only public hosts: the server must not be usable to reach its own network.
-async function assertPublicHost(url: URL) {
-  const host = url.hostname.replace(/^\[|\]$/g, "");
-  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal")) throw new Error("blocked host");
-  const addresses = isIP(host) ? [{ address: host }] : await lookup(host, { all: true });
-  if (addresses.length === 0 || addresses.some(({ address }) => privateAddress(address))) throw new Error("blocked host");
-}
-
 // trail collects every URL on the way, so a short link that redirects to a
 // blocked page still tells us where it led.
 async function fetchPage(start: string, trail: string[]) {
   let url = new URL(start);
-  const signal = AbortSignal.timeout(TIMEOUT_MS);
-  // Redirects are followed by hand so every hop is checked.
+  const deadline = Date.now() + TIMEOUT_MS;
+  // Redirects are followed by hand so every hop is checked: publicGet only
+  // connects to public addresses (see src/lib/public-fetch.ts).
   for (let hop = 0; hop < 5; hop++) {
-    await assertPublicHost(url);
     trail.push(url.toString());
-    const response = await fetch(url, {
-      redirect: "manual",
-      signal,
+    const response = await publicGet(url, {
+      timeoutMs: Math.max(1, deadline - Date.now()),
+      maxBytes: MAX_BYTES,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36",
@@ -58,26 +36,15 @@ async function fetchPage(start: string, trail: string[]) {
         "Accept-Language": "de-DE,de;q=0.9,en;q=0.6",
       },
     });
-    const location = response.headers.get("location");
+    const location = response.headers.location;
     if (response.status >= 300 && response.status < 400 && location) {
       url = new URL(location, url);
       continue;
     }
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    if (!(response.headers.get("content-type") ?? "").includes("html")) throw new Error("not html");
-
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error("empty");
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    while (size < MAX_BYTES) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      size += value.length;
-    }
-    await reader.cancel().catch(() => {});
-    const html = new TextDecoder().decode(Buffer.concat(chunks));
+    if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status}`);
+    if (!String(response.headers["content-type"] ?? "").includes("html")) throw new Error("not html");
+    if (!response.text) throw new Error("empty");
+    const html = response.text;
     // Amazon answers servers with a captcha page (status 200).
     if (isAmazon(url.toString()) && /validateCaptcha|api-services-support@amazon/i.test(html)) throw new Error("captcha");
     return { html, url: url.toString() };
@@ -281,10 +248,8 @@ export async function expandShortLink(url: string) {
   let current = new URL(url);
   try {
     for (let hop = 0; hop < 5 && !isAmazon(current.toString()); hop++) {
-      await assertPublicHost(current);
-      const response = await fetch(current, { redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS) });
-      await response.body?.cancel();
-      const location = response.headers.get("location");
+      const { headers } = await publicGet(current, { timeoutMs: TIMEOUT_MS });
+      const location = headers.location;
       if (!location) break;
       current = new URL(location, current);
     }

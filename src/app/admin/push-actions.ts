@@ -8,6 +8,11 @@ import { requireAdmin } from "@/lib/auth";
 // nothing is stored. Real notifications (e.g. "Training fällt aus") will need
 // a table of subscriptions per user.
 
+// The push services browsers subscribe with: Chrome/Edge/Android (FCM),
+// Firefox, Safari and Windows.
+const PUSH_HOSTS =
+  /^(fcm\.googleapis\.com|android\.googleapis\.com|updates\.push\.services\.mozilla\.com|[a-z0-9-]+\.push\.apple\.com|[a-z0-9-]+\.notify\.windows\.com)$/i;
+
 export type PushResult = { ok: true } | { ok: false; error: string };
 
 export async function sendTestPush(
@@ -22,21 +27,26 @@ export async function sendTestPush(
     return { ok: false, error: "NEXT_PUBLIC_VAPID_PUBLIC_KEY und VAPID_PRIVATE_KEY fehlen in den Umgebungsvariablen." };
   }
 
-  // Push services are fixed https hosts (FCM, Mozilla, Apple); refuse anything
-  // else so this can't be used to make the server call arbitrary URLs.
+  // Push services are fixed https hosts (FCM, Mozilla, Apple, Windows); refuse
+  // anything else so this can't be used to make the server call arbitrary URLs.
   let endpoint: URL;
   try {
     endpoint = new URL(subscription?.endpoint);
   } catch {
     return { ok: false, error: "Ungültige Subscription." };
   }
-  if (endpoint.protocol !== "https:" || !subscription.keys?.p256dh || !subscription.keys?.auth) {
+  if (
+    endpoint.protocol !== "https:" ||
+    !PUSH_HOSTS.test(endpoint.hostname) ||
+    typeof subscription.keys?.p256dh !== "string" ||
+    typeof subscription.keys?.auth !== "string"
+  ) {
     return { ok: false, error: "Ungültige Subscription." };
   }
 
   const payload = JSON.stringify({
-    title: message.title.trim().slice(0, 100) || "Private Lab",
-    body: message.body.trim().slice(0, 300),
+    title: String(message?.title ?? "").trim().slice(0, 100) || "Private Lab",
+    body: String(message?.body ?? "").trim().slice(0, 300),
     url: "/admin",
   });
   const options = {
@@ -45,7 +55,7 @@ export async function sendTestPush(
     TTL: 60,
   };
 
-  const delay = Math.min(Math.max(Math.round(message.delaySeconds), 0), 30);
+  const delay = Math.min(Math.max(Math.round(Number(message?.delaySeconds) || 0), 0), 30);
   if (delay > 0) {
     // Answer right away so the app can be closed; send after the response.
     after(async () => {
