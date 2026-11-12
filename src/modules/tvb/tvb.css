@@ -1,0 +1,17 @@
+/* Colours of the club site. Green is the default; the footer switches to the
+   red of the club's crest (stored per device, see shell.tsx). */
+.tvb {
+  --tvb-primary: #1d4b34;
+  --tvb-deep: #10281c;
+  --tvb-soft: #e6efe8;
+  --tvb-ink: #1a1f1c;
+  --tvb-muted: #5b615d;
+  --tvb-line: #e4e2da;
+  --tvb-page: #f6f5f1;
+  color-scheme: light;
+}
+.tvb[data-farbe="rot"] {
+  --tvb-primary: #a8272a;
+  --tvb-deep: #231b1b;
+  --tvb-soft: #f8e9e7;
+}

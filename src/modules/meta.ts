@@ -97,6 +97,14 @@ export const moduleMeta: ModuleMeta[] = [
     status: "live",
   },
   {
+    id: "tvb",
+    name: "TV Bellenberg",
+    description: "Prototyp der neuen Vereinsseite des Tennisvereins: Startseite, Mannschaften, Verein und ein Admin-Bereich für News.",
+    icon: "🏟️",
+    category: "alltag",
+    status: "live",
+  },
+  {
     id: "health",
     name: "Gesundheit-Dashboard",
     description: "Schlaf, Sport, Gewicht und andere Gesundheitswerte im Überblick.",

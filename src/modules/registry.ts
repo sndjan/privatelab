@@ -14,6 +14,7 @@ import NochmalModule from "./nochmal";
 import PackingModule from "./packing";
 import TennisModule from "./tennis";
 import ThesisModule from "./thesis";
+import TvbModule from "./tvb";
 import WasteModule from "./waste";
 import WeightModule from "./weight";
 import WishlistModule from "./wishlist";
@@ -42,6 +43,7 @@ const pages: Record<string, ComponentType<ModulePageProps>> = {
   packing: PackingModule,
   tennis: TennisModule,
   thesis: ThesisModule,
+  tvb: TvbModule,
   waste: WasteModule,
   weight: WeightModule,
   wishlist: WishlistModule,
