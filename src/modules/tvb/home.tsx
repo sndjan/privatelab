@@ -11,19 +11,24 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { BTV_URL, documents, MAPS_URL, photos, seasons, sponsors, trainers, type News } from "./data";
+import { BTV_URL, chronicle, documents, heroes, MAPS_URL, photos, seasons, sponsors, trainers, type Jahreszeit, type News } from "./data";
 import { NewsCard } from "./news";
-import { buttons, container, display, href, SectionTitle } from "./site";
+import { buttons, container, display, href, SectionTitle, serif } from "./site";
+import { DidYouKnow } from "./stories";
 import { MembershipCards } from "./membership";
 
-export function HomePage({ news }: { news: News[] }) {
+export function HomePage({ news, jahreszeit }: { news: News[]; jahreszeit: Jahreszeit }) {
   return (
     <>
-      <Hero />
+      <Hero jahreszeit={jahreszeit} />
       <QuickLinks />
       <LatestNews news={news.slice(0, 3)} />
+      <CrestDivider />
+      <DidYouKnow />
       <TeamsTeaser />
       <Youth />
+      <Chronicle />
+      <CrestDivider />
       <section className={cn(container, "py-24")}>
         <div className="mx-auto mb-9 max-w-[680px] text-center">
           <SectionTitle eyebrow="Mitgliedschaft" title="Werde Teil vom TVB" />
@@ -38,23 +43,21 @@ export function HomePage({ news }: { news: News[] }) {
   );
 }
 
-function Hero() {
+function Hero({ jahreszeit }: { jahreszeit: Jahreszeit }) {
+  const hero = heroes[jahreszeit];
+  const image = photos[hero.photo];
   return (
     <section className="relative flex min-h-[620px] items-end overflow-hidden bg-(--tvb-deep) lg:min-h-[640px]">
-      <img src={photos.vereinsheim.src} alt={photos.vereinsheim.alt} className="absolute inset-0 size-full object-cover object-[center_45%]" />
+      <img src={image.src} alt={image.alt} className="absolute inset-0 size-full object-cover" style={{ objectPosition: hero.position }} />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,.15)_0%,rgba(0,0,0,.45)_40%,rgba(0,0,0,.8)_100%)]" />
       <div className={cn(container, "relative pb-28 text-white lg:pb-36")}>
-        <span className="inline-block rounded-md bg-(--tvb-primary) px-3.5 py-2 text-[13px] font-bold tracking-[0.12em] uppercase">
-          Tennis im Landkreis Neu-Ulm
-        </span>
-        <h1 className={cn(display, "mt-5 mb-4 max-w-[900px] text-[54px] leading-[0.92] lg:text-[96px]")}>
-          Tennis in Bellenberg.
+        <span className="inline-block rounded-md bg-(--tvb-primary) px-3.5 py-2 text-[13px] font-bold tracking-[0.12em] uppercase">{hero.badge}</span>
+        <h1 className={cn(display, "mt-5 mb-4 max-w-[900px] text-[54px] leading-[0.95] lg:text-[92px]")}>
+          {hero.lines[0]}
           <br />
-          Seit 1978.
+          {hero.lines[1]}
         </h1>
-        <p className="mb-7 max-w-[560px] text-lg leading-relaxed text-white/90 lg:text-[19px]">
-          Sandplätze, Clubhaus und ein Verein, in dem Jugend, Mannschaften und Hobbyspieler zusammen auf dem Platz stehen.
-        </p>
+        <p className="mb-7 max-w-[560px] text-lg leading-relaxed text-white/90 lg:text-[20px]">{hero.text}</p>
         <div className="flex flex-wrap gap-3">
           <Link href={href("mitglied")} className={buttons.light}>
             Schnuppermitglied werden <ArrowRightIcon className="size-4.5" />
@@ -64,6 +67,48 @@ function Hero() {
           </Link>
         </div>
       </div>
+      <span className={cn(serif, "absolute right-12 bottom-28 hidden text-[15px] text-white/85 lg:block")}>{hero.caption}</span>
+    </section>
+  );
+}
+
+// A thin line with the crest in the middle, between sections.
+function CrestDivider() {
+  return (
+    <div aria-hidden className={cn(container, "flex items-center gap-5 py-2")}>
+      <span className="h-px flex-1 bg-[#cfcbbe]" />
+      <img src="/tvb/wappen.png" alt="" className="h-11 w-auto" />
+      <span className="h-px flex-1 bg-[#cfcbbe]" />
+    </div>
+  );
+}
+
+// The club's history as a gallery that moves by itself.
+function Chronicle() {
+  return (
+    <section aria-labelledby="chronik" className="tvb-chronik overflow-hidden border-b border-(--tvb-line) bg-white pt-18 pb-14">
+      <div className={cn(container, "mb-8 flex flex-wrap items-end justify-between gap-4")}>
+        <h2 id="chronik" className={cn(display, "text-[40px] leading-none sm:text-[52px]")}>
+          Seit 1978 auf Sand
+        </h2>
+        <a href={documents.chronik} target="_blank" rel="noreferrer" className="font-bold text-(--tvb-primary)">
+          Ganze Chronik ↗
+        </a>
+      </div>
+      <ul className="tvb-chronik-track">
+        {[...chronicle, ...chronicle].map((item, index) => (
+          <li key={index} aria-hidden={index >= chronicle.length || undefined} className="mr-6 flex w-[300px] shrink-0 flex-col">
+            <img
+              src={item.src}
+              alt={index >= chronicle.length ? "" : item.alt}
+              className={cn("mb-3.5 h-[220px] w-[300px] rounded-[14px] bg-(--tvb-soft)", item.src.endsWith(".png") ? "object-contain p-8" : "object-cover")}
+              loading="lazy"
+            />
+            <span className={cn(display, "text-[34px] leading-none")}>{item.year}</span>
+            <span className="mt-1.5 text-base leading-snug text-[#4a504c]">{item.text}</span>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -229,7 +274,7 @@ function Sponsors() {
   return (
     <section className="border-y border-(--tvb-line) bg-white">
       <div className={cn(container, "py-14")}>
-        <h2 className={cn(display, "mb-6 text-center text-[28px] tracking-wide text-(--tvb-muted)")}>Danke an unsere Partner</h2>
+        <h2 className={cn(display, "mb-6 text-center text-[28px] text-(--tvb-muted)")}>Danke an unsere Partner</h2>
         <ul className="grid grid-cols-2 items-center gap-4 sm:grid-cols-4 lg:grid-cols-8">
           {sponsors.map((sponsor) => (
             <li key={sponsor.name} className="flex h-[76px] items-center justify-center rounded-xl bg-[#fafaf7] p-2">

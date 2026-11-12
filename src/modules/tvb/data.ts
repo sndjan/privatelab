@@ -17,7 +17,7 @@ export const photos = {
   jugend1: { src: "/tvb/jugend1.jpg", alt: "Jugendliche beim Training" },
   winter: { src: "/tvb/winter.jpg", alt: "Verschneite Tennisanlage" },
   wintergrillen: { src: "/tvb/wintergrillen.jpg", alt: "Laterne beim Wintergrillen" },
-  clubhaus: { src: "/tvb/clubhaus.jpg", alt: "Mitglieder vor dem Clubhaus beim 40-jährigen Jubiläum" },
+  clubhaus: { src: "/tvb/clubhaus.jpg", alt: "Mitglieder beim 40-jährigen Jubiläum 2018" },
 } as const;
 
 export type PhotoKey = keyof typeof photos;
@@ -157,3 +157,70 @@ export const documents = {
   aenderung: `${OLD_SITE}/verein/aenderungsmitteilung/`,
   chronik: `${OLD_SITE}/verein/chronik/`,
 };
+
+// The site knows the season: from November to March the courts are closed
+// and the start page shows the winter photo. ?saison=sommer|winter overrides
+// it, to look at the other one.
+export type Jahreszeit = "winter" | "sommer";
+
+export function jahreszeitOf(date: Date, override?: string): Jahreszeit {
+  if (override === "winter" || override === "sommer") return override;
+  const month = date.getMonth() + 1;
+  return month >= 11 || month <= 3 ? "winter" : "sommer";
+}
+
+export const heroes: Record<Jahreszeit, { photo: PhotoKey; position: string; badge: string; lines: [string, string]; text: string; caption: string }> = {
+  winter: {
+    photo: "winter",
+    position: "center 60%",
+    badge: "Winterpause",
+    lines: ["Die Plätze schlafen.", "Wir spielen drinnen."],
+    text: "Seit 7. November ist die Anlage zu. Die Winterrunde läuft, das Jugendtraining auch, und im Frühjahr legen wir die Plätze wieder gemeinsam an.",
+    caption: "Die Anlage im Schnee",
+  },
+  sommer: {
+    photo: "vereinsheim",
+    position: "center 45%",
+    badge: "Tennis im Landkreis Neu-Ulm",
+    lines: ["Tennis in Bellenberg.", "Seit 1978."],
+    text: "Sandplätze, Clubhaus und ein Verein, in dem Jugend, Mannschaften und Hobbyspieler zusammen auf dem Platz stehen.",
+    caption: "Unser Vereinsheim im Sommer 2022",
+  },
+};
+
+// "Wusstest du?": stories from the old site.
+export const stories = [
+  {
+    text: "Die Holzbank vor Platz 4 ist ein Unikat: Bruno Schwägerl hat sie in wochenlanger Arbeit geschnitzt, samt großem Tennisball mit den Buchstaben „TVB“ an der Seite.",
+    source: "Aus „TOP“ auf der alten Vereinsseite",
+  },
+  {
+    text: "Beim Bezirksmusikfest am 31. Mai 1992 fuhr der Tennisverein mit einem eigenen Festwagen durch Bellenberg – mit riesigem Tennisschläger obendrauf.",
+    source: "Fotoalbum · 1992",
+  },
+  {
+    text: "20 Jahre lang haben Gustl Mair und Klaus Bürzle die Kasse des Vereins geprüft. 2026 haben sie das Amt abgegeben.",
+    source: "Mitgliederversammlung 2026",
+  },
+  {
+    text: "Alois Alt, Rita Köhler und Gerd Reitz sind Ehrenmitglieder des TVB, ernannt bei der Mitgliederversammlung 2020 für ihre langjährigen Verdienste.",
+    source: "Ehrungen · 2020",
+  },
+  {
+    text: "Zum Vereinsausflug geht es zu den Großen: 2024 zum Porsche Tennis Grand Prix nach Stuttgart, 2025 zu den BMW Open nach München.",
+    source: "Jugend · Ausflüge",
+  },
+];
+
+// The chronicle gallery on the start page, oldest first.
+export const chronicle = [
+  { year: "1978", text: "Gründung des Tennisvereins Bellenberg", src: "/tvb/wappen.png", alt: "Wappen des TV Bellenberg" },
+  { year: "1992", text: "Eigener Festwagen beim Bezirksmusikfest", src: "/tvb/festwagen-1992.jpg", alt: "Festwagen des Tennisvereins 1992" },
+  { year: "2000", text: "Unsere Wimpelsammlung", src: "/tvb/wimpel-2000.jpg", alt: "Wimpel an der Wand" },
+  { year: "2006", text: "Herren 30 werden Meister", src: "/tvb/herren30-2006.jpg", alt: "Herren 30, Meister 2006" },
+  { year: "2018", text: "40 Jahre TVB", src: photos.clubhaus.src, alt: "Mitglieder beim 40-jährigen Jubiläum" },
+  { year: "2020", text: "Tenniscamp der Jugend", src: photos.tenniscamp.src, alt: photos.tenniscamp.alt },
+  { year: "2023", text: "Damen I und U18 werden Meister", src: photos.damen.src, alt: photos.damen.alt },
+  { year: "2025", text: "Vereinsausflug zu den BMW Open", src: photos.ausflug.src, alt: photos.ausflug.alt },
+  { year: "2026", text: "20 neue Mitglieder seit April", src: photos.sommerfest.src, alt: photos.sommerfest.alt },
+];

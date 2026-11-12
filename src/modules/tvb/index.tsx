@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { ModulePageProps } from "@/modules/registry";
 import { AdminPage, LoginPage } from "./admin";
 import { ClubPage } from "./club";
-import { newsColumns, newsFromRow, type NewsRow } from "./data";
+import { jahreszeitOf, newsColumns, newsFromRow, type NewsRow } from "./data";
 import { HomePage } from "./home";
 import { MembershipPage } from "./membership";
 import { NewsDetail, NewsPage } from "./news";
@@ -71,7 +71,7 @@ export default async function TvbModule({ user, hasAccess, searchParams }: Modul
       content = <AdminPage news={all} editing={param(params.bearbeiten)} saved={params.gespeichert === "1"} />;
       break;
     default:
-      content = <HomePage news={published} />;
+      content = <HomePage news={published} jahreszeit={jahreszeitOf(new Date(), param(params.saison))} />;
   }
 
   return (

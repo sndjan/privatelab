@@ -15,3 +15,23 @@
   --tvb-deep: #231b1b;
   --tvb-soft: #f8e9e7;
 }
+
+/* The chronicle on the start page runs by itself (the list is rendered twice,
+   so the loop is seamless) and stops under the mouse or keyboard focus. */
+.tvb-chronik-track {
+  display: flex;
+  width: max-content;
+  animation: tvb-chronik 70s linear infinite;
+}
+.tvb-chronik:hover .tvb-chronik-track,
+.tvb-chronik:focus-within .tvb-chronik-track {
+  animation-play-state: paused;
+}
+@keyframes tvb-chronik {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tvb-chronik-track { animation: none; }
+  .tvb-chronik { overflow-x: auto !important; }
+}

@@ -31,7 +31,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       ref={ref}
       data-farbe={farbe}
       className={cn(
-        "tvb fixed inset-0 z-40 overflow-y-auto bg-(--tvb-page) font-[family-name:var(--font-tvb-body)] text-(--tvb-ink) antialiased",
+        "tvb fixed inset-0 z-40 overflow-y-auto bg-(--tvb-page) font-[family-name:var(--font-tvb-body)] text-[17px] text-(--tvb-ink) antialiased",
         fontVariables,
       )}
     >

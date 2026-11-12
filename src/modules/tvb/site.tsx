@@ -16,7 +16,8 @@ export function href(seite: PageId = "start", params: Record<string, string> = {
   return `${BASE}${query ? `?${query}` : ""}${hash ? `#${hash}` : ""}`;
 }
 
-export const display = "font-[family-name:var(--font-tvb-display)] font-extrabold uppercase";
+export const display = "font-[family-name:var(--font-tvb-display)] font-extrabold [font-stretch:80%] tracking-[-0.02em]";
+export const serif = "font-[family-name:var(--font-tvb-serif)] italic";
 export const container = "mx-auto w-full max-w-[1240px] px-4 sm:px-8 lg:px-12";
 
 export const buttons = {
@@ -83,8 +84,8 @@ export function Header({ current }: { current: PageId }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/tvb/wappen.png" alt="" className="h-11 w-auto sm:h-13" />
           <span className="flex flex-col leading-none">
-            <span className={cn(display, "text-2xl tracking-wide text-(--tvb-primary) sm:text-[28px]")}>TV Bellenberg</span>
-            <span className="mt-1 text-xs text-(--tvb-muted)">Tennisverein seit 1978</span>
+            <span className={cn(display, "text-2xl text-(--tvb-primary) sm:text-[27px]")}>TV Bellenberg</span>
+            <span className={cn(serif, "mt-1 text-[15px] text-(--tvb-muted)")}>Tennisverein seit 1978</span>
           </span>
         </Link>
 
