@@ -139,7 +139,7 @@ function DayCell({
     info.status === "holiday"
       ? info.holiday
       : info.status === "vacation"
-        ? (info.vacation?.note ?? (info.vacation?.fromOvertime ? "Urlaub (Überstunden)" : "Urlaub"))
+        ? (info.vacation?.note ?? vacationLabel(info))
         : style?.short;
 
   return (
@@ -185,10 +185,16 @@ function deltaClass(minutes: number) {
   return "";
 }
 
+function vacationLabel(info: DayInfo) {
+  if (info.overtimeMinutes === 0) return "Urlaub";
+  if (info.vacationMinutes === 0) return "Urlaub (Überstunden)";
+  return `Urlaub (${formatHours(info.overtimeMinutes)} Überstunden)`;
+}
+
 function describe(info: DayInfo) {
   if (info.status === "holiday") return info.holiday ?? "Feiertag";
   if (info.status === "vacation") {
-    const label = info.vacation?.fromOvertime ? "Urlaub aus Überstunden" : "Urlaub";
+    const label = vacationLabel(info);
     return info.vacation?.note ? `${label} · ${info.vacation.note}` : label;
   }
   if (info.entry) return "Geändert";

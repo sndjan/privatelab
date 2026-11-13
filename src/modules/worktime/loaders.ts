@@ -25,7 +25,7 @@ export const worktimeLoaders = {
       supabase.from("worktime_days").select("day, kind, start_minute, end_minute, break_minutes"),
       supabase
         .from("worktime_vacations")
-        .select("id, start_date, end_date, note, in_calendar, from_overtime")
+        .select("id, start_date, end_date, note, in_calendar, from_overtime, overtime_minutes")
         .order("start_date"),
     ]);
 
@@ -63,6 +63,7 @@ export const worktimeLoaders = {
       note: row.note,
       inCalendar: row.in_calendar,
       fromOvertime: row.from_overtime ?? false,
+      overtimeMinutes: row.overtime_minutes ?? 0,
     }));
     return { settings, periods, entries, vacations };
   },

@@ -15,7 +15,6 @@ import { saveSettings } from "./actions";
 import { CalendarToggle } from "./calendar-toggle";
 import {
   addDays,
-  blockDays,
   blockState,
   buildContext,
   christmasModes,
@@ -31,6 +30,7 @@ import {
   formatShortDate,
   isDate,
   monthlyVacation,
+  splitBlock,
   mondayOf,
   overtimeBalance,
   periodOn,
@@ -275,7 +275,7 @@ export function WorktimeView({ settings, periods, entries, vacations, today, mon
               <ul className="flex flex-col divide-y">
                 {yearBlocks.map((block) => {
                   const state = blockState(block, today);
-                  const used = blockDays(block, context);
+                  const used = splitBlock(block, context);
                   return (
                     <li key={block.id} className="flex items-center gap-3 py-2.5">
                       <CalendarToggle
@@ -289,9 +289,12 @@ export function WorktimeView({ settings, periods, entries, vacations, today, mon
                           {block.endDate !== block.startDate && ` – ${formatShortDate(block.endDate)}`}
                         </span>
                         <span className="truncate text-xs text-muted-foreground">
-                          {block.fromOvertime
-                            ? `${formatHours(-used.minutes, { signed: true })} Überstunden`
-                            : `${formatHours(used.minutes)} · ${formatDays(used.days)} ${used.days === 1 ? "Tag" : "Tage"}`}
+                          {`${formatDays(used.days)} ${used.days === 1 ? "Tag" : "Tage"} · `}
+                          {used.overtime === 0
+                            ? `${formatHours(used.vacation)} Urlaub`
+                            : used.vacation === 0
+                              ? `${formatHours(used.overtime)} Überstunden`
+                              : `${formatHours(used.vacation)} Urlaub + ${formatHours(used.overtime)} Überstunden`}
                           {` · ${state === "taken" ? "genommen" : state === "running" ? "läuft" : "geplant"}`}
                           {block.note && ` · ${block.note}`}
                         </span>
