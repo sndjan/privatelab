@@ -41,7 +41,7 @@ type Props = {
 };
 
 // Adds a vacation block, or edits / deletes one when `vacation` is given.
-// Shows how many vacation days (or overtime hours) the dates use while typing.
+// Shows how many vacation or overtime hours the dates use while typing.
 export function VacationDialog({ vacation, today, periods, settings, entries }: Props) {
   const [open, setOpen] = useState(false);
   const [startDate, setStartDate] = useState(vacation?.startDate ?? today);
@@ -138,12 +138,20 @@ export function VacationDialog({ vacation, today, periods, settings, entries }: 
               <>
                 <strong className="font-mono font-medium">{formatDays(used.days)}</strong>{" "}
                 {used.days === 1 ? "Arbeitstag" : "Arbeitstage"}
-                {paidWith === "overtime" && (
+                {paidWith === "overtime" ? (
                   <>
                     {" "}
                     = <strong className="font-mono font-medium">{formatHours(-used.minutes, { signed: true })}</strong>{" "}
                     Überstunden
                   </>
+                ) : (
+                  <>
+                    {" "}
+                    = <strong className="font-mono font-medium">{formatHours(used.minutes)}</strong> Urlaub
+                  </>
+                )}
+                {used.withoutModel > 0 && (
+                  <span className="mt-1 block text-debt">Für einige Tage gibt es kein Arbeitszeitmodell (0 h).</span>
                 )}
               </>
             )}

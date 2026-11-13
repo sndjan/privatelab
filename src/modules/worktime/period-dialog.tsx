@@ -16,8 +16,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { deletePeriod, savePeriod } from "./actions";
-import { formatDate, formatHours, weekdayNames, type Period } from "./calc";
+import { formatDate, formatHours, vacationRule, weekdayNames, type Period } from "./calc";
 
 type Props = {
   period?: Period;
@@ -28,12 +29,16 @@ type Props = {
 
 const fullTime = [480, 480, 480, 480, 480, 0, 0];
 
-// Adds a work time model (hours per weekday and vacation days per month from
-// a date on), or edits / deletes one when `period` is given.
+// Adds a work time model (hours per weekday and the vacation it earns from a
+// date on), or edits / deletes one when `period` is given.
 export function PeriodDialog({ period, defaultFrom, canDelete = false }: Props) {
   const [open, setOpen] = useState(false);
   const [hours, setHours] = useState((period?.weekdayMinutes ?? fullTime).map((minutes) => String(minutes / 60).replace(".", ",")));
-  const weekly = hours.reduce((sum, value) => sum + (Number(value.replace(",", ".")) || 0), 0) * 60;
+  const [vacationMode, setVacationMode] = useState(period && period.vacationPerMonth !== null ? "fixed" : "rule");
+  const [contractDays, setContractDays] = useState(String(period?.vacationContractDays ?? 12).replace(".", ","));
+  const minutes = hours.map((value) => Math.round((Number(value.replace(",", ".")) || 0) * 60));
+  const weekly = minutes.reduce((sum, value) => sum + value, 0);
+  const rule = vacationRule(minutes, Number(contractDays.replace(",", ".")) || 0);
 
   function closingAfter(action: (formData: FormData) => Promise<void>) {
     return async (formData: FormData) => {
@@ -107,17 +112,77 @@ export function PeriodDialog({ period, defaultFrom, canDelete = false }: Props) 
               ))}
             </div>
           </fieldset>
-          <div className="space-y-2">
-            <Label htmlFor="period-vacation">Urlaubstage pro Monat</Label>
-            <Input
-              id="period-vacation"
-              name="vacationPerMonth"
-              inputMode="decimal"
-              required
-              defaultValue={String(period?.vacationPerMonth ?? 2).replace(".", ",")}
-              className="w-28 font-mono"
-            />
-          </div>
+          <fieldset className="space-y-3">
+            <legend className="mb-2 text-sm font-medium">Urlaubsanspruch</legend>
+            <input type="hidden" name="vacationMode" value={vacationMode} />
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              aria-label="Urlaubsanspruch"
+              value={vacationMode}
+              onValueChange={(value) => value && setVacationMode(value)}
+              className="w-full"
+            >
+              <ToggleGroupItem value="rule" className="flex-1">
+                Nach Regel
+              </ToggleGroupItem>
+              <ToggleGroupItem value="fixed" className="flex-1">
+                Fester Wert
+              </ToggleGroupItem>
+            </ToggleGroup>
+            {vacationMode === "rule" ? (
+              <>
+                <div className="flex items-center gap-3">
+                  <Input
+                    id="period-contract-days"
+                    name="vacationContractDays"
+                    inputMode="decimal"
+                    required
+                    value={contractDays}
+                    onChange={(event) => setContractDays(event.target.value)}
+                    className="w-20 font-mono"
+                  />
+                  <Label htmlFor="period-contract-days" className="font-normal">
+                    Urlaubstage pro Jahr laut Vertrag
+                  </Label>
+                </div>
+                <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 rounded-lg bg-muted px-3 py-2.5 text-sm">
+                  <dt className="text-muted-foreground">
+                    Vertrag · {contractDays || 0} × {formatHours(rule.perDay)}
+                  </dt>
+                  <dd className="text-right font-mono">{formatHours(rule.contract)}</dd>
+                  <dt className="text-muted-foreground">Gesetz · 4 × {formatHours(rule.weekly)}</dt>
+                  <dd className="text-right font-mono">{formatHours(rule.law)}</dd>
+                  <dt className="font-medium">Gilt pro Jahr</dt>
+                  <dd className="text-right font-mono font-medium">{formatHours(rule.perYear)}</dd>
+                  <dt className="font-medium">Pro Monat</dt>
+                  <dd className="text-right font-mono font-medium">{formatHours(rule.perMonth)}</dd>
+                </dl>
+              </>
+            ) : (
+              <>
+                {/* Keeps the contract days when switching back to the rule later. */}
+                <input type="hidden" name="vacationContractDays" value={contractDays} />
+                <div className="flex items-center gap-3">
+                  <Input
+                    id="period-vacation-hours"
+                    name="vacationHoursPerMonth"
+                    inputMode="decimal"
+                    required
+                    defaultValue={
+                      period?.vacationPerMonth != null
+                        ? String(Math.round((period.vacationPerMonth / 60) * 100) / 100).replace(".", ",")
+                        : String(Math.round((rule.perMonth / 60) * 100) / 100).replace(".", ",")
+                    }
+                    className="w-24 font-mono"
+                  />
+                  <Label htmlFor="period-vacation-hours" className="font-normal">
+                    Urlaubsstunden pro Monat
+                  </Label>
+                </div>
+              </>
+            )}
+          </fieldset>
           <DialogFooter className="gap-2">
             <DialogClose asChild>
               <Button type="button" variant="ghost">
