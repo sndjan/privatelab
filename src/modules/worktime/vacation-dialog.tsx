@@ -23,13 +23,16 @@ import {
   formatDays,
   formatHours,
   formatRange,
+  formatTime,
   isDate,
   splitBlock,
+  standardBreak,
+  standardTimes,
+  targetMinutes,
   type DayEntry,
   type Period,
   type Settings,
   type VacationBlock,
-  type VacationScope,
 } from "./calc";
 
 type Props = {
@@ -42,37 +45,51 @@ type Props = {
 };
 
 // Adds a vacation block, or edits / deletes one when `vacation` is given.
-// Whole days, half days or some hours per day. Paid with vacation, overtime or both (a number of hours from overtime, the
+// From a date and time to a date and time; each day counts the part of its
+// standard work time (without the break) inside. Paid with vacation, overtime or both (a number of hours from overtime, the
 // rest vacation). Shows the hours the dates use while typing.
 export function VacationDialog({ vacation, today, periods, settings, entries }: Props) {
   const [open, setOpen] = useState(false);
+  const context = useMemo(() => buildContext(periods, settings, entries, []), [periods, settings, entries]);
+  // The standard work time of a day ("7:30"–"16:30"), or the defaults on a free day.
+  const target = (date: string) => (isDate(date) ? targetMinutes(date, context.periods, settings) : 0);
+  const standard = (date: string) => standardTimes(target(date), settings);
   const [startDate, setStartDate] = useState(vacation?.startDate ?? today);
-  const [rangeEnd, setEndDate] = useState(vacation?.endDate ?? today);
-  const [range, setRange] = useState(vacation ? vacation.endDate !== vacation.startDate : false);
-  const endDate = range ? rangeEnd : startDate;
+  const [endDate, setEndDate] = useState(vacation?.endDate ?? today);
+  const [startTime, setStartTime] = useState(
+    clock(vacation?.startTime ?? standard(vacation?.startDate ?? today).start),
+  );
+  // Follows the standard end of the end date until changed by hand.
+  const [endTimeInput, setEndTimeInput] = useState(vacation?.endTime != null ? clock(vacation.endTime) : null);
+  const endTime = endTimeInput ?? clock(standard(endDate).end);
   const [paidWith, setPaidWith] = useState(
     vacation?.fromOvertime ? "overtime" : vacation?.overtimeMinutes ? "split" : "vacation",
   );
   const [overtimeHours, setOvertimeHours] = useState(
     vacation?.overtimeMinutes ? String(vacation.overtimeMinutes / 60).replace(".", ",") : "",
   );
-  const [scope, setScope] = useState<VacationScope>(vacation?.scope ?? "full");
-  const [dayHours, setDayHours] = useState(
-    vacation?.dayMinutes ? String(vacation.dayMinutes / 60).replace(".", ",") : "",
-  );
-  const dayMinutes = Math.max(0, Math.round((Number(dayHours.replace(",", ".")) || 0) * 60));
   const requestedOvertime = Math.max(0, Math.round((Number(overtimeHours.replace(",", ".")) || 0) * 60));
-  const context = useMemo(() => buildContext(periods, settings, entries, []), [periods, settings, entries]);
-  const valid = isDate(startDate) && isDate(endDate) && endDate >= startDate;
+  const startMinutes = minutes(startTime);
+  const endMinutes = minutes(endTime) || 24 * 60;
+  const valid =
+    isDate(startDate) &&
+    isDate(endDate) &&
+    startMinutes !== null &&
+    endMinutes !== null &&
+    (endDate > startDate || (endDate === startDate && endMinutes > startMinutes));
+  // Times covering the whole standard day are saved as "whole day", so they
+  // still fit when the work time model changes.
+  const savedStart = valid && startMinutes! > standard(startDate).start ? startMinutes : null;
+  const savedEnd = valid && endMinutes! < standard(endDate).end ? endMinutes : null;
   const used = valid
     ? splitBlock(
         {
           startDate,
           endDate,
+          startTime: savedStart,
+          endTime: savedEnd,
           fromOvertime: paidWith === "overtime",
           overtimeMinutes: paidWith === "split" ? requestedOvertime : 0,
-          scope,
-          dayMinutes,
         },
         context,
       )
@@ -109,100 +126,62 @@ export function VacationDialog({ vacation, today, periods, settings, entries }: 
             <DialogTitle>{vacation ? "Urlaub bearbeiten" : "Urlaub planen"}</DialogTitle>
           </DialogHeader>
           {vacation && <input type="hidden" name="vacationId" value={vacation.id} />}
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            aria-label="Ein Tag oder Zeitraum"
-            value={range ? "range" : "day"}
-            onValueChange={(value) => {
-              if (!value) return;
-              setRange(value === "range");
-              if (value === "range" && rangeEnd < startDate) setEndDate(startDate);
-            }}
-            className="w-full"
-          >
-            <ToggleGroupItem value="day" className="flex-1">
-              Ein Tag
-            </ToggleGroupItem>
-            <ToggleGroupItem value="range" className="flex-1">
-              Zeitraum
-            </ToggleGroupItem>
-          </ToggleGroup>
-          <input type="hidden" name="endDate" value={endDate} />
-          <div className={range ? "grid grid-cols-2 gap-3" : ""}>
-            <div className="space-y-2">
-              <Label htmlFor="vacation-start">{range ? "Von" : "Tag"}</Label>
+          <input type="hidden" name="startTime" value={savedStart === null ? "" : clock(savedStart)} />
+          <input type="hidden" name="endTime" value={savedEnd === null ? "" : clock(savedEnd)} />
+          <fieldset className="space-y-2">
+            <legend className="mb-2 text-sm font-medium">Von</legend>
+            <div className="grid grid-cols-[1fr_7rem] gap-2">
               <Input
-                id="vacation-start"
+                aria-label="Von Datum"
                 type="date"
                 name="startDate"
                 required
                 value={startDate}
                 onChange={(event) => {
-                  setStartDate(event.target.value);
-                  if (event.target.value > rangeEnd) setEndDate(event.target.value);
+                  const next = event.target.value;
+                  // A single day moves along; a range keeps its end unless it would end before.
+                  if (endDate === startDate || next > endDate) setEndDate(next);
+                  setStartDate(next);
                 }}
               />
+              <Input
+                aria-label="Von Uhrzeit"
+                type="time"
+                step={900}
+                required
+                value={startTime}
+                onChange={(event) => setStartTime(event.target.value)}
+                className="font-mono"
+              />
             </div>
-            {range && (
-              <div className="space-y-2">
-                <Label htmlFor="vacation-end">Bis</Label>
-                <Input
-                  id="vacation-end"
-                  type="date"
-                  required
-                  min={startDate}
-                  value={rangeEnd}
-                  onChange={(event) => setEndDate(event.target.value)}
-                />
-              </div>
-            )}
-          </div>
-          <div className="space-y-2">
-            <span id="vacation-scope" className="text-sm font-medium">
-              Umfang
-            </span>
-            <input type="hidden" name="scope" value={scope} />
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              aria-labelledby="vacation-scope"
-              value={scope}
-              onValueChange={(value) => value && setScope(value as VacationScope)}
-              className="w-full"
-            >
-              <ToggleGroupItem value="full" className="flex-1">
-                Ganze Tage
-              </ToggleGroupItem>
-              <ToggleGroupItem value="half" className="flex-1">
-                Halbe Tage
-              </ToggleGroupItem>
-              <ToggleGroupItem value="hours" className="flex-1">
-                Stunden
-              </ToggleGroupItem>
-            </ToggleGroup>
-            {scope === "hours" && (
-              <div className="flex items-center gap-3 pt-1">
-                <Input
-                  id="vacation-day-hours"
-                  name="dayHours"
-                  inputMode="decimal"
-                  required
-                  value={dayHours}
-                  onChange={(event) => setDayHours(event.target.value)}
-                  className="w-24 font-mono"
-                />
-                <Label htmlFor="vacation-day-hours" className="font-normal">
-                  Stunden Urlaub pro Tag
-                </Label>
-              </div>
-            )}
-            {scope !== "full" && (
-              <p className="text-xs text-muted-foreground">
-                Den Rest des Tages arbeitest du. Trägst du Arbeitszeiten ein, zählen sie zusätzlich.
-              </p>
-            )}
-          </div>
+          </fieldset>
+          <fieldset className="space-y-2">
+            <legend className="mb-2 text-sm font-medium">Bis</legend>
+            <div className="grid grid-cols-[1fr_7rem] gap-2">
+              <Input
+                aria-label="Bis Datum"
+                type="date"
+                name="endDate"
+                required
+                min={startDate}
+                value={endDate}
+                onChange={(event) => setEndDate(event.target.value)}
+              />
+              <Input
+                aria-label="Bis Uhrzeit"
+                type="time"
+                step={900}
+                required
+                value={endTime}
+                onChange={(event) => setEndTimeInput(event.target.value)}
+                className="font-mono"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Arbeitszeit {standardLabel(target(startDate), settings)}. Gerechnet wird nur, was davon in den Urlaub
+              fällt.
+            </p>
+          </fieldset>
           <div className="space-y-2">
             <span id="vacation-paid" className="text-sm font-medium">
               Bezahlt mit
@@ -245,7 +224,7 @@ export function VacationDialog({ vacation, today, periods, settings, entries }: 
           )}
           <p aria-live="polite" className="rounded-lg bg-muted px-3 py-2.5 text-sm">
             {used === null ? (
-              "Das Ende muss nach dem Start liegen."
+              "Das Ende muss nach dem Beginn liegen."
             ) : (
               <>
                 <strong className="font-mono font-medium">{formatDays(used.days)}</strong>{" "}
@@ -314,4 +293,23 @@ export function VacationDialog({ vacation, today, periods, settings, entries }: 
       </DialogContent>
     </Dialog>
   );
+}
+
+// 450 → "07:30" for time inputs.
+function clock(value: number) {
+  return formatTime(Math.min(value, 23 * 60 + 59)).padStart(5, "0");
+}
+
+// "07:30" → 450, null if empty or invalid.
+function minutes(value: string) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+}
+
+function standardLabel(target: number, settings: Settings) {
+  const times = standardTimes(target, settings);
+  const range = `${formatTime(times.start)}–${formatTime(times.end)}`;
+  if (!times.breakMinutes) return range;
+  const pause = standardBreak(target, settings);
+  return `${range}, Pause ${formatTime(pause.start)}–${formatTime(pause.end)}`;
 }
