@@ -31,6 +31,13 @@ function int(formData: FormData, key: string, min: number, max: number) {
   return Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : min;
 }
 
+// "6,5" → 6.5, clamped; null when empty or not a number.
+function decimal(formData: FormData, key: string, min: number, max: number) {
+  const raw = String(formData.get(key) ?? "").trim();
+  const value = Number(raw.replace(",", "."));
+  return raw && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : null;
+}
+
 // "7:30" → 450
 function time(formData: FormData, key: string) {
   const [hours, minutes] = String(formData.get(key) ?? "").split(":").map(Number);
@@ -61,6 +68,7 @@ export async function saveSettings(formData: FormData) {
       default_break_minutes: int(formData, "defaultBreak", 0, 240),
       christmas_mode: (["work", "half", "off"].includes(mode) ? mode : "work") as ChristmasMode,
       holiday_state: formData.get("holidayState") === "BY" ? "BY" : "BW",
+      carryover_expires: formData.get("carryoverExpires") === "expires",
       updated_at: new Date().toISOString(),
     }),
   );
@@ -74,12 +82,14 @@ export async function savePeriod(formData: FormData) {
     const hours = Number(String(formData.get(`day${index}`) ?? "0").replace(",", "."));
     return Number.isFinite(hours) ? Math.max(0, Math.min(960, Math.round(hours * 60))) : 0;
   });
-  const vacation = Number(String(formData.get("vacationPerMonth") ?? "0").replace(",", "."));
+  const contractDays = decimal(formData, "vacationContractDays", 0, 60) ?? 12;
+  const fixedHours = formData.get("vacationMode") === "fixed" ? decimal(formData, "vacationHoursPerMonth", 0, 100) : null;
   const row = {
     valid_from: date(formData, "validFrom"),
     label: text(formData, "label", 60),
     weekday_minutes: weekdayMinutes,
-    vacation_days_per_month: Number.isFinite(vacation) ? Math.max(0, Math.min(5, vacation)) : 0,
+    vacation_contract_days: Math.round(contractDays * 100) / 100,
+    vacation_hours_per_month: fixedHours === null ? null : Math.round(fixedHours * 100) / 100,
   };
   const { supabase } = await db();
   const periodId = String(formData.get("periodId") ?? "");

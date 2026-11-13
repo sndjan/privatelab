@@ -30,6 +30,7 @@ import {
   formatTime,
   formatShortDate,
   isDate,
+  monthlyVacation,
   mondayOf,
   overtimeBalance,
   periodOn,
@@ -41,6 +42,7 @@ import {
   type Period,
   type Settings,
   type VacationBlock,
+  type VacationYear,
 } from "./calc";
 import { MonthCalendar, type CalendarDay } from "./month-calendar";
 import { PeriodDialog } from "./period-dialog";
@@ -90,7 +92,7 @@ export function WorktimeView({ settings, periods, entries, vacations, today, mon
               <h2>Leg dein Arbeitszeitmodell an</h2>
             </CardTitle>
             <CardDescription>
-              Wie viele Stunden du an welchem Wochentag arbeitest und wie viele Urlaubstage du pro Monat bekommst. Wenn
+              Wie viele Stunden du an welchem Wochentag arbeitest und wie viel Urlaub du dabei bekommst. Wenn
               sich das ändert, legst du später einfach ein neues Modell ab dem Stichtag an.
             </CardDescription>
           </CardHeader>
@@ -251,7 +253,14 @@ export function WorktimeView({ settings, periods, entries, vacations, today, mon
             </CardAction>
           </CardHeader>
           <CardContent className="space-y-5">
-            <VacationBar vacation={vacation} />
+            <VacationBar vacation={vacation} year={year} currentYear={currentYear} />
+
+            {vacations.some((block) => block.startDate < context.periods[0].validFrom) && (
+              <p className="rounded-lg bg-bad px-3 py-2.5 text-sm text-bad-foreground">
+                Urlaub vor dem {formatDate(context.periods[0].validFrom)} zählt mit 0 h, weil es dafür kein
+                Arbeitszeitmodell gibt. Leg unten ein Modell ab dem Jahresbeginn an.
+              </p>
+            )}
 
             {notInCalendar.length > 0 && (
               <p className="flex items-start gap-2 rounded-lg bg-bad px-3 py-2.5 text-sm text-bad-foreground">
@@ -281,13 +290,16 @@ export function WorktimeView({ settings, periods, entries, vacations, today, mon
                         </span>
                         <span className="truncate text-xs text-muted-foreground">
                           {block.fromOvertime
-                            ? `${formatHours(-used.minutes, { signed: true })}`
-                            : `${formatDays(used.days)} ${used.days === 1 ? "Tag" : "Tage"}`}
+                            ? `${formatHours(-used.minutes, { signed: true })} Überstunden`
+                            : `${formatHours(used.minutes)} · ${formatDays(used.days)} ${used.days === 1 ? "Tag" : "Tage"}`}
                           {` · ${state === "taken" ? "genommen" : state === "running" ? "läuft" : "geplant"}`}
                           {block.note && ` · ${block.note}`}
                         </span>
                         {!block.inCalendar && state !== "taken" && (
                           <span className="text-xs text-debt">nicht im Kalender</span>
+                        )}
+                        {used.withoutModel > 0 && (
+                          <span className="text-xs text-debt">kein Arbeitszeitmodell für diese Tage</span>
                         )}
                       </span>
                       <VacationDialog
@@ -335,7 +347,8 @@ export function WorktimeView({ settings, periods, entries, vacations, today, mon
                     <span className="text-xs text-muted-foreground">
                       ab {formatDate(period.validFrom)} ·{" "}
                       {formatHours(period.weekdayMinutes.reduce((sum, minutes) => sum + minutes, 0))}/Woche ·{" "}
-                      {formatDays(period.vacationPerMonth)} Urlaub/Monat
+                      {formatHours(monthlyVacation(period))} Urlaub/Monat
+                      {period.vacationPerMonth !== null && " (fest)"}
                     </span>
                   </span>
                   <PeriodDialog
@@ -363,8 +376,8 @@ function deltaClass(minutes: number) {
   return "";
 }
 
-function VacationBar({ vacation }: { vacation: ReturnType<typeof vacationYear> }) {
-  const total = vacation.entitlement + vacation.carryOver;
+function VacationBar({ vacation, year, currentYear }: { vacation: VacationYear; year: number; currentYear: number }) {
+  const total = vacation.entitlement + vacation.carryOver - vacation.expired;
   const scale = Math.max(total, vacation.taken + vacation.planned);
   const parts = [
     { label: "Genommen", value: vacation.taken, color: "var(--chart-1)" },
@@ -377,7 +390,7 @@ function VacationBar({ vacation }: { vacation: ReturnType<typeof vacationYear> }
       {scale > 0 && (
         <div
           role="img"
-          aria-label={parts.map((part) => `${part.label} ${formatDays(part.value)}`).join(", ")}
+          aria-label={parts.map((part) => `${part.label} ${formatHours(part.value)}`).join(", ")}
           className="flex h-3 gap-0.5 overflow-hidden rounded-full bg-muted"
         >
           {parts.map((part) =>
@@ -388,7 +401,7 @@ function VacationBar({ vacation }: { vacation: ReturnType<typeof vacationYear> }
       <dl className="flex justify-between gap-2">
         <div className="min-w-0">
           <dt className="truncate text-xs text-muted-foreground">Anspruch</dt>
-          <dd className="font-mono font-medium">{formatDays(total)}</dd>
+          <dd className="font-mono font-medium">{formatHours(total)}</dd>
         </div>
         {parts.map((part) => (
           <div key={part.label} className="min-w-0">
@@ -396,16 +409,29 @@ function VacationBar({ vacation }: { vacation: ReturnType<typeof vacationYear> }
               {part.label}
             </dt>
             <dd className={`font-mono font-medium ${part.label === "Übrig" && vacation.left < 0 ? "text-debt" : ""}`}>
-              {part.label === "Übrig" ? formatDays(vacation.left) : formatDays(part.value)}
+              {formatHours(part.label === "Übrig" ? vacation.left : part.value)}
             </dd>
           </div>
         ))}
       </dl>
-      {vacation.carryOver !== 0 && (
-        <p className="text-[13px] text-muted-foreground">
-          Inkl. {formatDays(vacation.carryOver)} Resturlaub aus dem Vorjahr.
+      <div className="space-y-1 text-[13px] text-muted-foreground">
+        <p>
+          {formatHours(vacation.entitlement)} Anspruch {year}
+          {year === currentYear && <>, davon bis heute {formatHours(vacation.earned)} erarbeitet</>}.
         </p>
-      )}
+        {vacation.carryOver !== 0 && (
+          <p>
+            {vacation.carryOver > 0 ? "Inkl." : "Abzüglich"} {formatHours(Math.abs(vacation.carryOver))}{" "}
+            {vacation.carryOver > 0 ? "Resturlaub" : "zu viel genommen"} aus dem Vorjahr
+            {vacation.expired > 0 && <>, davon {formatHours(vacation.expired)} am 31.03. verfallen</>}.
+          </p>
+        )}
+        {vacation.expiring > 0 && (
+          <p className="text-debt">
+            {formatHours(vacation.expiring)} Resturlaub verfallen am 31.03.{year}, wenn du sie bis dahin nicht nimmst.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -473,6 +499,17 @@ function SettingsCard({ settings }: { settings: Settings }) {
                     {mode.label}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field id="setting-carryoverExpires" label="Resturlaub aus dem Vorjahr">
+            <Select name="carryoverExpires" defaultValue={settings.carryoverExpires ? "expires" : "keeps"}>
+              <SelectTrigger id="setting-carryoverExpires" className="h-11! w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="keeps">Bleibt erhalten</SelectItem>
+                <SelectItem value="expires">Verfällt am 31.03.</SelectItem>
               </SelectContent>
             </Select>
           </Field>

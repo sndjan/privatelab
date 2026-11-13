@@ -20,7 +20,7 @@ export const worktimeLoaders = {
       supabase.from("worktime_settings").select("*").eq("user_id", user.id).maybeSingle(),
       supabase
         .from("worktime_periods")
-        .select("id, valid_from, label, weekday_minutes, vacation_days_per_month")
+        .select("id, valid_from, label, weekday_minutes, vacation_contract_days, vacation_hours_per_month")
         .order("valid_from"),
       supabase.from("worktime_days").select("day, kind, start_minute, end_minute, break_minutes"),
       supabase
@@ -38,6 +38,7 @@ export const worktimeLoaders = {
           defaultBreak: settingsRow.default_break_minutes,
           christmasMode: settingsRow.christmas_mode as ChristmasMode,
           holidayState: (settingsRow.holiday_state ?? "BW") as HolidayState,
+          carryoverExpires: settingsRow.carryover_expires ?? false,
         }
       : defaultSettings;
     const periods: Period[] = (periodRows ?? []).map((row) => ({
@@ -45,7 +46,8 @@ export const worktimeLoaders = {
       validFrom: row.valid_from,
       label: row.label,
       weekdayMinutes: row.weekday_minutes,
-      vacationPerMonth: Number(row.vacation_days_per_month),
+      vacationContractDays: Number(row.vacation_contract_days ?? 12),
+      vacationPerMonth: row.vacation_hours_per_month === null ? null : Math.round(Number(row.vacation_hours_per_month) * 60),
     }));
     const entries: DayEntry[] = (dayRows ?? []).map((row) => ({
       day: row.day,

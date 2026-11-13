@@ -15,6 +15,8 @@ export type Settings = {
   defaultBreak: number;
   christmasMode: ChristmasMode;
   holidayState: HolidayState;
+  // Unused vacation from the previous year expires after 31.03.
+  carryoverExpires: boolean;
 };
 
 export const defaultSettings: Settings = {
@@ -25,6 +27,7 @@ export const defaultSettings: Settings = {
   defaultBreak: 60,
   christmasMode: "work",
   holidayState: "BW",
+  carryoverExpires: false,
 };
 
 export type Period = {
@@ -33,7 +36,10 @@ export type Period = {
   label: string;
   // Target minutes for Monday to Sunday.
   weekdayMinutes: number[];
-  vacationPerMonth: number;
+  // Contract vacation days per year, for the vacation rule.
+  vacationContractDays: number;
+  // Fixed vacation minutes per month instead of the rule (null = rule).
+  vacationPerMonth: number | null;
 };
 
 export type DayEntry = {
@@ -209,8 +215,8 @@ export type DayInfo = {
   holiday: string | null;
   entry: DayEntry | null;
   vacation: VacationBlock | null;
-  // Vacation days this day uses (0, 0.5 or 1).
-  vacationDays: number;
+  // Vacation minutes this day uses (its target hours, unless paid with overtime).
+  vacationMinutes: number;
 };
 
 export type Context = {
@@ -246,7 +252,7 @@ export function dayInfo(date: string, context: Context): DayInfo {
   const holiday = holidayName(date, settings.holidayState);
   const entry = context.entries.get(date) ?? null;
   const block = context.vacationByDay.get(date) ?? null;
-  const base = { date, target, holiday, entry, vacation: block, vacationDays: 0 };
+  const base = { date, target, holiday, entry, vacation: block, vacationMinutes: 0 };
 
   if (entry) {
     const actual = entry.kind === "work" ? workedMinutes(entry) : entry.kind === "sick" ? target : 0;
@@ -254,8 +260,7 @@ export function dayInfo(date: string, context: Context): DayInfo {
   }
   if (block && target > 0) {
     if (block.fromOvertime) return { ...base, actual: 0, status: "vacation" };
-    const fullTarget = periodOn(periods, date)?.weekdayMinutes[weekday(date)] ?? 0;
-    return { ...base, actual: target, status: "vacation", vacationDays: target < fullTarget ? 0.5 : 1 };
+    return { ...base, actual: target, status: "vacation", vacationMinutes: target };
   }
   if (holiday) return { ...base, actual: 0, status: "holiday" };
   return { ...base, actual: target, status: target > 0 ? "standard" : "free" };
@@ -295,21 +300,53 @@ export function plannedOvertimeUse(context: Context, today: string) {
 }
 
 // --- Vacation ---------------------------------------------------------------
+// Vacation is counted in minutes. Every model earns vacation per month: a fixed
+// amount, or by the rule max(contract, law) / 12 with
+//   contract = contract days × hours per workday
+//   law      = 4 weeks × weekly hours (BUrlG minimum).
+// A month with a model change is split by calendar days, so earned vacation
+// keeps its value. A vacation day uses the target hours of that day.
 
-export function vacationEntitlement(year: number, periods: Period[]) {
+export function vacationRule(weekdayMinutes: number[], contractDays: number) {
+  const weekly = weekdayMinutes.reduce((sum, minutes) => sum + minutes, 0);
+  const workdays = weekdayMinutes.filter((minutes) => minutes > 0).length;
+  const perDay = workdays ? weekly / workdays : 0;
+  const contract = contractDays * perDay;
+  const law = 4 * weekly;
+  const perYear = Math.max(contract, law);
+  return { weekly, workdays, perDay, contract, law, perYear, perMonth: perYear / 12 };
+}
+
+export function monthlyVacation(period: Period) {
+  return period.vacationPerMonth ?? vacationRule(period.weekdayMinutes, period.vacationContractDays).perMonth;
+}
+
+function daysInMonth(date: string) {
+  const [year, month] = date.split("-").map(Number);
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+// Vacation minutes earned from `from` to `to` (inclusive), each day earning
+// its share of the month.
+export function vacationEarned(from: string, to: string, periods: Period[]) {
   let total = 0;
-  for (let month = 1; month <= 12; month++) {
-    total += periodOn(periods, `${year}-${String(month).padStart(2, "0")}-01`)?.vacationPerMonth ?? 0;
+  for (let day = from; day <= to; day = addDays(day, 1)) {
+    const period = periodOn(periods, day);
+    if (period) total += monthlyVacation(period) / daysInMonth(day);
   }
   return total;
 }
 
-function vacationUsed(year: number, context: Context, today: string) {
+export function vacationEntitlement(year: number, periods: Period[]) {
+  return vacationEarned(`${year}-01-01`, `${year}-12-31`, periods);
+}
+
+function vacationUsed(from: string, to: string, context: Context, today: string) {
   let taken = 0;
   let planned = 0;
   for (const [day] of context.vacationByDay) {
-    if (!day.startsWith(`${year}-`)) continue;
-    const used = dayInfo(day, context).vacationDays;
+    if (day < from || day > to) continue;
+    const used = dayInfo(day, context).vacationMinutes;
     if (day <= today) taken += used;
     else planned += used;
   }
@@ -317,33 +354,65 @@ function vacationUsed(year: number, context: Context, today: string) {
 }
 
 export type VacationYear = {
+  // All values in minutes.
   entitlement: number;
+  // Earned up to today (the whole year for past years).
+  earned: number;
   carryOver: number;
+  // Carry-over that expired on 31.03. (only with carryoverExpires).
+  expired: number;
+  // Carry-over that expires on 31.03. unless taken or planned before.
+  expiring: number;
   taken: number;
   planned: number;
   // Not yet taken or planned.
   left: number;
 };
 
-// Unused days carry over into the next year (negative if too many were used).
+function computeYear(year: number, carryOver: number, context: Context, today: string): VacationYear {
+  const entitlement = vacationEntitlement(year, context.periods);
+  const earnedUntil = today < `${year}-12-31` ? today : `${year}-12-31`;
+  const earned = vacationEarned(`${year}-01-01`, earnedUntil, context.periods);
+  const { taken, planned } = vacationUsed(`${year}-01-01`, `${year}-12-31`, context, today);
+  let expired = 0;
+  let expiring = 0;
+  if (context.settings.carryoverExpires && carryOver > 0) {
+    const deadline = `${year}-03-31`;
+    const early = vacationUsed(`${year}-01-01`, deadline, context, today);
+    const unused = Math.max(0, carryOver - early.taken - early.planned);
+    if (today > deadline) expired = unused;
+    else expiring = unused;
+  }
+  return {
+    entitlement,
+    earned,
+    carryOver,
+    expired,
+    expiring,
+    taken,
+    planned,
+    left: entitlement + carryOver - expired - taken - planned,
+  };
+}
+
+// Unused vacation carries over into the next year (negative if too much was
+// used); with carryoverExpires, carry-over not used by 31.03. expires.
 export function vacationYear(year: number, context: Context, today: string): VacationYear {
   const firstYear = context.periods[0] ? Number(context.periods[0].validFrom.slice(0, 4)) : year;
   let carryOver = 0;
-  for (let y = firstYear; y < year; y++) {
-    const { taken, planned } = vacationUsed(y, context, today);
-    carryOver += vacationEntitlement(y, context.periods) - taken - planned;
-  }
-  const entitlement = vacationEntitlement(year, context.periods);
-  const { taken, planned } = vacationUsed(year, context, today);
-  return { entitlement, carryOver, taken, planned, left: entitlement + carryOver - taken - planned };
+  for (let y = firstYear; y < year; y++) carryOver = computeYear(y, carryOver, context, today).left;
+  return computeYear(year, carryOver, context, today);
 }
 
-// Workdays in a block and their target minutes (the overtime it uses when
-// paid with overtime). Works for blocks that aren't saved yet.
+// Workdays in a block and their target minutes (the vacation or overtime it
+// uses). Works for blocks that aren't saved yet.
 export function blockDays(block: Pick<VacationBlock, "startDate" | "endDate">, context: Context) {
   let days = 0;
   let minutes = 0;
+  // Days without a work time model (they use no vacation, which is usually a mistake).
+  let withoutModel = 0;
   for (let day = block.startDate; day <= block.endDate; day = addDays(day, 1)) {
+    if (!periodOn(context.periods, day)) withoutModel++;
     const info = dayInfo(day, context);
     if (!info.entry && info.target > 0) {
       const fullTarget = periodOn(context.periods, day)?.weekdayMinutes[weekday(day)] ?? 0;
@@ -351,7 +420,7 @@ export function blockDays(block: Pick<VacationBlock, "startDate" | "endDate">, c
       minutes += info.target;
     }
   }
-  return { days, minutes };
+  return { days, minutes, withoutModel };
 }
 
 export function blockState(block: VacationBlock, today: string) {
