@@ -66,6 +66,7 @@ export async function saveSettings(formData: FormData) {
       opening_date: isDate(openingDate) ? openingDate : null,
       default_start_minute: time(formData, "defaultStart"),
       default_break_minutes: int(formData, "defaultBreak", 0, 240),
+      break_start_minute: time(formData, "breakStart"),
       christmas_mode: (["work", "half", "off"].includes(mode) ? mode : "work") as ChristmasMode,
       holiday_state: formData.get("holidayState") === "BY" ? "BY" : "BW",
       carryover_expires: formData.get("carryoverExpires") === "expires",
@@ -146,8 +147,11 @@ export async function resetDay(formData: FormData) {
 export async function saveVacation(formData: FormData) {
   const startDate = date(formData, "startDate");
   const endDate = date(formData, "endDate");
-  const scopeValue = String(formData.get("scope"));
-  const scope = scopeValue === "half" || scopeValue === "hours" ? scopeValue : "full";
+  // Empty = the whole day.
+  const optionalTime = (key: string) => (String(formData.get(key) ?? "") ? time(formData, key) : null);
+  const startTime = optionalTime("startTime");
+  let endTime = optionalTime("endTime");
+  if (endTime === 0) endTime = 24 * 60;
   const row = {
     start_date: startDate,
     end_date: endDate < startDate ? startDate : endDate,
@@ -158,8 +162,8 @@ export async function saveVacation(formData: FormData) {
       formData.get("paidWith") === "split"
         ? Math.round((decimal(formData, "overtimeHours", 0, 2000) ?? 0) * 60)
         : 0,
-    scope,
-    day_minutes: scope === "hours" ? Math.max(1, Math.round((decimal(formData, "dayHours", 0, 16) ?? 0) * 60)) : null,
+    start_minute: startTime,
+    end_minute: endTime,
   };
   const { supabase } = await db();
   const vacationId = String(formData.get("vacationId") ?? "");

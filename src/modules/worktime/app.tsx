@@ -286,16 +286,13 @@ export function WorktimeView({ settings, periods, entries, vacations, today, mon
                       <span className="flex min-w-0 flex-1 flex-col">
                         <span className="font-medium whitespace-nowrap">
                           {formatShortDate(block.startDate)}
-                          {block.endDate !== block.startDate && ` – ${formatShortDate(block.endDate)}`}
+                          {block.startTime !== null && ` ${formatTime(block.startTime)}`}
+                          {(block.endDate !== block.startDate || block.endTime !== null) && " – "}
+                          {block.endDate !== block.startDate && formatShortDate(block.endDate)}
+                          {block.endTime !== null && ` ${formatTime(block.endTime)}`}
                         </span>
                         <span className="truncate text-xs text-muted-foreground">
-                          {`${formatDays(used.days)} ${used.days === 1 ? "Tag" : "Tage"}${
-                            block.scope === "half"
-                              ? " (halbe)"
-                              : block.scope === "hours" && block.dayMinutes
-                                ? ` (je ${formatHours(block.dayMinutes)})`
-                                : ""
-                          } · `}
+                          {`${formatDays(used.days)} ${used.days === 1 ? "Tag" : "Tage"} · `}
                           {used.overtime === 0
                             ? `${formatHours(used.vacation)} Urlaub`
                             : used.vacation === 0
@@ -480,6 +477,17 @@ function SettingsCard({ settings }: { settings: Settings }) {
               step={15}
               required
               defaultValue={settings.defaultBreak}
+              className="h-11 font-mono"
+            />
+          </Field>
+          <Field id="setting-breakStart" label="Pause ab">
+            <Input
+              id="setting-breakStart"
+              type="time"
+              step={900}
+              name="breakStart"
+              required
+              defaultValue={formatTime(settings.breakStart).padStart(5, "0")}
               className="h-11 font-mono"
             />
           </Field>

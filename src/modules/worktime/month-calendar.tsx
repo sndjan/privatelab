@@ -186,7 +186,7 @@ function deltaClass(minutes: number) {
 }
 
 function vacationLabel(info: DayInfo) {
-  if (info.vacation && info.vacation.scope !== "full") {
+  if (info.vacationMinutes + info.overtimeMinutes < info.target) {
     return `${formatHours(info.vacationMinutes + info.overtimeMinutes)} Urlaub`;
   }
   if (info.overtimeMinutes === 0) return "Urlaub";
