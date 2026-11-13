@@ -56,8 +56,11 @@ export type VacationBlock = {
   endDate: string;
   note: string | null;
   inCalendar: boolean;
-  // Paid with overtime instead of vacation days.
+  // Paid completely with overtime instead of vacation.
   fromOvertime: boolean;
+  // Otherwise: minutes of the block paid with overtime, used up from the
+  // first day on; the rest is vacation.
+  overtimeMinutes: number;
 };
 
 export const dayKinds: { value: DayKind; label: string }[] = [
@@ -215,8 +218,9 @@ export type DayInfo = {
   holiday: string | null;
   entry: DayEntry | null;
   vacation: VacationBlock | null;
-  // Vacation minutes this day uses (its target hours, unless paid with overtime).
+  // Of the target on a vacation day: minutes paid with vacation and with overtime.
   vacationMinutes: number;
+  overtimeMinutes: number;
 };
 
 export type Context = {
@@ -224,6 +228,8 @@ export type Context = {
   settings: Settings;
   entries: Map<string, DayEntry>;
   vacationByDay: Map<string, VacationBlock>;
+  // Minutes of a vacation day paid with overtime.
+  overtimeByDay: Map<string, number>;
 };
 
 export function buildContext(
@@ -236,12 +242,17 @@ export function buildContext(
   for (const block of vacations) {
     for (let day = block.startDate; day <= block.endDate; day = addDays(day, 1)) vacationByDay.set(day, block);
   }
-  return {
+  const context: Context = {
     periods: [...periods].sort((a, b) => a.validFrom.localeCompare(b.validFrom)),
     settings,
     entries: new Map(entries.map((entry) => [entry.day, entry])),
     vacationByDay,
+    overtimeByDay: new Map(),
   };
+  for (const block of vacations) {
+    for (const [day, minutes] of splitBlock(block, context).overtimeByDay) context.overtimeByDay.set(day, minutes);
+  }
+  return context;
 }
 
 // An entered day wins over vacation (worked or sick during vacation doesn't
@@ -252,15 +263,21 @@ export function dayInfo(date: string, context: Context): DayInfo {
   const holiday = holidayName(date, settings.holidayState);
   const entry = context.entries.get(date) ?? null;
   const block = context.vacationByDay.get(date) ?? null;
-  const base = { date, target, holiday, entry, vacation: block, vacationMinutes: 0 };
+  const base = { date, target, holiday, entry, vacation: block, vacationMinutes: 0, overtimeMinutes: 0 };
 
   if (entry) {
     const actual = entry.kind === "work" ? workedMinutes(entry) : entry.kind === "sick" ? target : 0;
     return { ...base, actual, status: entry.kind };
   }
   if (block && target > 0) {
-    if (block.fromOvertime) return { ...base, actual: 0, status: "vacation" };
-    return { ...base, actual: target, status: "vacation", vacationMinutes: target };
+    const overtime = Math.min(target, context.overtimeByDay.get(date) ?? 0);
+    return {
+      ...base,
+      actual: target - overtime,
+      status: "vacation",
+      vacationMinutes: target - overtime,
+      overtimeMinutes: overtime,
+    };
   }
   if (holiday) return { ...base, actual: 0, status: "holiday" };
   return { ...base, actual: target, status: target > 0 ? "standard" : "free" };
@@ -292,7 +309,7 @@ export function plannedOvertimeUse(context: Context, today: string) {
   for (const day of days) {
     if (day <= today) continue;
     const info = dayInfo(day, context);
-    if (info.status === "overtime_off" || (info.status === "vacation" && info.vacation?.fromOvertime)) {
+    if (info.status === "overtime_off" || info.status === "vacation") {
       total += info.target - info.actual;
     }
   }
@@ -404,23 +421,37 @@ export function vacationYear(year: number, context: Context, today: string): Vac
   return computeYear(year, carryOver, context, today);
 }
 
-// Workdays in a block and their target minutes (the vacation or overtime it
-// uses). Works for blocks that aren't saved yet.
-export function blockDays(block: Pick<VacationBlock, "startDate" | "endDate">, context: Context) {
+// Workdays in a block, their target minutes and how they are paid: overtime
+// first (from the first day on), the rest with vacation. Works for blocks that
+// aren't saved yet.
+export function splitBlock(
+  block: Pick<VacationBlock, "startDate" | "endDate" | "fromOvertime" | "overtimeMinutes">,
+  context: Context,
+) {
   let days = 0;
   let minutes = 0;
+  let overtimeLeft = block.fromOvertime ? Infinity : Math.max(0, block.overtimeMinutes);
+  let overtime = 0;
   // Days without a work time model (they use no vacation, which is usually a mistake).
   let withoutModel = 0;
+  const overtimeByDay = new Map<string, number>();
   for (let day = block.startDate; day <= block.endDate; day = addDays(day, 1)) {
-    if (!periodOn(context.periods, day)) withoutModel++;
-    const info = dayInfo(day, context);
-    if (!info.entry && info.target > 0) {
-      const fullTarget = periodOn(context.periods, day)?.weekdayMinutes[weekday(day)] ?? 0;
-      days += info.target < fullTarget ? 0.5 : 1;
-      minutes += info.target;
+    const period = periodOn(context.periods, day);
+    if (!period) withoutModel++;
+    if (context.entries.has(day)) continue;
+    const target = targetMinutes(day, context.periods, context.settings);
+    if (target <= 0) continue;
+    const fullTarget = period?.weekdayMinutes[weekday(day)] ?? 0;
+    days += target < fullTarget ? 0.5 : 1;
+    minutes += target;
+    const fromOvertime = Math.min(target, overtimeLeft);
+    if (fromOvertime > 0) {
+      overtimeByDay.set(day, fromOvertime);
+      overtime += fromOvertime;
+      overtimeLeft -= fromOvertime;
     }
   }
-  return { days, minutes, withoutModel };
+  return { days, minutes, overtime, vacation: minutes - overtime, withoutModel, overtimeByDay };
 }
 
 export function blockState(block: VacationBlock, today: string) {

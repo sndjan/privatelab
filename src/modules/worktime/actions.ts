@@ -152,6 +152,10 @@ export async function saveVacation(formData: FormData) {
     note: text(formData, "note", 120) || null,
     in_calendar: formData.get("inCalendar") === "on",
     from_overtime: formData.get("paidWith") === "overtime",
+    overtime_minutes:
+      formData.get("paidWith") === "split"
+        ? Math.round((decimal(formData, "overtimeHours", 0, 2000) ?? 0) * 60)
+        : 0,
   };
   const { supabase } = await db();
   const vacationId = String(formData.get("vacationId") ?? "");

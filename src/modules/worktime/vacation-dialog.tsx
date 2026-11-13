@@ -19,12 +19,12 @@ import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { deleteVacation, saveVacation } from "./actions";
 import {
-  blockDays,
   buildContext,
   formatDays,
   formatHours,
   formatRange,
   isDate,
+  splitBlock,
   type DayEntry,
   type Period,
   type Settings,
@@ -41,15 +41,32 @@ type Props = {
 };
 
 // Adds a vacation block, or edits / deletes one when `vacation` is given.
-// Shows how many vacation or overtime hours the dates use while typing.
+// Paid with vacation, overtime or both (a number of hours from overtime, the
+// rest vacation). Shows the hours the dates use while typing.
 export function VacationDialog({ vacation, today, periods, settings, entries }: Props) {
   const [open, setOpen] = useState(false);
   const [startDate, setStartDate] = useState(vacation?.startDate ?? today);
   const [endDate, setEndDate] = useState(vacation?.endDate ?? today);
-  const [paidWith, setPaidWith] = useState(vacation?.fromOvertime ? "overtime" : "vacation");
+  const [paidWith, setPaidWith] = useState(
+    vacation?.fromOvertime ? "overtime" : vacation?.overtimeMinutes ? "split" : "vacation",
+  );
+  const [overtimeHours, setOvertimeHours] = useState(
+    vacation?.overtimeMinutes ? String(vacation.overtimeMinutes / 60).replace(".", ",") : "",
+  );
+  const requestedOvertime = Math.max(0, Math.round((Number(overtimeHours.replace(",", ".")) || 0) * 60));
   const context = useMemo(() => buildContext(periods, settings, entries, []), [periods, settings, entries]);
   const valid = isDate(startDate) && isDate(endDate) && endDate >= startDate;
-  const used = valid ? blockDays({ startDate, endDate }, context) : null;
+  const used = valid
+    ? splitBlock(
+        {
+          startDate,
+          endDate,
+          fromOvertime: paidWith === "overtime",
+          overtimeMinutes: paidWith === "split" ? requestedOvertime : 0,
+        },
+        context,
+      )
+    : null;
 
   function closingAfter(action: (formData: FormData) => Promise<void>) {
     return async (formData: FormData) => {
@@ -124,31 +141,57 @@ export function VacationDialog({ vacation, today, periods, settings, entries }: 
               className="w-full"
             >
               <ToggleGroupItem value="vacation" className="flex-1">
-                Urlaubstagen
+                Urlaub
               </ToggleGroupItem>
               <ToggleGroupItem value="overtime" className="flex-1">
                 Überstunden
               </ToggleGroupItem>
+              <ToggleGroupItem value="split" className="flex-1">
+                Beides
+              </ToggleGroupItem>
             </ToggleGroup>
           </div>
+          {paidWith === "split" && (
+            <div className="flex items-center gap-3">
+              <Input
+                id="vacation-overtime-hours"
+                name="overtimeHours"
+                inputMode="decimal"
+                required
+                value={overtimeHours}
+                onChange={(event) => setOvertimeHours(event.target.value)}
+                className="w-24 font-mono"
+              />
+              <Label htmlFor="vacation-overtime-hours" className="font-normal">
+                Stunden aus Überstunden, der Rest vom Urlaub
+              </Label>
+            </div>
+          )}
           <p aria-live="polite" className="rounded-lg bg-muted px-3 py-2.5 text-sm">
             {used === null ? (
               "Das Ende muss nach dem Start liegen."
             ) : (
               <>
                 <strong className="font-mono font-medium">{formatDays(used.days)}</strong>{" "}
-                {used.days === 1 ? "Arbeitstag" : "Arbeitstage"}
-                {paidWith === "overtime" ? (
-                  <>
-                    {" "}
-                    = <strong className="font-mono font-medium">{formatHours(-used.minutes, { signed: true })}</strong>{" "}
-                    Überstunden
-                  </>
-                ) : (
-                  <>
-                    {" "}
-                    = <strong className="font-mono font-medium">{formatHours(used.minutes)}</strong> Urlaub
-                  </>
+                {used.days === 1 ? "Arbeitstag" : "Arbeitstage"} ={" "}
+                <strong className="font-mono font-medium">{formatHours(used.minutes)}</strong>
+                {used.minutes > 0 && (
+                  <span className="mt-1 block">
+                    {used.vacation > 0 && (
+                      <>
+                        <strong className="font-mono font-medium">{formatHours(used.vacation)}</strong> Urlaub
+                      </>
+                    )}
+                    {used.vacation > 0 && used.overtime > 0 && " + "}
+                    {used.overtime > 0 && (
+                      <>
+                        <strong className="font-mono font-medium">{formatHours(used.overtime)}</strong> Überstunden
+                      </>
+                    )}
+                  </span>
+                )}
+                {paidWith === "split" && requestedOvertime > used.minutes && (
+                  <span className="mt-1 block text-debt">Mehr Überstunden als der Urlaub lang ist.</span>
                 )}
                 {used.withoutModel > 0 && (
                   <span className="mt-1 block text-debt">Für einige Tage gibt es kein Arbeitszeitmodell (0 h).</span>
