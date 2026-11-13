@@ -29,6 +29,7 @@ import {
   type Period,
   type Settings,
   type VacationBlock,
+  type VacationScope,
 } from "./calc";
 
 type Props = {
@@ -41,18 +42,25 @@ type Props = {
 };
 
 // Adds a vacation block, or edits / deletes one when `vacation` is given.
-// Paid with vacation, overtime or both (a number of hours from overtime, the
+// Whole days, half days or some hours per day. Paid with vacation, overtime or both (a number of hours from overtime, the
 // rest vacation). Shows the hours the dates use while typing.
 export function VacationDialog({ vacation, today, periods, settings, entries }: Props) {
   const [open, setOpen] = useState(false);
   const [startDate, setStartDate] = useState(vacation?.startDate ?? today);
-  const [endDate, setEndDate] = useState(vacation?.endDate ?? today);
+  const [rangeEnd, setEndDate] = useState(vacation?.endDate ?? today);
+  const [range, setRange] = useState(vacation ? vacation.endDate !== vacation.startDate : false);
+  const endDate = range ? rangeEnd : startDate;
   const [paidWith, setPaidWith] = useState(
     vacation?.fromOvertime ? "overtime" : vacation?.overtimeMinutes ? "split" : "vacation",
   );
   const [overtimeHours, setOvertimeHours] = useState(
     vacation?.overtimeMinutes ? String(vacation.overtimeMinutes / 60).replace(".", ",") : "",
   );
+  const [scope, setScope] = useState<VacationScope>(vacation?.scope ?? "full");
+  const [dayHours, setDayHours] = useState(
+    vacation?.dayMinutes ? String(vacation.dayMinutes / 60).replace(".", ",") : "",
+  );
+  const dayMinutes = Math.max(0, Math.round((Number(dayHours.replace(",", ".")) || 0) * 60));
   const requestedOvertime = Math.max(0, Math.round((Number(overtimeHours.replace(",", ".")) || 0) * 60));
   const context = useMemo(() => buildContext(periods, settings, entries, []), [periods, settings, entries]);
   const valid = isDate(startDate) && isDate(endDate) && endDate >= startDate;
@@ -63,6 +71,8 @@ export function VacationDialog({ vacation, today, periods, settings, entries }: 
           endDate,
           fromOvertime: paidWith === "overtime",
           overtimeMinutes: paidWith === "split" ? requestedOvertime : 0,
+          scope,
+          dayMinutes,
         },
         context,
       )
@@ -99,9 +109,29 @@ export function VacationDialog({ vacation, today, periods, settings, entries }: 
             <DialogTitle>{vacation ? "Urlaub bearbeiten" : "Urlaub planen"}</DialogTitle>
           </DialogHeader>
           {vacation && <input type="hidden" name="vacationId" value={vacation.id} />}
-          <div className="grid grid-cols-2 gap-3">
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            aria-label="Ein Tag oder Zeitraum"
+            value={range ? "range" : "day"}
+            onValueChange={(value) => {
+              if (!value) return;
+              setRange(value === "range");
+              if (value === "range" && rangeEnd < startDate) setEndDate(startDate);
+            }}
+            className="w-full"
+          >
+            <ToggleGroupItem value="day" className="flex-1">
+              Ein Tag
+            </ToggleGroupItem>
+            <ToggleGroupItem value="range" className="flex-1">
+              Zeitraum
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <input type="hidden" name="endDate" value={endDate} />
+          <div className={range ? "grid grid-cols-2 gap-3" : ""}>
             <div className="space-y-2">
-              <Label htmlFor="vacation-start">Von</Label>
+              <Label htmlFor="vacation-start">{range ? "Von" : "Tag"}</Label>
               <Input
                 id="vacation-start"
                 type="date"
@@ -110,22 +140,68 @@ export function VacationDialog({ vacation, today, periods, settings, entries }: 
                 value={startDate}
                 onChange={(event) => {
                   setStartDate(event.target.value);
-                  if (event.target.value > endDate) setEndDate(event.target.value);
+                  if (event.target.value > rangeEnd) setEndDate(event.target.value);
                 }}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="vacation-end">Bis</Label>
-              <Input
-                id="vacation-end"
-                type="date"
-                name="endDate"
-                required
-                min={startDate}
-                value={endDate}
-                onChange={(event) => setEndDate(event.target.value)}
-              />
-            </div>
+            {range && (
+              <div className="space-y-2">
+                <Label htmlFor="vacation-end">Bis</Label>
+                <Input
+                  id="vacation-end"
+                  type="date"
+                  required
+                  min={startDate}
+                  value={rangeEnd}
+                  onChange={(event) => setEndDate(event.target.value)}
+                />
+              </div>
+            )}
+          </div>
+          <div className="space-y-2">
+            <span id="vacation-scope" className="text-sm font-medium">
+              Umfang
+            </span>
+            <input type="hidden" name="scope" value={scope} />
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              aria-labelledby="vacation-scope"
+              value={scope}
+              onValueChange={(value) => value && setScope(value as VacationScope)}
+              className="w-full"
+            >
+              <ToggleGroupItem value="full" className="flex-1">
+                Ganze Tage
+              </ToggleGroupItem>
+              <ToggleGroupItem value="half" className="flex-1">
+                Halbe Tage
+              </ToggleGroupItem>
+              <ToggleGroupItem value="hours" className="flex-1">
+                Stunden
+              </ToggleGroupItem>
+            </ToggleGroup>
+            {scope === "hours" && (
+              <div className="flex items-center gap-3 pt-1">
+                <Input
+                  id="vacation-day-hours"
+                  name="dayHours"
+                  inputMode="decimal"
+                  required
+                  value={dayHours}
+                  onChange={(event) => setDayHours(event.target.value)}
+                  className="w-24 font-mono"
+                />
+                <Label htmlFor="vacation-day-hours" className="font-normal">
+                  Stunden Urlaub pro Tag
+                </Label>
+              </div>
+            )}
+            {scope !== "full" && (
+              <p className="text-xs text-muted-foreground">
+                Den Rest des Tages arbeitest du. Trägst du Arbeitszeiten ein, zählen sie zusätzlich.
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <span id="vacation-paid" className="text-sm font-medium">

@@ -146,6 +146,8 @@ export async function resetDay(formData: FormData) {
 export async function saveVacation(formData: FormData) {
   const startDate = date(formData, "startDate");
   const endDate = date(formData, "endDate");
+  const scopeValue = String(formData.get("scope"));
+  const scope = scopeValue === "half" || scopeValue === "hours" ? scopeValue : "full";
   const row = {
     start_date: startDate,
     end_date: endDate < startDate ? startDate : endDate,
@@ -156,6 +158,8 @@ export async function saveVacation(formData: FormData) {
       formData.get("paidWith") === "split"
         ? Math.round((decimal(formData, "overtimeHours", 0, 2000) ?? 0) * 60)
         : 0,
+    scope,
+    day_minutes: scope === "hours" ? Math.max(1, Math.round((decimal(formData, "dayHours", 0, 16) ?? 0) * 60)) : null,
   };
   const { supabase } = await db();
   const vacationId = String(formData.get("vacationId") ?? "");

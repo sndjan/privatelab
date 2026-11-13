@@ -289,7 +289,13 @@ export function WorktimeView({ settings, periods, entries, vacations, today, mon
                           {block.endDate !== block.startDate && ` – ${formatShortDate(block.endDate)}`}
                         </span>
                         <span className="truncate text-xs text-muted-foreground">
-                          {`${formatDays(used.days)} ${used.days === 1 ? "Tag" : "Tage"} · `}
+                          {`${formatDays(used.days)} ${used.days === 1 ? "Tag" : "Tage"}${
+                            block.scope === "half"
+                              ? " (halbe)"
+                              : block.scope === "hours" && block.dayMinutes
+                                ? ` (je ${formatHours(block.dayMinutes)})`
+                                : ""
+                          } · `}
                           {used.overtime === 0
                             ? `${formatHours(used.vacation)} Urlaub`
                             : used.vacation === 0
