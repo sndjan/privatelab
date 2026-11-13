@@ -11,6 +11,7 @@ import {
   type Period,
   type Settings,
   type VacationBlock,
+  type VacationScope,
 } from "./calc";
 
 export const worktimeLoaders = {
@@ -25,7 +26,7 @@ export const worktimeLoaders = {
       supabase.from("worktime_days").select("day, kind, start_minute, end_minute, break_minutes"),
       supabase
         .from("worktime_vacations")
-        .select("id, start_date, end_date, note, in_calendar, from_overtime, overtime_minutes")
+        .select("id, start_date, end_date, note, in_calendar, from_overtime, overtime_minutes, scope, day_minutes")
         .order("start_date"),
     ]);
 
@@ -64,6 +65,8 @@ export const worktimeLoaders = {
       inCalendar: row.in_calendar,
       fromOvertime: row.from_overtime ?? false,
       overtimeMinutes: row.overtime_minutes ?? 0,
+      scope: (row.scope ?? "full") as VacationScope,
+      dayMinutes: row.day_minutes ?? null,
     }));
     return { settings, periods, entries, vacations };
   },

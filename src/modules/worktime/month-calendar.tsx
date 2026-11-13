@@ -186,6 +186,9 @@ function deltaClass(minutes: number) {
 }
 
 function vacationLabel(info: DayInfo) {
+  if (info.vacation && info.vacation.scope !== "full") {
+    return `${formatHours(info.vacationMinutes + info.overtimeMinutes)} Urlaub`;
+  }
   if (info.overtimeMinutes === 0) return "Urlaub";
   if (info.vacationMinutes === 0) return "Urlaub (Überstunden)";
   return `Urlaub (${formatHours(info.overtimeMinutes)} Überstunden)`;
@@ -197,7 +200,10 @@ function describe(info: DayInfo) {
     const label = vacationLabel(info);
     return info.vacation?.note ? `${label} · ${info.vacation.note}` : label;
   }
-  if (info.entry) return "Geändert";
+  if (info.entry) {
+    const vacation = info.vacationMinutes + info.overtimeMinutes;
+    return vacation > 0 ? `Geändert · ${formatHours(vacation)} Urlaub` : "Geändert";
+  }
   return info.target > 0 ? "Standardtag" : "Frei";
 }
 
