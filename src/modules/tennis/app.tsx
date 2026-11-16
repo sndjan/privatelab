@@ -41,6 +41,7 @@ import {
   generatePlan,
   hasVariations,
   holidayOn,
+  isLastOfDay,
   isoWeekday,
   myTrainingDates,
   nextTrainingDate,
@@ -49,6 +50,7 @@ import {
   showsMidcourt,
   stageLabel,
   stages,
+  teilzielOf,
   timeline,
   todayInGermany,
   weekdayNames,
@@ -60,6 +62,7 @@ import {
 import { ExerciseDetails } from "./exercise-details";
 import { ExerciseForm } from "./exercise-form";
 import { FavoriteToggles } from "./favorite-toggles";
+import { GroupChecklists } from "./group-checklists";
 import { Library } from "./library";
 import { Planner } from "./planner";
 import { Players } from "./players";
@@ -106,7 +109,7 @@ const newExercise = {
   minutes: 10,
   summary: "",
   description: "",
-  tips: [],
+  teilziel: "",
   focus: [],
   diagram: emptyDiagram,
   playersMin: null,
@@ -454,7 +457,9 @@ function SessionLink({ session, title, today }: { session: Session; title: strin
         <span>
           {session.date === today ? "Heute" : formatSessionDate(session.date)}, {session.startTime} · {title}
         </span>
-        {session.notes && <span className="line-clamp-1 text-xs text-muted-foreground">{session.notes}</span>}
+        {(session.goal || session.notes) && (
+          <span className="line-clamp-1 text-xs text-muted-foreground">{[session.goal, session.notes].filter(Boolean).join(" · ")}</span>
+        )}
       </span>
       {session.date === today && <LiveBadge date={session.date} startTime={session.startTime} plan={session.plan} />}
       <ChevronRightIcon className="size-4 text-muted-foreground" />
@@ -510,7 +515,9 @@ function PlanView({ sessionId, groupId, date }: { sessionId: string | null; grou
       startTime: existing.startTime,
       minutes: existing.minutes,
       focus: existing.focus,
+      goal: existing.goal,
       plan: existing.plan,
+      absent: existing.absent,
     };
   } else {
     const group = groups.find((entry) => entry.id === groupId) ?? groups[0];
@@ -522,6 +529,8 @@ function PlanView({ sessionId, groupId, date }: { sessionId: string | null; grou
       startTime: group?.startTime ?? "16:00",
       minutes,
       focus: null,
+      goal: "",
+      absent: [],
       plan: generatePlan(minutes, {
         exercises,
         favorites: new Set(favorites.filter((key) => group && key.startsWith(`${group.id}:`)).map((key) => key.split(":")[1])),
@@ -543,9 +552,10 @@ function PlanView({ sessionId, groupId, date }: { sessionId: string | null; grou
       favorites={favorites}
       recent={recent}
       players={players}
-      absent={existing?.absent.length ?? 0}
+      kids={playerRows}
       holidays={holidays}
       standIns={standIns}
+      sessions={allSessions.filter((session) => session.id !== sessionId).slice(0, 60)}
       initial={initial}
     />
   );
@@ -562,8 +572,16 @@ function SessionView({ sessionId }: { sessionId: string }) {
   const exercises = allExercises;
   const items = session.plan.flatMap((item) => {
     const exercise = exercises.find((entry) => entry.id === item.exerciseId);
-    return exercise ? [{ exercise, minutes: item.minutes, note: item.note ?? "" }] : [];
+    return exercise ? [{ exercise, minutes: item.minutes, note: item.note ?? "", teilziel: teilzielOf(item, exercise) }] : [];
   });
+  const checklist = group
+    ? {
+        sessionId: session.id,
+        afterSession: group.afterSession,
+        dayEnd: isLastOfDay(session, sessions) ? group.dayEnd.filter((item) => !group.afterSession.includes(item)) : [],
+        done: session.done,
+      }
+    : undefined;
 
   return (
     <>
@@ -581,6 +599,11 @@ function SessionView({ sessionId }: { sessionId: string }) {
               {formatSessionDate(session.date)} · {session.startTime}–{sessionEnd(session)}
               {session.focus && ` · Schwerpunkt ${session.focus}`}
             </p>
+            {session.goal && (
+              <p className="text-sm">
+                <span className="font-semibold">Stundenziel:</span> {session.goal}
+              </p>
+            )}
           </div>
           <div className="flex">
             <PrintButton />
@@ -607,12 +630,12 @@ function SessionView({ sessionId }: { sessionId: string }) {
         {items.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Keine Übungen in dieser Stunde.</p>
         ) : (
-          <SessionPlan date={session.date} startTime={session.startTime} items={items} stage={group?.stage} />
+          <SessionPlan date={session.date} startTime={session.startTime} items={items} stage={group?.stage} checklist={checklist} />
         )}
 
         <Card>
           <CardHeader>
-            <CardTitle>Notizen</CardTitle>
+            <CardTitle>Wie lief’s?</CardTitle>
           </CardHeader>
           <CardContent>
             <form action={saveSessionNotes} className="space-y-2">
@@ -622,8 +645,9 @@ function SessionView({ sessionId }: { sessionId: string }) {
                 rows={3}
                 maxLength={2000}
                 defaultValue={session.notes}
-                placeholder="Wie lief's? Wer fehlte, was hat Spaß gemacht, was nächstes Mal?"
+                placeholder="Was hat Spaß gemacht, was klappte noch nicht, was nächstes Mal?"
               />
+              <p className="text-xs text-muted-foreground">Geht auch später noch. Beim Planen der nächsten Stunde siehst du die Notiz wieder.</p>
               <SubmitButton variant="outline" done="Notizen gespeichert">Speichern</SubmitButton>
             </form>
           </CardContent>
@@ -997,6 +1021,16 @@ function GroupView({ groupId }: { groupId: string }) {
             </div>
             <SubmitButton variant="outline" done="Gruppe gespeichert">Speichern</SubmitButton>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Zum Abschluss</CardTitle>
+          <CardDescription>Erscheint in der Stunde als Checkliste am Ende der Timeline.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <GroupChecklists key={`${group.afterSession.join("|")}#${group.dayEnd.join("|")}`} group={group} />
         </CardContent>
       </Card>
 

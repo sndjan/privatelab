@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { askForExercises, askForPlan } from "./ai-plan";
 import {
+  cleanChecklist,
   cleanExercise,
   cleanPlanItem,
   defaultPrinciples,
@@ -53,7 +54,7 @@ function toRow(input: ExerciseInput) {
     minutes: input.minutes,
     summary: input.summary,
     description: input.description,
-    tips: input.tips,
+    teilziel: input.teilziel,
     focus: input.focus,
     diagram: input.diagram,
     players_min: input.playersMin,
@@ -147,6 +148,14 @@ export async function deleteExercise(formData: FormData) {
   redirect(`${PATH}?exercises=1`);
 }
 
+// "Als Standard merken" in the Teilziel picker: the exercise's own Teilziel.
+export async function setExerciseTeilziel(exerciseId: string, teilziel: string) {
+  if (!isId(exerciseId)) return;
+  const supabase = await db();
+  check(await supabase.from("tennis_exercises").update({ teilziel: teilziel.trim().slice(0, 120) }).eq("id", exerciseId));
+  revalidatePath(PATH);
+}
+
 export async function setFavorite(groupId: string, exerciseId: string, favorite: boolean) {
   const supabase = await db();
   if (favorite) {
@@ -194,6 +203,19 @@ export async function updateGroup(formData: FormData) {
   if (!values.name) return;
   const supabase = await db();
   check(await supabase.from("tennis_groups").update(values).eq("id", String(formData.get("groupId"))));
+  revalidatePath(PATH);
+}
+
+// The group's lists for the end of a session ("Zum Abschluss").
+export async function saveGroupChecklists(groupId: string, afterSession: string[], dayEnd: string[]) {
+  if (!isId(groupId)) return;
+  const supabase = await db();
+  check(
+    await supabase
+      .from("tennis_groups")
+      .update({ after_session: cleanChecklist(afterSession), day_end: cleanChecklist(dayEnd) })
+      .eq("id", groupId),
+  );
   revalidatePath(PATH);
 }
 
@@ -304,7 +326,15 @@ export async function savePrinciples(formData: FormData) {
 
 export async function saveSession(
   id: string | null,
-  values: { groupId: string | null; date: string; startTime: string; focus: string | null; plan: PlanItem[] },
+  values: {
+    groupId: string | null;
+    date: string;
+    startTime: string;
+    focus: string | null;
+    goal: string;
+    plan: PlanItem[];
+    absent?: string[];
+  },
 ) {
   if (!isDate(values.date) || !isTime(values.startTime)) throw new Error("Ungültiges Datum oder Uhrzeit");
   const plan = values.plan
@@ -317,7 +347,9 @@ export async function saveSession(
     start_time: values.startTime,
     minutes: Math.max(5, plan.reduce((sum, item) => sum + item.minutes, 0)),
     focus: values.focus && (focusTags as readonly string[]).includes(values.focus) ? values.focus : null,
+    goal: String(values.goal ?? "").trim().slice(0, 80),
     plan,
+    ...(Array.isArray(values.absent) && { absent: [...new Set(values.absent.filter(isId))].slice(0, 60) }),
   };
   const supabase = await db();
   let savedId = id;
@@ -353,6 +385,15 @@ export async function deleteSession(formData: FormData) {
 export async function setAbsent(sessionId: string, playerIds: string[]) {
   const supabase = await db();
   check(await supabase.from("tennis_sessions").update({ absent: [...new Set(playerIds.filter(isId))] }).eq("id", sessionId));
+}
+
+// The ticked checklist items, as a whole list in the order of the taps (like
+// setAbsent).
+export async function setSessionDone(sessionId: string, done: string[]) {
+  if (!isId(sessionId)) return;
+  const items = [...new Set(done.filter((item) => typeof item === "string").map((item) => item.trim().slice(0, 80)))].slice(0, 30);
+  const supabase = await db();
+  check(await supabase.from("tennis_sessions").update({ done: items }).eq("id", sessionId));
 }
 
 // Re-plans a session for the kids who are there (see replan in data.ts):

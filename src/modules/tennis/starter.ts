@@ -28,7 +28,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Der Trainer ruft eine Linie, alle sprinten hin. Wer zuletzt ankommt, macht 3 Hampelmänner.",
     description:
       "Alle Kinder laufen locker im Feld herum. Der Trainer ruft eine Linie: „Grundlinie!“, „Netz!“, „T!“, „Seitenlinie!“. Alle sprinten dorthin und berühren die Linie mit dem Schläger. Später Zusatzaufgaben: rückwärts laufen, Sidesteps, auf einem Bein ankommen.",
-    tips: ["Kleine schnelle Schritte!", "Bremsen mit tiefen Knien", "Schläger immer in der Hand"],
+    teilziel: "Kleine schnelle Schritte",
     focus: ["Beinarbeit", "Koordination"],
     diagram: {
       items: [coach(-6.5, -2), kid(-2, 3, "1"), kid(2, 5, "2"), kid(-1, 9, "3"), kid(3, 10, "4"), run(-2, 3, -2, 0.6), run(2, 5, 2, 0.6), run(-1, 9, -1, 11.5), run(3, 10, 4.1, 10)],
@@ -41,7 +41,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Teams laufen mit einem Ball auf dem Schläger um ein Hütchen und zurück.",
     description:
       "Zwei Teams stehen an der Grundlinie, gegenüber auf der Aufschlaglinie je ein Hütchen. Der Ball liegt auf der Schlägerfläche, laufen, um das Hütchen und zurück, Ball an den Nächsten übergeben. Fällt der Ball, kurz stehen bleiben und weiter. Steigerung: Ball auf dem Schläger hüpfen lassen oder auf der Rückhandseite balancieren.",
-    tips: ["Schlägerfläche flach halten", "Augen auf den Ball", "Erst sicher, dann schnell"],
+    teilziel: "Schlägerfläche flach halten",
     focus: ["Ballgefühl", "Koordination"],
     diagram: {
       items: [kid(-2.5, 11, "A"), kid(-2.5, 12.3, "A"), kid(2.5, 11, "B"), kid(2.5, 12.3, "B"), cone(-2.5, 6.4), cone(2.5, 6.4), run(-2.2, 10, -2.2, 7.2), run(-2.8, 7.2, -2.8, 10), run(2.8, 10, 2.8, 7.2), run(2.2, 7.2, 2.2, 10)],
@@ -54,7 +54,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Ball auf dem Schläger hochtippen: Wer schafft die meisten am Stück?",
     description:
       "Jedes Kind hat einen Ball und tippt ihn auf der Schlägerfläche hoch. Runde 1: Vorhandseite. Runde 2: Rückhandseite. Runde 3: abwechselnd. Runde 4: auf den Boden prellen. Jeder zählt laut mit, der Trainer fragt nach Rekorden.",
-    tips: ["Nur kleine Bewegungen aus dem Handgelenk", "Ball nicht höher als der Kopf", "Weich in den Knien"],
+    teilziel: "Nur kleine Bewegungen aus dem Handgelenk",
     focus: ["Ballgefühl", "Koordination"],
     diagram: { items: [kid(-3, 3, "1"), kid(0, 4, "2"), kid(3, 3, "3"), kid(-1.5, 8, "4"), kid(1.5, 8, "5"), ball(-3, 2), ball(0, 3), ball(3, 2), ball(-1.5, 7), ball(1.5, 7), coach(0, 11)] },
   },
@@ -65,7 +65,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Zu zweit Bälle übers Netz werfen und fangen: Aufwärmen für Augen und Füße.",
     description:
       "Paare stehen sich im Aufschlagfeld gegenüber. Ball von unten übers Netz werfen, der Partner fängt nach einem Aufsprung. Steigerung: mit der Nicht-Schlaghand fangen, seitlich werfen, damit der Partner laufen muss, Fangen mit einer Ballkugel-Dose.",
-    tips: ["Seitlich zum Netz stellen", "Ball fängt man vor dem Körper", "Nach jedem Wurf zurück zur Mitte"],
+    teilziel: "Seitlich zum Netz stellen",
     focus: ["Koordination", "Beinarbeit"],
     diagram: { items: [kid(-2.5, -4, "1"), kid(2.5, -4, "2"), kid(-2.5, 4, "1"), kid(2.5, 4, "2"), shot(-2.5, -3.4, -2.2, 3.4), shot(2.2, 3.4, 2.5, -3.4)] },
   },
@@ -76,7 +76,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Fangen spielen, aber alle dürfen nur auf den Linien laufen.",
     description:
       "Ein Fänger (mit Ball in der Hand zum Markieren). Alle laufen nur auf den weißen Linien des Platzes. Wer gefangen wird, wird ebenfalls Fänger (Kettenfangen) oder tauscht. Wer neben die Linie tritt, macht einmal eine Schattenvorhand.",
-    tips: ["Kopf hoch, Linien mit den Augen suchen", "Kleine Schritte an den Ecken"],
+    teilziel: "Kopf hoch, Linien mit den Augen suchen",
     focus: ["Beinarbeit"],
     diagram: { items: [kid(0, 6.4, "F"), kid(-4.1, 9, "1"), kid(4.1, 3, "2"), kid(0, 11.9, "3"), run(0, 6.4, -3.6, 6.4), run(-4.1, 9, -4.1, 11.4), run(4.1, 3, 4.1, 0.6)] },
   },
@@ -87,7 +87,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Zu zweit: einer macht Schattenschläge und Laufwege vor, der andere spiegelt sie.",
     description:
       "Paare stehen sich an der Aufschlaglinie gegenüber (gleiche Platzhälfte, Abstand ca. 3 Meter). Der Anführer macht Sidesteps, Schattenvorhand, Schattenrückhand, Volleys. Der Partner spiegelt alles so schnell wie möglich. Nach einer Minute Rollenwechsel.",
-    tips: ["Immer in Bereitschaftsstellung zurück", "Schläger mit beiden Händen vor dem Körper"],
+    teilziel: "Immer in Bereitschaftsstellung zurück",
     focus: ["Beinarbeit", "Koordination"],
     diagram: { items: [kid(-2, 5, "A"), kid(-2, 8.5, "B"), kid(2, 5, "A"), kid(2, 8.5, "B"), run(-2, 5, -3.5, 5), run(-2, 8.5, -3.5, 8.5), run(2, 5, 3.5, 5), run(2, 8.5, 3.5, 8.5)] },
   },
@@ -98,7 +98,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Team Rot dreht Hütchen um, Team Blau stellt sie wieder auf. Wer hat nach einer Minute mehr?",
     description:
       "Viele Hütchen liegen verteilt auf einer Platzhälfte, die Hälfte steht, die Hälfte liegt umgedreht. Team 1 dreht stehende Hütchen um, Team 2 stellt liegende auf. Nach 60 Sekunden wird gezählt. Variante: nur mit dem Schläger umdrehen.",
-    tips: ["Tief in die Knie, nicht aus dem Rücken bücken", "Kurze Wege suchen"],
+    teilziel: "Tief in die Knie, nicht aus dem Rücken bücken",
     focus: ["Beinarbeit"],
     diagram: { items: [cone(-3, 2), cone(0, 3.5), cone(3, 2.5), cone(-2, 7), cone(2.5, 8), cone(-4, 10), cone(0.5, 10.5), kid(-1, 5, "1"), kid(1.5, 6, "2"), run(-1, 5, -2.6, 2.6), run(1.5, 6, 2.3, 7.4)] },
   },
@@ -109,7 +109,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Im Aufschlagfeld locker hin und her spielen, mit kurzer Ausholbewegung.",
     description:
       "Paare spielen sich im Aufschlagfeld gegenüber locker zu, Ball nur bis zur Aufschlaglinie. Ziel: 10 Ballwechsel am Stück, dann 20. Wer Fehler macht, startet wieder bei 0. Der Trainer geht durch und lobt.",
-    tips: ["Kurz ausholen, weit durchschwingen", "Ball vor dem Körper treffen", "Nach dem Schlag zurück in die Mitte"],
+    teilziel: "Kurz ausholen, weit durchschwingen",
     focus: ["Vorhand", "Rückhand", "Ballgefühl"],
     diagram: { items: [kid(-2.5, -4.5, "1"), kid(2.5, -4.5, "2"), kid(-2.5, 4.5, "1"), kid(2.5, 4.5, "2"), shot(-2.5, 4, -2.5, -4), shot(2.5, -4, 2.5, 4)] },
   },
@@ -122,7 +122,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Trainer spielt zu, die Kinder spielen Vorhand cross auf Ziele. Treffer = Punkte fürs Team.",
     description:
       "Kinder stehen hintereinander an der Grundlinie. Der Trainer spielt aus dem Korb eine Vorhand zu, das Kind spielt cross in das markierte Zielfeld (Reifen oder Hütchen). Danach hinten anstellen. Feld getroffen = 1 Punkt, Reifen = 3 Punkte. Zwei Teams oder alle gemeinsam auf eine Zielzahl.",
-    tips: ["Früh ausholen!", "Treffpunkt vor dem Körper", "Ausschwingen über die Schulter"],
+    teilziel: "Früh ausholen",
     focus: ["Vorhand"],
     diagram: { items: [...feeding, kid(-1, 10.5, "1"), ...queue(1, 11.5, 2), target(-3, -9), cone(-4, -7.5), cone(-2, -7.5), shot(1, -8, -1, 9.5), shot(-1, 9.5, -3, -8.6)] },
   },
@@ -133,7 +133,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Wie Vorhand-Zielschießen, aber mit Rückhand longline in eine Zone.",
     description:
       "Der Trainer spielt aus dem Korb auf die Rückhandseite. Ziel ist eine Hütchen-Zone longline hinter der Aufschlaglinie. Wer drei Treffer schafft, darf sich das nächste Ziel aussuchen. Bei Anfängern zuerst zuwerfen statt zuspielen.",
-    tips: ["Schultern drehen, Rücken kurz zum Netz", "Beide Hände bis zum Schluss am Schläger", "Durch den Ball schwingen"],
+    teilziel: "Schultern drehen, Rücken kurz zum Netz",
     focus: ["Rückhand"],
     diagram: { items: [...feeding, kid(2.5, 10.5, "1"), ...queue(0, 11.5, 2), target(2.8, -9.5), cone(2, -8), cone(4, -8), shot(1, -8, 2.5, 9.5), shot(2.5, 9.5, 2.8, -9)] },
   },
@@ -144,7 +144,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Trainer spielt abwechselnd Vor- und Rückhand zu, das Kind läuft seitlich hin und her.",
     description:
       "Ein Kind an der Grundlinie, zwei Hütchen markieren Vorhand- und Rückhandpunkt. Der Trainer spielt abwechselnd 6 Bälle, danach wechseln. Nach jedem Schlag mit Sidesteps zurück zur Mitte (Hütchen in der Mitte antippen).",
-    tips: ["Nach dem Schlag zurück zur Mitte!", "Sidesteps, nicht überkreuzen", "Früh drehen"],
+    teilziel: "Nach dem Schlag zurück zur Mitte",
     focus: ["Vorhand", "Rückhand", "Beinarbeit"],
     diagram: { items: [...feeding, kid(0, 10.5, "1"), cone(0, 11.3), cone(-3, 10), cone(3, 10), run(0, 10.5, -2.6, 10), run(0, 10.5, 2.6, 10), shot(1, -8, -3, 9.4), shot(1, -8, 3, 9.4), ...queue(-5, 12, 2)] },
   },
@@ -155,7 +155,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Vorstufe zum Volley: Ball in Volley-Haltung mit der Hand fangen, dann blocken.",
     description:
       "Die Kinder stehen am Netz. Der Trainer wirft Bälle zu, das Kind fängt sie vor dem Körper mit der freien Hand (wie ein Volley, Schritt nach vorn). Dann mit dem Schläger kurz am Hals gefasst blocken, später normal greifen. Fünf Bälle, dann wechseln.",
-    tips: ["Schläger vor dem Körper, Kopf hoch", "Nicht ausholen, nur blocken!", "Schritt nach vorne"],
+    teilziel: "Schläger vor dem Körper, Kopf hoch",
     focus: ["Volley"],
     diagram: { items: [coach(0, -4), basket(1.2, -4), kid(0, 2.2, "1"), ...queue(-3, 4.5), shot(0, -3.4, 0, 1.6), run(0, 2.8, 0, 2.2)] },
   },
@@ -166,7 +166,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Kinder stehen nebeneinander am Netz, der Trainer spielt reihum Volleys zu.",
     description:
       "Drei bis vier Kinder stehen nebeneinander zwischen Netz und Aufschlaglinie. Der Trainer spielt reihum Bälle zu, jedes Kind blockt einen Volley in ein Zielfeld. Wer daneben trifft, rückt ans Ende der Reihe. Schneller werden, wenn es gut klappt.",
-    tips: ["Schläger oben halten", "Kurz und fest, wie eine Ohrfeige für den Ball", "Bereit bleiben!"],
+    teilziel: "Schläger oben halten",
     focus: ["Volley"],
     diagram: { items: [coach(0, -8), basket(1.2, -8), kid(-3, 2.5, "1"), kid(-1, 2.5, "2"), kid(1, 2.5, "3"), kid(3, 2.5, "4"), shot(0, -7.4, -1, 2), target(-2, -4), target(2, -4)] },
   },
@@ -177,7 +177,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Mit dem Aufschlag Hütchen im Aufschlagfeld umwerfen: Strike!",
     description:
       "Im gegenüberliegenden Aufschlagfeld stehen Hütchen (oder Balldosen) wie Kegel. Die Kinder schlagen nacheinander auf. Umgeworfenes Hütchen = Punkt. Kleine Kinder dürfen von der Aufschlaglinie aus aufschlagen und mit jedem Treffer einen Schritt nach hinten gehen.",
-    tips: ["Ball gerade hoch werfen, wie in einen Schornstein", "Werfen wie einen Ball weit weg", "Locker bleiben"],
+    teilziel: "Ball gerade hoch werfen, wie in einen Schornstein",
     focus: ["Aufschlag"],
     diagram: { items: [kid(1, 11.9, "1"), ...queue(3, 12.5, 2), cone(-2, -5.5), cone(-2.8, -5.3), cone(-1.2, -5.3), cone(-2, -4.6), shot(1, 11.6, -2, -5.2), coach(-5, -2)] },
   },
@@ -188,7 +188,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Die Aufschlagbewegung erst mit Ballwerfen lernen, dann mit Schläger.",
     description:
       "Die Kinder stehen an der Aufschlaglinie und werfen Bälle mit der Wurfbewegung (Ellbogen hoch, weit ausholen) übers Netz ins Aufschlagfeld gegenüber. Dann mit dem Schläger von derselben Stelle aufschlagen. Mit jedem dritten Treffer einen Schritt Richtung Grundlinie.",
-    tips: ["Ellbogen hoch!", "Wie ein Ball, den du ganz weit werfen willst", "Danach mit dem Schläger genauso"],
+    teilziel: "Ellbogen hoch",
     focus: ["Aufschlag", "Koordination"],
     diagram: { items: [kid(-2, 6.4, "1"), kid(0, 6.4, "2"), kid(2, 6.4, "3"), shot(-2, 6, -2, -4), shot(0, 6, 1.5, -4), shot(2, 6, 2.5, -3.5), coach(4.8, 4)] },
   },
@@ -199,7 +199,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Trainer spielt einen kurzen Ball, Kind läuft vor, schlägt, macht einen Volley und läuft zurück.",
     description:
       "Das Kind startet an der Grundlinie. Ball 1: kurzer Ball, das Kind läuft vor und spielt ihn longline. Ball 2: Volley am Netz. Danach zurücklaufen und das Hütchen an der Grundlinie berühren, der Nächste ist dran. Wer beide Bälle ins Feld spielt, bekommt einen Punkt.",
-    tips: ["Nach dem Schlag weiter nach vorn!", "Vor dem Volley kurz stehen (Split-Step)", "Kopf hoch beim Laufen"],
+    teilziel: "Nach dem Schlag weiter nach vorn",
     focus: ["Beinarbeit", "Volley", "Taktik"],
     diagram: { items: [...feeding, kid(0, 11, "1"), cone(0, 11.9), run(0, 10.4, 0, 5), run(0.3, 5, 0.3, 2.2), shot(1, -8, 0.6, 4.5), shot(1, -8, 1, 2), ...queue(-3, 12, 2)] },
   },
@@ -210,7 +210,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Ballwechsel in Paaren: Punkte gibt es nur für Bälle hinter der Aufschlaglinie.",
     description:
       "Zwei Kinder spielen von der Grundlinie Ballwechsel. Ein Ball, der hinter der Aufschlaglinie aufspringt, zählt einen Punkt. Bälle davor zählen nichts. Wer zuerst 7 hat, gewinnt. Schult hohe, tiefe Bälle statt Netzrollern.",
-    tips: ["Hoch übers Netz spielen", "Von unten nach oben schwingen", "Lieber sicher als hart"],
+    teilziel: "Hoch übers Netz spielen",
     focus: ["Vorhand", "Rückhand", "Taktik"],
     diagram: { items: [kid(-1, -11, "1"), kid(1, 11, "2"), shot(1, 10.4, -1.5, -9), shot(-1, -10.4, 1.5, 9), cone(-4.1, -6.4), cone(4.1, -6.4), cone(-4.1, 6.4), cone(4.1, 6.4), coach(-6.5, 0)] },
   },
@@ -221,7 +221,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Drei Stationen, alle 4–5 Minuten Wechsel. Der Trainer betreut nur eine davon.",
     description:
       "Station 1 (Trainer): Zuspiel aus dem Korb, Vorhand und Rückhand. Station 2: Paare spielen Mini-Tennis im anderen Aufschlagfeld und zählen Ballwechsel. Station 3: Aufschlag auf Hütchen. Auf Pfiff gehen alle eine Station weiter. Gut, wenn man nicht alles gleichzeitig im Blick haben will.",
-    tips: ["Vorher die Stationen in 30 Sekunden erklären", "Rekorde an den Stationen ansagen lassen", "Pfeifen statt rufen"],
+    teilziel: "Vorher die Stationen in 30 Sekunden erklären",
     focus: ["Vorhand", "Rückhand", "Aufschlag"],
     diagram: {
       items: [coach(-2.5, -9), basket(-1.5, -9), kid(-2.5, 10, "1"), kid(-2.5, 11.3, "2"), shot(-2.5, -8.4, -2.5, 9.4), kid(3, -3, "3"), kid(3, 3, "4"), shot(3, 2.5, 3, -2.5), kid(5, 12, "5"), cone(-2, -4), cone(-3, -4.5), shot(5, 11.5, -2.3, -4)],
@@ -234,7 +234,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Zwei gegen zwei auf halbem Platz: nur cross spielen, Fehler zählen für den Gegner.",
     description:
       "Der Platz wird diagonal geteilt, zwei Paare spielen gleichzeitig nur cross (Vorhand-Vorhand bzw. Rückhand-Rückhand). Eingespielt wird vom Kind, nicht vom Trainer. Wer zuerst 7 Punkte hat. Danach die Seiten wechseln, damit beide Schläge drankommen.",
-    tips: ["Ball hoch und sicher übers Netz", "Zurück zur Mitte deiner Hälfte", "Rufe laut deinen Punktestand"],
+    teilziel: "Ball hoch und sicher übers Netz",
     focus: ["Vorhand", "Rückhand"],
     diagram: { items: [kid(-3, -11, "1"), kid(3, 11, "2"), kid(3, -11, "3"), kid(-3, 11, "4"), shot(-3, -10.4, 2.6, 9), shot(3, -10.4, -2.6, 9), coach(-6.5, 0)] },
   },
@@ -245,7 +245,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Der Trainer steht am Netz, die Kinder spielen einen hohen Lob über ihn drüber.",
     description:
       "Der Trainer steht mit Schläger am Netz und spielt einen Ball zur Grundlinie. Das Kind spielt einen Lob über ihn. Erreicht der Trainer den Ball mit hochgestrecktem Schläger, ist er im Spiel. Ball über den Trainer und ins Feld = Punkt.",
-    tips: ["Schlägerfläche nach oben öffnen", "Von unten nach oben, ganz langsam", "Hoch wie ein Regenbogen"],
+    teilziel: "Schlägerfläche nach oben öffnen",
     focus: ["Ballgefühl", "Taktik"],
     diagram: { items: [coach(0, -2), basket(1.2, -2.5), kid(0, 11, "1"), ...queue(3, 12, 2), shot(0, -1.4, 0, 10.4), shot(0, 10.4, -0.8, -9)] },
   },
@@ -256,7 +256,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Hohe Bälle erst mit der Hand fangen, dann als Schmetterball schlagen.",
     description:
       "Der Trainer spielt hohe Bälle zum Netz. Das Kind dreht seitlich ein, zeigt mit der freien Hand auf den Ball und fängt ihn über dem Kopf. Danach dieselbe Bewegung mit dem Schläger: zeigen, ausholen, schlagen. Ziel: Ball nach unten ins Feld.",
-    tips: ["Mit der freien Hand auf den Ball zeigen", "Seitlich stellen", "Ball über dem Kopf treffen"],
+    teilziel: "Mit der freien Hand auf den Ball zeigen",
     focus: ["Koordination", "Volley"],
     diagram: { items: [...feeding, kid(0, 3.5, "1"), ...queue(-3.5, 5), shot(1, -8, 0.2, 3)] },
   },
@@ -267,7 +267,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Um ein Hütchen sprinten, zugespielten Ball schlagen, zurück zum Start.",
     description:
       "Start an der Mitte der Grundlinie. Der Trainer zeigt nach links oder rechts. Das Kind läuft um das jeweilige Hütchen, bekommt einen Ball zugespielt, schlägt ihn ins Feld und läuft zurück. Fünf Bälle pro Durchgang.",
-    tips: ["Explosiver Start", "Ausrichten vor dem Schlag", "Zurück bevor der nächste Ball kommt"],
+    teilziel: "Explosiver Start",
     focus: ["Beinarbeit", "Vorhand", "Rückhand"],
     diagram: { items: [...feeding, kid(0, 11.5, "1"), cone(-3, 9), cone(3, 9), run(0, 11, -2.6, 9.4), run(0, 11, 2.6, 9.4), shot(1, -8, -3, 8.2)] },
   },
@@ -278,7 +278,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Auf Zuruf abwechselnd kurze und lange Bälle spielen: Gefühl für Tempo und Länge.",
     description:
       "Paare spielen von der Grundlinie Ballwechsel. Der Trainer ruft „kurz!“ oder „lang!“. Bei kurz muss der Ball vor der Aufschlaglinie landen, bei lang dahinter. Wer es schafft, bekommt einen Punkt.",
-    tips: ["Für kurz: weicher Schlag, Schlägerfläche offen", "Für lang: hoch übers Netz", "Gut hinhören!"],
+    teilziel: "Für kurz: weicher Schlag, Schlägerfläche offen",
     focus: ["Ballgefühl", "Taktik"],
     diagram: { items: [kid(0, -11, "1"), kid(0, 11, "2"), shot(0, 10.4, -1, -3.5), shot(0, -10.4, 1.5, 9.5), coach(-6.5, 1)] },
   },
@@ -289,7 +289,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Der Trainer schlägt locker auf, die Kinder spielen den Return in eine Zone.",
     description:
       "Der Trainer schlägt locker (von unten oder leicht) auf. Die Kinder stehen in einer Schlange und returnieren in eine markierte Zone. Treffer = Punkt, nach jedem Schlag hinten anstellen. Variante: Return cross gegen Return longline.",
-    tips: ["Kurz ausholen, der Ball kommt schnell", "Split-Step, wenn der Trainer den Ball trifft", "Ins Feld zurück, nicht hart"],
+    teilziel: "Kurz ausholen, der Ball kommt schnell",
     focus: ["Taktik", "Vorhand", "Rückhand"],
     diagram: { items: [coach(1, -11.9), basket(2.2, -12.3), kid(-2.5, 10.5, "1"), ...queue(-4.5, 11.5, 2), shot(1, -11.3, -2.3, 4), shot(-2.5, 10, -2, -9), target(-2, -9.5)] },
   },
@@ -302,7 +302,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Alle laufen um das Netz und schlagen nacheinander einen Ball. Wer Fehler macht, verliert ein Leben.",
     description:
       "Die Kinder stehen in zwei Reihen auf beiden Seiten. Der Trainer spielt ein. Nach dem Schlag läuft man zur anderen Seite und stellt sich hinten an. Wer einen Fehler macht, verliert ein Leben (3 Leben). Am Ende Finale mit den letzten zwei. Ausgeschiedene feuern an oder helfen beim Ballsammeln.",
-    tips: ["Nach dem Schlag sofort loslaufen", "Sicher spielen, nicht gewinnen wollen", "Lauter anfeuern!"],
+    teilziel: "Nach dem Schlag sofort loslaufen",
     focus: ["Beinarbeit", "Ballgefühl"],
     diagram: { items: [kid(0, -10.5, "1"), kid(1.2, -11.8, "2"), kid(0, 10.5, "3"), kid(1.2, 11.8, "4"), shot(0, -10, 0, 9.8), run(0, -10.5, -5.5, -5), run(-5.5, -1, -5.5, 8), coach(6.5, 0)] },
   },
@@ -313,7 +313,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Ein König verteidigt die Königsseite, die Herausforderer greifen an. Wer gewinnt, wird König.",
     description:
       "Ein Kind (oder Paar) ist König auf der Trainerseite. Der Trainer spielt den Herausforderern einen Ball ein, es wird ein Punkt ausgespielt. Gewinnt der Herausforderer, läuft er auf die Königsseite. Nur auf der Königsseite gibt es Punkte. Wer hat am Ende die meisten Königspunkte?",
-    tips: ["Nach dem Punkt sofort bereit", "Erst den Ball ins Feld, dann gewinnen", "Freut euch für den neuen König!"],
+    teilziel: "Nach dem Punkt sofort bereit",
     focus: ["Taktik"],
     diagram: { items: [kid(0, -10.5, "K"), coach(5, 9), basket(5, 10.2), kid(0, 10.5, "1"), ...queue(-3.5, 11.5, 2), shot(5, 8.4, 0.3, 10), shot(0, 10, 0, -9.8), run(0, 9.8, 2.5, 0.8)] },
   },
@@ -324,7 +324,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Neun Ziele auf der Trainerseite, jedes Team versucht drei in einer Reihe zu treffen.",
     description:
       "Auf der anderen Seite liegen 9 Reifen oder Hütchen in einem 3×3-Raster. Der Trainer spielt zu, die Teams schlagen abwechselnd. Getroffenes Ziel gehört dem Team (Hütchen umdrehen oder Farbe markieren). Drei in einer Reihe = Bingo!",
-    tips: ["Zielen heißt: ruhig und sicher spielen", "Nach dem Schlag schauen, wo der Ball landet", "Team berät, welches Ziel als Nächstes"],
+    teilziel: "Zielen heißt: ruhig und sicher spielen",
     focus: ["Vorhand", "Rückhand", "Ballgefühl"],
     diagram: {
       items: [target(-3, -10), target(0, -10), target(3, -10), target(-3, -7.5), target(0, -7.5), target(3, -7.5), target(-3, -4), target(0, -4), target(3, -4), coach(5.2, 6), basket(5.2, 7.2), kid(-1, 10, "A"), kid(1, 10, "B"), shot(-1, 9.4, -3, -7)],
@@ -337,7 +337,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Balldosen und Hütchen auf der Gegenseite: Welches Team räumt zuerst alles ab?",
     description:
       "Auf der Trainerseite stehen Balldosen und Hütchen. Der Trainer spielt den Teams abwechselnd zu, jeder Treffer räumt ein Ziel ab. Das Team, das zuerst alles abgeräumt hat (oder in 5 Minuten mehr Treffer hat), gewinnt. Alternativ jedes Team hat eigene Ziele.",
-    tips: ["Ganz durchschwingen", "Nicht zu fest, lieber genau"],
+    teilziel: "Ganz durchschwingen",
     focus: ["Vorhand", "Rückhand"],
     diagram: { items: [cone(-3, -9), cone(-1, -10), cone(1.5, -9.5), cone(3.5, -8), cone(-2, -6), cone(2, -5), coach(-5.2, 3), basket(-5.2, 4.2), kid(-1, 10, "A"), kid(1.5, 10.5, "B"), shot(-5, 3.6, -1, 9.4), shot(-1, 9.4, 1.5, -9)] },
   },
@@ -348,7 +348,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Doppel ohne Aufschlag: Der Trainer spielt jeden Punkt ein, Teams spielen bis 7.",
     description:
       "Zwei Teams à zwei Kinder spielen Doppel. Statt Aufschlag spielt der Trainer von der Seite einen Ball ein (abwechselnd zu beiden Teams). Punkte bis 7, dann rotieren die Teams. Wartende Kinder zählen mit oder sammeln Bälle.",
-    tips: ["Absprache: Wer nimmt die Mitte?", "Nach dem Punkt abklatschen", "Netzspieler: Schläger oben"],
+    teilziel: "Absprache: Wer nimmt die Mitte?",
     focus: ["Taktik", "Volley"],
     diagram: { items: [kid(-2, -10, "A"), kid(2, -4, "A"), kid(-2, 4, "B"), kid(2, 10, "B"), coach(6.5, 0.5), basket(6.5, 1.7), shot(6.3, 0.9, 2.2, 9.4)] },
   },
@@ -359,7 +359,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Treffer im Zielfeld = ein Ball aus dem Trainerkorb ins eigene Team-Lager.",
     description:
       "Zwei Teams, jedes hat ein Lager (Reifen) an der Grundlinie. Der Trainer spielt zu; wer ins Zielfeld trifft, darf einen Ball aus dem Korb holen und ins Lager legen. Welches Team hat nach 8 Minuten die meisten Bälle? Variante: Treffer darf auch einen Ball aus dem anderen Lager klauen.",
-    tips: ["Schnell zurück in die Reihe", "Genau statt hart"],
+    teilziel: "Schnell zurück in die Reihe",
     focus: ["Taktik", "Beinarbeit"],
     diagram: { items: [...feeding, target(-3.5, 12), target(3.5, 12), kid(-1, 10, "A"), kid(1, 10, "B"), shot(1, -8, -1, 9.4), shot(-1, 9.4, -2, -9), run(-1, 10.6, -3, 11.7)] },
   },
@@ -370,7 +370,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Zwei gegen zwei am Netz, nur Volleys, der Ball darf nicht aufspringen.",
     description:
       "Alle stehen zwischen Netz und Aufschlaglinie. Der Trainer wirft einen Ball ein, dann wird nur mit Volleys gespielt. Springt der Ball auf, ist der Punkt vorbei. Schnelle, lustige Punkte. Bis 5, dann Teams mischen.",
-    tips: ["Schläger vor die Brust!", "Kurze Schläge, kein Ausholen", "Füße bewegen"],
+    teilziel: "Schläger vor die Brust",
     focus: ["Volley"],
     diagram: { items: [kid(-2, -3, "A"), kid(2, -3, "A"), kid(-2, 3, "B"), kid(2, 3, "B"), shot(-2, 2.5, 1.8, -2.5), shot(1.8, -2.5, 2, 2.5), coach(-6.5, 0)] },
   },
@@ -381,7 +381,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Alle zusammen: Wie viele Ballwechsel schafft die Gruppe am Stück?",
     description:
       "Zwei Reihen auf beiden Seiten, jeder schlägt einen Ball und stellt sich wieder hinten an (wie Rundlauf, aber ohne Laufen und ohne Ausscheiden). Alle zählen laut mit. Ziel: den Gruppenrekord brechen. Der Rekord wird notiert und nächste Woche angegriffen.",
-    tips: ["Alle zählen laut!", "Hoch und in die Mitte spielen", "Gemeinsam statt gegeneinander"],
+    teilziel: "Alle zählen laut",
     focus: ["Ballgefühl"],
     diagram: { items: [kid(0, -9, "1"), kid(0, -10.3, "3"), kid(0, 9, "2"), kid(0, 10.3, "4"), shot(0, -8.4, 0.5, 8.4), shot(0.5, 8.4, -0.5, -8.4), coach(6.5, 0)] },
   },
@@ -392,7 +392,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Kurze Matches in mehreren Feldern: Gewinner steigen auf, Verlierer ab.",
     description:
       "Die Aufschlagfelder (oder mehrere Plätze) sind Ligen: Feld 1 = Bundesliga. In jedem Feld wird bis 5 oder für 3 Minuten gespielt. Gewinner rücken ein Feld höher, Verlierer eins tiefer. Wer ist am Ende in der Bundesliga?",
-    tips: ["Gegen jeden gut spielen", "Fair zählen, laut ansagen"],
+    teilziel: "Gegen jeden gut spielen",
     focus: ["Taktik"],
     diagram: { items: [kid(-2.5, -4.5, "1"), kid(-2.5, 4.5, "2"), kid(2.5, -4.5, "3"), kid(2.5, 4.5, "4"), run(-2.5, 5.2, 1.8, 5.2), run(2.5, -5.2, -1.8, -5.2), coach(-6.5, 0)] },
   },
@@ -403,7 +403,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Jeder hat eine Hütchenburg hinter sich und versucht, die Burg des Gegners zu treffen.",
     description:
       "Zwei Kinder spielen gegeneinander, jedes hat hinter sich einen Hütchen-Turm (oder Dose). Es wird Ballwechsel gespielt; wer die Burg des Gegners trifft, bekommt 3 Punkte, normaler Punkt = 1. Lustig und schult Ziel-Spielen und Verteidigung.",
-    tips: ["Erst aufbauen, dann zielen", "Burg schützen heißt: zurück zur Mitte"],
+    teilziel: "Erst aufbauen, dann zielen",
     focus: ["Taktik", "Ballgefühl"],
     diagram: { items: [kid(0, -9.5, "1"), cone(0, -12.5), kid(0, 9.5, "2"), cone(0, 12.5), shot(0, 9, 0.2, -12)] },
   },
@@ -414,7 +414,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Der Trainer ruft Farben: Rot = kurz, Gelb = in die Mitte, Grün = volle Länge.",
     description:
       "Paare spielen Ballwechsel. Der Trainer ruft während des Spiels Ampelfarben. Rot: kurzer Ball ins Aufschlagfeld. Gelb: in die Mitte. Grün: lang zur Grundlinie. Wer die Farbe richtig umsetzt, bekommt einen Punkt.",
-    tips: ["Zuhören und reagieren", "Tempo anpassen, nicht nur Richtung"],
+    teilziel: "Zuhören und reagieren",
     focus: ["Ballgefühl", "Taktik"],
     diagram: { items: [kid(-2, -11, "1"), kid(2, 11, "2"), shot(2, 10.4, -2, -3), shot(-2, -10.4, 1.5, 10), coach(-6.5, 0)] },
   },
@@ -427,7 +427,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Zwei Teams sammeln alle Bälle: Welcher Korb ist voller?",
     description:
       "Jedes Team bekommt einen Korb (oder eine Platzhälfte). Auf Pfiff werden alle Bälle eingesammelt, nur mit dem Schläger aufheben (draufklopfen, mit Fuß und Schläger) erlaubt. Danach wird gezählt. Spart dem Trainer das Aufräumen.",
-    tips: ["Nur mit dem Schläger!", "Zählen alle gemeinsam"],
+    teilziel: "Nur mit dem Schläger",
     focus: ["Ballgefühl"],
     diagram: { items: [basket(-3, 12.5), basket(3, 12.5), ball(-2, 5), ball(1, 3), ball(3, 8), ball(-4, 9), ball(0, 7), kid(-1, 8, "A"), kid(2, 5, "B"), run(-1, 8, -2.6, 11.8), run(2, 5, 1.2, 3.4)] },
   },
@@ -438,7 +438,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Der Trainer hält den Ballkorb hoch, die Kinder versuchen, hineinzuspielen.",
     description:
       "Der Trainer steht auf der anderen Seite und hält den leeren Ballkorb. Die Kinder spielen sich selbst einen Ball zu (fallen lassen und schlagen) und versuchen, in den Korb zu treffen, der Trainer hilft ein bisschen mit. Jeder Treffer = großer Jubel. Gut als lustiger Abschluss.",
-    tips: ["Hoher, weicher Ball", "Wer trifft, bekommt Applaus"],
+    teilziel: "Hoher, weicher Ball",
     focus: ["Ballgefühl"],
     diagram: { items: [coach(0, -8), basket(0, -9.3), kid(-2, 9, "1"), kid(0, 10, "2"), kid(2, 9, "3"), shot(-2, 8.4, 0, -8.8), shot(2, 8.4, 0.3, -8.6)] },
   },
@@ -449,7 +449,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Jeder hat genau einen Aufschlag auf ein Ziel. Wer trifft, wählt das Spiel für nächste Woche.",
     description:
       "Alle stellen sich an der Grundlinie auf. Ein Ziel (Dose oder Reifen) im Aufschlagfeld. Jedes Kind hat einen Versuch. Wer trifft (oder am nächsten dran ist), darf das Lieblingsspiel für die nächste Stunde aussuchen. Wird hier in den Notizen eingetragen.",
-    tips: ["Konzentration: nur ein Versuch!", "Alle anderen sind leise"],
+    teilziel: "Konzentration: nur ein Versuch",
     focus: ["Aufschlag"],
     diagram: { items: [kid(1, 11.9, "1"), kid(2.5, 12.5, "2"), kid(4, 12.5, "3"), target(-2, -5), shot(1, 11.4, -2, -5)] },
   },
@@ -460,7 +460,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Kurz im Kreis: Was hat am meisten Spaß gemacht? Dann Abklatsch-Tunnel.",
     description:
       "Alle sitzen im Kreis am Netz. Jedes Kind sagt in einem Satz, was heute am meisten Spaß gemacht hat oder was es gelernt hat. Der Trainer lobt jedes Kind für eine konkrete Sache. Zum Schluss bilden alle einen Tunnel und jeder läuft einmal durch und wird abgeklatscht.",
-    tips: ["Für jedes Kind eine konkrete Sache loben", "Den Rekord vom Tag noch einmal nennen"],
+    teilziel: "Für jedes Kind eine konkrete Sache loben",
     focus: [],
     diagram: { items: [coach(0, 2.5), kid(-2, 2.5, "1"), kid(2, 2.5, "2"), kid(-1.4, 4.2, "3"), kid(1.4, 4.2, "4"), kid(0, 5, "5")] },
   },
@@ -473,7 +473,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Alle laufen kreuz und quer, auf Zuruf: Feuer = Tappings, Wasser = Strecksprünge, Sturm = in die Hocke.",
     description:
       "Die ganze Gruppe bewegt sich auf einer Platzhälfte kreuz und quer, mal vorwärts, rückwärts, seitlich. Der Trainer ruft unregelmäßig: „Feuer!“ – schnelle Tappings am Ort (Flammen austreten), „Wasser!“ – hohe Strecksprünge (Luft holen), „Sturm!“ – in die Hocke (wenig Angriffsfläche). Bei „Entwarnung!“ laufen alle locker weiter.",
-    tips: ["Kopf hoch, niemanden anrempeln", "Schnell reagieren!", "Ganz tief in die Hocke"],
+    teilziel: "Kopf hoch, niemanden anrempeln",
     focus: ["Koordination", "Beinarbeit"],
     diagram: { items: [coach(-6.5, 3), kid(-3, 2, "1"), kid(2, 3, "2"), kid(-1, 7, "3"), kid(3, 9, "4"), kid(0, 10.5, "5"), run(-3, 2, -1, 4.5), run(2, 3, 3.5, 5.5), run(-1, 7, -3.5, 8.5), run(3, 9, 1.5, 7.5)] },
   },
@@ -484,7 +484,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Zwei Teams bringen einen Ball von Kegel zu Kegel und zurück. Welches Team ist zuerst fertig?",
     description:
       "Zwei gleich starke Teams stehen hinter der Grundlinie. Auf der T-Linie und kurz vor dem Netz steht für jedes Team ein Kegel, auf dem T-Linien-Kegel liegt ein Ball. Der Erste läuft hin, bringt den Ball zu Kegel 2, legt ihn ab und schlägt den Nächsten ab. Der läuft direkt zu Kegel 2 und bringt den Ball zurück zu Kegel 1. Erst nach den Ballspielen spielen, Staffeln brauchen warme Beine.",
-    tips: ["Ball ablegen, nicht werfen!", "Abklatschen erst hinter der Linie", "Anfeuern!"],
+    teilziel: "Ball ablegen, nicht werfen",
     focus: ["Koordination", "Beinarbeit"],
     diagram: { items: [kid(-2.5, 12.3, "A"), kid(-2.5, 13.5, "A"), kid(2.5, 12.3, "B"), kid(2.5, 13.5, "B"), cone(-2.5, 6.4), cone(-2.5, 1.2), cone(2.5, 6.4), cone(2.5, 1.2), ball(-2.5, 6), run(-2.5, 11.6, -2.5, 6.9), run(2.5, 11.6, 2.5, 1.7)] },
   },
@@ -495,7 +495,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Der Trainer wirft Bälle zu, die Kinder fangen sie mit einem umgedrehten Hütchen: eine Eistüte.",
     description:
       "Jedes Kind hat ein Hütchen in der Hand, mit der Öffnung nach oben. Der Trainer wirft Bälle variabel zu: hoch, flach, links, rechts. Die Kinder fangen den Ball nach einem Aufsprung mit dem Hütchen, kippen ihn aus und laufen zurück. Für jede gefangene Eistüte gibt es einen Punkt.",
-    tips: ["Zum Ball laufen, nicht warten", "Hütchen ruhig halten", "Nach dem Fangen zurück zur Mitte"],
+    teilziel: "Zum Ball laufen, nicht warten",
     focus: ["Ballgefühl", "Beinarbeit", "Koordination"],
     diagram: { items: [coach(0, -2), basket(1.2, -2), kid(-2, 4, "1"), kid(2, 4.5, "2"), kid(0, 7, "3"), shot(0, -1.5, -2, 3.5), shot(0, -1.5, 2, 4)] },
   },
@@ -506,7 +506,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Zwei Teams werfen Bälle über das Netz: Wer hat nach einer Minute weniger Bälle auf seiner Seite?",
     description:
       "Auf jeder Platzhälfte liegen gleich viele Bälle (z. B. 20). Auf Kommando werfen beide Teams die Bälle auf die andere Seite, immer nur einen Ball aufheben und nur über Schulterhöhe werfen – das ist schon die Wurfbewegung für den Aufschlag. Nach einer Minute zählen: Welches Team hat weniger Bälle auf seiner Hälfte?",
-    tips: ["Seitlich stellen, Ellbogen hoch", "Nur ein Ball in der Hand", "Weit nach oben werfen"],
+    teilziel: "Seitlich stellen, Ellbogen hoch",
     focus: ["Aufschlag", "Koordination"],
     diagram: { items: [kid(-2.5, -6, "A"), kid(2.5, -8, "A"), kid(-2.5, 6, "B"), kid(2.5, 8, "B"), ball(-1, -4), ball(1, -9), ball(0, 5), ball(-3, 9), shot(-2.5, -5.5, -1, 7), shot(2.5, 7.5, 1, -6)] },
   },
@@ -517,7 +517,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Den Ball am Schlägerrahmen entlang Runden drehen lassen, ohne dass er herunterfällt.",
     description:
       "Jedes Kind legt einen Ball auf die Schlägerfläche und lässt ihn durch leichtes Kippen am Rahmen entlang kreisen: das Formel-1-Rennen. Wer schafft die meisten Runden? Dann im Gehen, dann im Laufen um ein Hütchen herum, dann in die andere Richtung.",
-    tips: ["Nur ganz wenig kippen", "Augen auf den Ball", "Erst langsam, dann schnell"],
+    teilziel: "Nur ganz wenig kippen",
     focus: ["Ballgefühl", "Koordination"],
     diagram: { items: [kid(-3, 3, "1"), kid(0, 4, "2"), kid(3, 3, "3"), cone(-1.5, 8), cone(1.5, 8), run(0, 4, 1.5, 7.5), coach(0, 10.5)] },
   },
@@ -528,7 +528,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Zu zweit den Ball mit dem Schläger am Boden hin und her rollen, mit Vorhand- und Rückhandbewegung.",
     description:
       "Paare stehen sich in 3–4 Metern Abstand gegenüber und rollen den Ball mit dem Schläger über den Boden hin und her, mit einer vorhand- bzw. rückhandähnlichen Bewegung. Erst nur Vorhand, dann nur Rückhand, dann im Wechsel. Zum Schluss zu viert reihum, der Letzte rollt auf ein Ziel.",
-    tips: ["Schlägerfläche zum Partner", "Ball vor dem Körper treffen", "In die Knie gehen"],
+    teilziel: "Schlägerfläche zum Partner",
     focus: ["Vorhand", "Rückhand", "Ballgefühl"],
     diagram: { items: [kid(-3, 3, "1"), kid(-3, 7, "2"), kid(2, 3, "3"), kid(2, 7, "4"), shot(-3, 3.5, -3, 6.5), shot(2, 6.5, 2, 3.5), target(4, 10)] },
   },
@@ -539,7 +539,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Zu zweit über kurze Distanz auf die Teppichfliese des Partners spielen; jeder Treffer klappt sie weiter nach hinten.",
     description:
       "Zwei Kinder stehen sich in 3–4 Metern Abstand gegenüber, vor jedem liegt eine Teppichfliese (oder eine ausgebreitete Zeitung). Sie spielen sich den Ball mit Vorhand oder Rückhand zu und versuchen, die Fliese des anderen zu treffen. Bei jedem Treffer wird die getroffene Fliese einmal nach hinten geklappt – das Feld wird größer. Wer zuerst bis zur Linie geklappt hat, gewinnt.",
-    tips: ["Von unten nach oben schwingen", "Ball am höchsten Punkt über der Fliese", "Nach dem Schlag bereit machen"],
+    teilziel: "Von unten nach oben schwingen",
     focus: ["Vorhand", "Rückhand", "Ballgefühl"],
     diagram: { items: [kid(-2.5, 1.5, "1"), kid(-2.5, 5.5, "2"), kid(2.5, 1.5, "3"), kid(2.5, 5.5, "4"), target(-2.5, 2.5), target(-2.5, 4.5), target(2.5, 2.5), target(2.5, 4.5), shot(-2.5, 5, -2.5, 2.6)] },
   },
@@ -550,7 +550,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Den Schläger wie ein Lenkrad mit beiden Händen halten und zugeworfene Bälle als Volley zurückblocken.",
     description:
       "Paare im Aufschlagfeld: A wirft den Ball von unten zu, B hält den Schläger mit beiden Händen am Rahmen wie ein Lenkrad und blockt den Ball als Vorhand-Volley zurück, A fängt. Nach 10 Bällen Wechsel. Dann Rückhand-Volley, dann normal am Griff, dann zuspielen statt zuwerfen.",
-    tips: ["Schlägerkopf oben", "Nicht ausholen, nur blocken", "Ball vor dem Körper treffen"],
+    teilziel: "Schlägerkopf oben",
     focus: ["Volley"],
     diagram: { items: [kid(-2.5, -2, "B"), kid(2.5, -2, "B"), kid(-2.5, 3.5, "A"), kid(2.5, 3.5, "A"), shot(-2.5, 3, -2.5, -1.5), shot(-2.2, -1.5, -2.2, 3)] },
   },
@@ -561,7 +561,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Einer wirft zu und fängt den Volley mit der Balldose wieder auf. Ist die Dose voll, wird gewechselt.",
     description:
       "Paare: A steht auf einer Teppichfliese, wirft den Ball zu und fängt ihn mit einer Balldose wieder auf. B spielt den Ball aus der seitlichen Stellung mit einem Rückhand-Volley (oder Vorhand-Volley) zurück. Für jeden gefangenen Ball gibt es einen Punkt, ist die Dose voll (3–4 Bälle), wird gewechselt. Gut als Station.",
-    tips: ["Seitlich stellen", "Kurz blocken, kein Ausholen", "Genau zum Partner"],
+    teilziel: "Seitlich stellen",
     focus: ["Volley", "Ballgefühl"],
     diagram: { items: [kid(-2, -2.5, "B"), kid(-2, 4, "A"), target(-2, 4.8), shot(-2, 3.5, -2, -2), shot(-1.7, -2, -1.7, 3.5), kid(2.5, -2.5, "B"), kid(2.5, 4, "A"), target(2.5, 4.8)] },
   },
@@ -572,7 +572,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Paare: A schlägt auf, B retourniert, A fängt. Gelingt alles, gibt es einen Punkt fürs Team.",
     description:
       "Zwei Paare spielen gleichzeitig cross. A schlägt auf, B spielt den Return zu A zurück, A fängt den Ball nach einem Aufsprung. Landen Aufschlag und Return im Feld und wird gefangen, gibt es einen Punkt und A schlägt sofort wieder auf. Nach 1,5 Minuten Aufgabenwechsel. Welches Paar hat nach 3 Minuten die meisten Punkte?",
-    tips: ["Ball hoch genug werfen", "Return ruhig, Hauptsache rein", "Split-Step beim Aufschlag des Partners"],
+    teilziel: "Ball hoch genug werfen",
     focus: ["Aufschlag", "Ballgefühl"],
     diagram: { items: [kid(-1, -11.9, "A"), kid(2.5, 11.9, "B"), kid(1, -11.9, "C"), kid(-2.5, 11.9, "D"), shot(-1, -11.4, 2.5, 5.5), shot(2.5, 11.4, -1, -10.5), coach(-6.5, 0)] },
   },
@@ -583,7 +583,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Teamwettkampf beim Aufschlag: Jedes getroffene Zielfeld wird mit einem Hütchen markiert. Wer hat zuerst alle drei?",
     description:
       "Zwei Teams in Reihen, Aufschlag cross in drei markierte Zielfelder. Wer trifft, läuft außen herum auf die andere Seite und stellt ein Hütchen in das getroffene Feld. Jedes Kind schlägt nur einmal auf, dann ist der Nächste dran. Das Team, das zuerst alle drei Felder markiert hat, gewinnt. Laufweg aus Sicherheitsgründen immer außerhalb des Feldes.",
-    tips: ["Ruhig aufwerfen", "Langer Ausschwung in Richtung Ziel", "Laufweg außen herum!"],
+    teilziel: "Ruhig aufwerfen",
     focus: ["Aufschlag"],
     diagram: { items: [kid(1, 11.9, "A"), kid(1.5, 13.2, "A"), kid(-1, 11.9, "B"), kid(-1.5, 13.2, "B"), target(-3.5, -5), target(-1, -5), target(-2.2, -2), shot(1, 11.4, -2.2, -2.5), run(1.5, 13.2, 6.2, 0)] },
   },
@@ -594,7 +594,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Paare spielen erst 1, dann 2, dann 3 Bälle ins Feld, bis zur Zielstufe. Welches Paar ist zuerst oben?",
     description:
       "Zwei Paare spielen longline miteinander. In Stufe 1 muss jeder den Ball einmal ins Feld spielen, dann wird gefangen, in Stufe 2 zweimal, dann dreimal – bis zur Zielstufe 7 (oder 10). Bei einem Fehler wird die Stufe wiederholt. Welches Paar schafft zuerst die Spitze der Pyramide?",
-    tips: ["Sicherheit vor Tempo", "Hoch übers Netz", "Nach dem Schlag zurück in die Mitte"],
+    teilziel: "Sicherheit vor Tempo",
     focus: ["Vorhand", "Rückhand", "Ballgefühl"],
     diagram: { items: [kid(-3, -9, "A"), kid(-3, 9, "B"), kid(3, -9, "C"), kid(3, 9, "D"), shot(-3, 8.5, -3, -8.5), shot(3, -8.5, 3, 8.5)] },
   },
@@ -605,7 +605,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Paare spielen longline und rücken nach jedem Schlag ein, zwei Schritte vor bis zum Netz und wieder zurück.",
     description:
       "Zwei Paare spielen longline miteinander und starten gleichzeitig an der Grundlinie. Nach jedem Schlag gehen beide ein, zwei Schritte Richtung Netz, bis sie eine Markierung etwa 2 Meter vor dem Netz berührt haben, dann nach jedem Schlag wieder zurück hinter die Grundlinie. Volleys sind erlaubt. Welches Paar ist zuerst wieder hinten?",
-    tips: ["Kleine Schritte, Ball nicht aus den Augen", "Vorne kurz und weich, hinten lang", "Bereit sein, bevor der Partner schlägt"],
+    teilziel: "Kleine Schritte, Ball nicht aus den Augen",
     focus: ["Vorhand", "Volley", "Beinarbeit"],
     diagram: { items: [kid(-3, -11.9, "A"), kid(-3, 11.9, "B"), kid(3, -11.9, "C"), kid(3, 11.9, "D"), cone(-3, 2), cone(3, 2), run(-3, 11.4, -3, 2.6), run(3, -11.4, 3, -2.6), shot(-2.6, -11, -2.6, 10.8)] },
   },
@@ -616,7 +616,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Ein Kind spielt immer cross, das andere immer longline: der Ball wandert wie ein Hosenträger übers Feld.",
     description:
       "Zwei Kinder (oder Trainer und Kind) spielen über das ganze Feld: A spielt immer cross, B immer longline. So muss jeder nach jedem Schlag laufen. Wer drei Fehler hat, wechselt mit dem Nächsten. Nach der Hälfte der Zeit tauschen die Aufgaben.",
-    tips: ["Nach jedem Schlag zurück zur Mitte", "Früh ausholen", "Richtung mit den Schultern vorgeben"],
+    teilziel: "Nach jedem Schlag zurück zur Mitte",
     focus: ["Vorhand", "Rückhand", "Beinarbeit"],
     diagram: { items: [kid(-3, -10, "A"), kid(3, 10, "B"), shot(-3, -9.5, 3, 9.5), shot(3, 9.5, 3, -9.5), run(-3, -10, 3, -10), kid(-3, 12, "C")] },
   },
@@ -627,7 +627,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Mit kurz gefasstem Schläger aufschlagen, auf Zielflächen wie bei Darts: Wer schafft genau 20 Punkte?",
     description:
       "An der Wand oder im Aufschlagfeld liegen verschieden große Zielflächen: die kleinste bringt die meisten Punkte, die größte die wenigsten. Die Kinder schlagen mit kurz gefasstem Schläger auf (Aufschlagbewegung von oben). Wer schafft als Erster genau 20 (oder 10) Punkte? Variation: Wer hat nach 10 Versuchen die meisten?",
-    tips: ["Ball über dem Kopf treffen", "Schläger kurz fassen", "Auf genau 20 – ruhig zielen"],
+    teilziel: "Ball über dem Kopf treffen",
     focus: ["Aufschlag"],
     diagram: { items: [kid(-2, 9, "1"), kid(0, 10.2, "2"), kid(2, 9, "3"), target(-2.5, -5), target(0, -3.5), target(2.5, -5.5), shot(0, 8.5, 0, -3.5)] },
   },
@@ -638,7 +638,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Doppel: Nur das Team am Netz kann punkten. Verliert es zwei Punkte in Folge, wechselt es an die Grundlinie.",
     description:
       "Doppel A/B steht am Netz, Doppel C/D an der Grundlinie. Der Trainer spielt immer auf das Grundlinien-Team ein, der eingespielte Ball darf nicht aus der Luft genommen werden. Nur das Netz-Team kann punkten. Verliert es zwei Punkte in Folge, wechselt es an die Grundlinie und das andere Team rückt ans Netz. Mit oder ohne Lob. Wer hat zuerst 7 Punkte?",
-    tips: ["Am Netz: Schläger vor die Brust", "Grundlinie: flach oder Lob über die Netzspieler", "Schnell die Positionen wechseln"],
+    teilziel: "Am Netz: Schläger vor die Brust",
     focus: ["Volley", "Taktik"],
     diagram: { items: [coach(-6.5, -9), basket(-6.5, -10.2), kid(-2, -3, "A"), kid(2, -3, "B"), kid(-2.5, 11.5, "C"), kid(2.5, 11.5, "D"), shot(-6, -8.5, -2.5, 10.8), shot(-2.5, 11, 1.8, -2.6), kid(5.8, 13, "E")] },
   },
@@ -649,7 +649,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Vier Aufschlagfelder sind vier Länder, jedes Kind verteidigt eins. Wer Fehler macht, muss ins letzte Land.",
     description:
       "Die vier Aufschlagfelder sind vier Länder, Land 1 ist das Königreich. In jedem Land steht ein Kind, weitere warten am Rand. Der König spielt ein, gespielt wird in ein beliebiges anderes Land, der Ball springt einmal auf. Wer einen Fehler macht, geht ins letzte Land (oder raus, und ein wartendes Kind kommt ins letzte Land), alle dahinter rücken auf. Wer ist am Ende König?",
-    tips: ["Bereit stehen, Schläger vor dem Körper", "Ins Land mit der Lücke spielen", "Fair laut ansagen"],
+    teilziel: "Bereit stehen, Schläger vor dem Körper",
     focus: ["Ballgefühl", "Taktik", "Beinarbeit"],
     diagram: { items: [kid(-2.5, -3.5, "1"), kid(2.5, -3.5, "2"), kid(2.5, 3.5, "3"), kid(-2.5, 3.5, "4"), kid(-6.5, 5, "5"), shot(-2.5, -3, 2.5, 3), shot(2.5, 3, 2.5, -3), coach(6.8, 0)] },
   },
@@ -660,7 +660,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Zwei gegen zwei, aber wie beim Tischtennis schlagen die Partner abwechselnd und klatschen sich nach jedem Schlag ab.",
     description:
       "Zwei gegen zwei im Kleinfeld oder Midcourt. Die Partner schlagen immer abwechselnd, wie beim Tischtennis-Doppel, und klatschen sich nach jedem Schlag ab. Der Trainer spielt den Ball ein. Gespielt wird um Punkte, bis 7.",
-    tips: ["Nach dem Schlag Platz machen", "Abklatschen und zurück", "Hoch und sicher spielen"],
+    teilziel: "Nach dem Schlag Platz machen",
     focus: ["Beinarbeit", "Taktik"],
     diagram: { items: [coach(-6.5, 0), kid(-1, -5, "A"), kid(1.5, -6.5, "B"), kid(-1, 5, "C"), kid(1.5, 6.5, "D"), run(-1, -5, 1, -7), shot(-1, 4.5, -1, -4.5)] },
   },
@@ -671,7 +671,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Einzel um Punkte, aber in der Mitte des Feldes liegt eine verbotene Zone. Wer hineinspielt, verliert den Punkt.",
     description:
       "Es wird 1 gegen 1 gespielt, die anderen warten und wechseln nach jedem Punkt. In der Mitte jeder Platzhälfte ist eine Zone von etwa 3 × 2 Metern markiert. Das Einspiel geht in die Zone, danach verliert, wer den Ball hineinspielt. So lernen die Kinder, in die Ecken und lang zu spielen.",
-    tips: ["Weg von der Mitte!", "Lieber sicher in die Ecke als zu nah an die Linie", "Lang spielen"],
+    teilziel: "Weg von der Mitte",
     focus: ["Taktik"],
     diagram: { items: [kid(0, -11, "A"), kid(0, 11, "B"), kid(5.5, 12.5, "C"), kid(-5.5, -12.5, "D"), cone(-1.5, -7.5), cone(1.5, -7.5), cone(-1.5, -9.5), cone(1.5, -9.5), cone(-1.5, 7.5), cone(1.5, 7.5), cone(-1.5, 9.5), cone(1.5, 9.5), shot(0, 10.5, -3.5, -10)] },
   },
@@ -682,7 +682,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Cross im halben Feld: Punkt gibt es, wenn man den Gegner so weit treibt, dass er seitlich aus dem Feld tritt.",
     description:
       "Zwei Paare spielen 1 gegen 1 cross im halben Doppelfeld, ohne Stopp und Volley. Die Grundlinie wird zur Seite verlängert gedacht. Einen Punkt bekommt, wer den Gegner so weit nach außen treibt, dass er mit einem Fuß seitlich aus dem Feld tritt. Natürlich zählen auch normale Punkte.",
-    tips: ["Winkel spielen, nicht hart", "Nach dem Schlag zurück zur Mitte", "Kleine Schritte zum Ball"],
+    teilziel: "Winkel spielen, nicht hart",
     focus: ["Taktik", "Beinarbeit"],
     diagram: { items: [kid(-3, -11, "A"), kid(3, 11, "B"), kid(3, -11, "C"), kid(-3, 11, "D"), shot(-3, -10.5, 5, 7), run(3, 11, 5.8, 8)] },
   },
@@ -693,7 +693,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Zwei Einzel gleichzeitig longline. Wer zuerst einen Fehler macht, ruft „Fehler!“ und es geht als Doppel weiter.",
     description:
       "Alle starten an der Grundlinie, A spielt gegen C und B gegen D longline um Punkte, beide Bälle werden gleichzeitig von unten eingespielt. Ist ein Punkt vorbei, ruft der, der den Fehler gemacht hat (oder der Trainer) „Fehler!“ und der andere Ball wird als Doppel weitergespielt. Gut als spielerischer Ausklang.",
-    tips: ["Laut „Fehler!“ rufen", "Sofort Doppelposition einnehmen", "Augen auch auf den anderen Ball"],
+    teilziel: "Laut „Fehler!“ rufen",
     focus: ["Taktik", "Ballgefühl"],
     diagram: { items: [kid(-3, -11, "A"), kid(3, -11, "B"), kid(-3, 11, "C"), kid(3, 11, "D"), shot(-3, -10.5, -3, 10.5), shot(3, 10.5, 3, -10.5)] },
   },
@@ -704,7 +704,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Doppel um Punkte: Wer einen Fehler macht, muss den Zaun berühren. Das andere Team spielt sofort den nächsten Ball ein.",
     description:
       "Zwei gegen zwei, alle starten an der Grundlinie. Wer einen Fehler macht, muss zum Zaun laufen und ihn berühren, das andere Team darf sofort den nächsten Ball einspielen – auch wenn der Gegner noch unterwegs ist. Variation: Der Trainer spielt auf das Team ein, das den Punkt gewonnen hat.",
-    tips: ["Schnell zurück!", "Den freien Platz anspielen", "Fair: erst Zaun, dann spielen"],
+    teilziel: "Schnell zurück",
     focus: ["Taktik", "Beinarbeit"],
     diagram: { items: [kid(-2.5, -11, "A"), kid(2.5, -11, "B"), kid(-2.5, 11, "C"), kid(2.5, 11, "D"), run(2.5, 11, 2.5, 14.2), shot(-2.5, -10.5, 2.5, 8)] },
   },
@@ -715,7 +715,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Zwei spielen cross an der Grundlinie, die Partner am Netz versuchen, den Ball zu „räubern“.",
     description:
       "A und C spielen an der Grundlinie gegeneinander cross, B und D stehen am Netz und versuchen, mit einem Volley dazwischenzugehen und den Punkt zu machen. Wer räubert, muss auch treffen. Nach 5 Punkten Positionen tauschen. Für Kinder, die schon Volley und Grundschläge können.",
-    tips: ["Am Netz: früh entscheiden, dann gehen", "Grundlinie: ruhig cross, ab und zu longline", "Volley nach unten"],
+    teilziel: "Am Netz: früh entscheiden, dann gehen",
     focus: ["Volley", "Taktik"],
     diagram: { items: [kid(-3, -11, "A"), kid(3, -3, "B"), kid(3, 11, "C"), kid(-3, 3, "D"), shot(-3, -10.5, 3, 10.5), run(-3, 3, -0.5, 2.5)] },
   },
@@ -726,7 +726,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Ein Team hat drei Bälle und eine Minute Zeit: Nur seine Punkte zählen, die Bälle holt es sich selbst.",
     description:
       "1 gegen 1 im Feld, Team A/B gegen C/D. Ein Team bekommt drei Bälle und spielt von unten beliebig ein. Gezählt werden nur die Punkte des Teams mit den Bällen, innerhalb einer Minute. Den nächsten Ball muss es sich selbst holen, egal wo er liegt. Dann wechseln die Teams. Welches Team schafft mehr Punkte?",
-    tips: ["Schnell den nächsten Ball holen", "Sicher spielen, Fehler kosten Zeit", "Anfeuern!"],
+    teilziel: "Schnell den nächsten Ball holen",
     focus: ["Taktik", "Beinarbeit"],
     diagram: { items: [kid(0, -11, "A"), kid(0, 11, "C"), kid(-5.8, -12.5, "B"), kid(5.8, 12.5, "D"), ball(-2, -12.5), ball(-1, -13), ball(0, -13.3), shot(0, -10.5, 2.5, 9)] },
   },
@@ -739,7 +739,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Die Krake steht in der Mitte, alle laufen von Grundlinie zu Grundlinie. Wer gefangen wird, wird ein Krakenarm.",
     description:
       "Ein Kind ist die Krake und steht auf der Aufschlaglinie in der Mitte. Ruft es „Krake!“, laufen alle mit dem Ball auf dem Schläger zur anderen Grundlinie. Wer abgeschlagen wird oder den Ball verliert, bleibt als Krakenarm an der Stelle stehen und darf nur mit dem Schläger fangen, ohne die Füße zu bewegen. Wer zuletzt übrig ist, ist die nächste Krake.",
-    tips: ["Kopf hoch, Ball im Blick!", "Schnell, aber der Ball bleibt drauf", "Arme: Schläger raus, Füße fest"],
+    teilziel: "Kopf hoch, Ball im Blick",
     focus: ["Koordination", "Beinarbeit", "Ballgefühl"],
     diagram: {
       items: [kid(0, -6.4, "K"), kid(-3, -11.5, "1"), kid(-1, -11.5, "2"), kid(1, -11.5, "3"), kid(3, -11.5, "4"), run(-3, -11.3, -2.5, 11.5), run(1, -11.3, 2, 11.5)],
@@ -752,7 +752,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Fangspiel: Wer gefangen wird, versteinert mit dem Schläger über dem Kopf. Erlöst wird mit einer Schattenvorhand.",
     description:
       "Ein oder zwei Fänger (mit Leibchen oder Ball in der Hand). Wer abgeschlagen wird, bleibt stehen wie eine Statue, den Schläger über dem Kopf. Ein anderes Kind erlöst die Statue, indem es sich davor stellt und eine saubere Schattenvorhand oder -rückhand macht. Nach einer Minute neue Fänger. Nur innerhalb der Doppellinien.",
-    tips: ["Erlösen: seitlich stellen, ausholen, durchschwingen", "Kleine schnelle Schritte", "Schau, wer Hilfe braucht"],
+    teilziel: "Erlösen: seitlich stellen, ausholen, durchschwingen",
     focus: ["Beinarbeit", "Vorhand", "Rückhand"],
     diagram: { items: [kid(0, 4, "F"), kid(-3, 8, "1"), kid(2.5, 9, "2"), kid(-1, 11, "3"), kid(3.5, 3, "4"), run(0, 4, -2.5, 7.5), run(2.5, 9, 3.3, 3.5)] },
   },
@@ -763,7 +763,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Wie „Simon sagt“: Nur wenn der Trainer „Trainer sagt“ davor sagt, wird die Bewegung gemacht.",
     description:
       "Alle stehen locker verteilt mit Schläger. Der Trainer ruft Aufgaben: „Trainer sagt: Split-Step!“, „Trainer sagt: Schattenrückhand!“, „Trainer sagt: Sidesteps nach links!“. Fehlt „Trainer sagt“, bleibt man stehen. Wer sich bewegt, macht 3 Hampelmänner und spielt sofort weiter, niemand scheidet aus. Später dürfen die Kinder Trainer sein.",
-    tips: ["Gut zuhören!", "Split-Step: kleiner Hüpfer, Knie weich", "Schatten-Schläge ganz langsam und sauber"],
+    teilziel: "Gut zuhören",
     focus: ["Koordination", "Vorhand", "Rückhand"],
     diagram: { items: [coach(0, 1.5), kid(-3, 5, "1"), kid(0, 5, "2"), kid(3, 5, "3"), kid(-1.5, 8, "4"), kid(1.5, 8, "5")] },
   },
@@ -774,7 +774,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Viele Bälle in der Mitte, jedes Team hat ein Nest. Bälle einzeln auf dem Schläger ins eigene Nest bringen.",
     description:
       "In der Mitte (am T) liegen viele Bälle. Jedes Team (1–2 Kinder) hat in einer Ecke einen Reifen oder ein Hütchenquadrat als Nest. Auf „Los“ holt jeder einen Ball auf dem Schläger ins Nest, nie mit der Hand. Ist die Mitte leer, darf aus anderen Nestern geräubert werden. Nach 90 Sekunden zählen: Welches Nilpferd ist am dicksten?",
-    tips: ["Nur ein Ball auf einmal", "Ball fällt? Da, wo er liegt, wieder aufnehmen", "Kurz bremsen, dann ablegen"],
+    teilziel: "Nur ein Ball auf einmal",
     focus: ["Ballgefühl", "Beinarbeit"],
     diagram: {
       items: [ball(0, 6.4), ball(0.6, 6.8), ball(-0.6, 6.1), ball(0.3, 5.7), target(-4.5, 11.5), target(4.5, 11.5), target(-4.5, 1.5), target(4.5, 1.5), kid(-3.8, 10.8, "1"), kid(3.8, 10.8, "2"), run(-3.8, 10.8, -0.6, 7)],
@@ -787,7 +787,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Jedes Kind hat eine Zahl. Der Trainer ruft Rechenaufgaben, wer gemeint ist, läuft um das Hütchen und zurück.",
     description:
       "Die Kinder stehen nebeneinander an der Grundlinie und bekommen Zahlen. Der Trainer ruft eine Zahl (oder „2 + 1“) und eine Lauf-Art: vorwärts, Sidesteps, rückwärts, mit Ball auf dem Schläger. Das Kind läuft ums Hütchen an der T-Linie und zurück. Ruft der Trainer zwei Zahlen, gibt es ein Wettrennen. Wer zuerst zurück ist, sammelt einen Ball.",
-    tips: ["Tief starten, Knie beugen", "Um das Hütchen eng herum", "Rückwärts: Blick über die Schulter"],
+    teilziel: "Tief starten, Knie beugen",
     focus: ["Beinarbeit", "Koordination"],
     diagram: { items: [coach(-5.5, 6.4), cone(0, 6.4), kid(-2, 11.9, "1"), kid(-0.7, 11.9, "2"), kid(0.7, 11.9, "3"), kid(2, 11.9, "4"), run(-0.7, 11.7, -0.4, 6.9), run(0.4, 6.9, 0.7, 11.7)] },
   },
@@ -798,7 +798,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Im Kreis wird der Ball von Schläger zu Schläger getippt. Bei wem er ist, wenn der Trainer „Heiß!“ ruft, sammelt einen Punkt.",
     description:
       "Die Kinder stehen im Kreis, etwa zwei Schritte auseinander. Ein Ball wird mit dem Schläger zum Nachbarn gespielt: einmal aufspringen lassen, annehmen, weiterspielen. Der Trainer dreht sich weg und ruft irgendwann „Heiß!“. Wer den Ball gerade hat oder ihn fallen lässt, bekommt einen Punkt, wenig Punkte gewinnen. Später nur mit der Rückhandseite oder in der Luft.",
-    tips: ["Sanft spielen, nicht schlagen", "Schläger offen wie ein Tablett", "Schau zum Nächsten, bevor du spielst"],
+    teilziel: "Sanft spielen, nicht schlagen",
     focus: ["Ballgefühl", "Koordination"],
     diagram: { items: [coach(-5.5, 3), kid(0, 3.5, "1"), kid(2, 5, "2"), kid(1.5, 7.3, "3"), kid(-1.5, 7.3, "4"), kid(-2, 5, "5"), shot(0, 3.5, 2, 5), shot(2, 5, 1.5, 7.3)] },
   },
@@ -811,7 +811,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Vorhand schlagen, dann außen um ein Hütchen hinter der Seitenlinie laufen und über die andere Seite als Rückhand wieder rein.",
     description:
       "Der Trainer spielt aus dem Korb. Das Kind schlägt eine Vorhand in der Platzmitte, läuft außen um ein Hütchen neben der Doppellinie, kommt von der anderen Seite zurück und schlägt eine Rückhand. Dann hinten um ein zweites Hütchen zurück in die Reihe und auf dem Weg einen Ball einsammeln. Der Laufweg ist eine liegende Acht, so ist keiner lange in der Reihe.",
-    tips: ["Nach dem Schlag gleich los", "Vor dem Schlag kurz abbremsen", "Seitlich stellen, dann schlagen"],
+    teilziel: "Nach dem Schlag gleich los",
     focus: ["Vorhand", "Rückhand", "Beinarbeit"],
     diagram: {
       items: [...feeding, kid(-1.5, 7, "1"), cone(-6.3, 7), cone(5.5, 11.5), run(-1.5, 7, -6.3, 7.8), run(-6.3, 7.8, 1.5, 7.5), run(1.5, 7.5, 5.5, 11.5), ...queue(3.5, 12.5, 2), shot(0.5, -8.5, -1.5, 6.5), shot(0.5, -8.5, 1.5, 7)],
@@ -824,7 +824,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Eine Gruppe beim Trainer, ein Kind allein an der Zielstation: selbst fallen lassen und in den Reifen schlagen. Nach 4 Bällen Wechsel.",
     description:
       "Station 1: Der Trainer spielt Vorhand und Rückhand zu. Station 2 (für ein Kind, auf der Nebenseite oder im Nachbarfeld): Ball fallen lassen, aufspringen lassen, mit Vorhand übers Netz in einen Reifen oder zwischen zwei Hütchen spielen. Jeder Treffer = ein Ball in den eigenen Becher. Nach 4 Bällen wechselt das Kind beim Trainer an die Solostation. Wer hat am Ende die meisten Treffer?",
-    tips: ["Ball vor dem Körper fallen lassen", "Schläger früh zurück", "Zum Ziel schauen, dann schlagen"],
+    teilziel: "Ball vor dem Körper fallen lassen",
     focus: ["Vorhand", "Rückhand", "Ballgefühl"],
     diagram: {
       items: [...feeding, kid(-2, 8, "1"), ...queue(-3.5, 10, 2), shot(0.5, -8.5, -2, 7.5), kid(4.2, 9, "S"), target(3, -7), cone(2, -7), cone(4, -7), shot(4.2, 8.6, 3, -6.6)],
@@ -837,7 +837,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Drei farbige Ziele auf der Trainerseite. Beim Zuspiel ruft der Trainer eine Farbe, dorthin wird gespielt.",
     description:
       "Auf der Trainerseite liegen drei Ziele (Reifen, Hütchen oder Leibchen in Rot, Gelb, Blau): links, Mitte, rechts. Der Trainer spielt zu und ruft im selben Moment eine Farbe. Das Kind entscheidet schnell und spielt den Grundschlag in die Richtung. Treffer im Ziel = 3 Punkte, richtige Richtung = 1 Punkt. Teams sammeln gemeinsam.",
-    tips: ["Erst Ball, dann Richtung", "Schulter zeigt zum Ziel", "Lieber sicher in die Richtung als ganz knapp"],
+    teilziel: "Erst Ball, dann Richtung",
     focus: ["Vorhand", "Rückhand", "Taktik"],
     diagram: {
       items: [coach(1.5, -4.5), basket(2.5, -4.5), target(-3, -9), target(0, -10), target(3, -9), kid(0, 8, "1"), ...queue(3.5, 10, 2), shot(1.5, -4.5, 0, 7.5), shot(0, 7.6, -3, -8.6)],
@@ -850,7 +850,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Das Kind sitzt, liegt oder steht mit dem Rücken zum Netz. Auf „Hopp!“ aufspringen, umdrehen und den Ball schlagen.",
     description:
       "Das Kind wartet in einer Startposition an der Grundlinie oder Midcourt-Linie: im Schneidersitz, auf dem Bauch, mit dem Rücken zum Netz. Der Trainer ruft „Hopp!“ und spielt im selben Moment zu. Aufstehen, zum Ball laufen, Vorhand oder Rückhand schlagen. Nach dem Schlag einen Ball vom Hütchen holen und zum Trainer bringen, das Nächste startet. Die Startposition wählt das Kind vorher selbst.",
-    tips: ["Schnell hoch, dann ruhig schlagen", "Erst schauen, wo der Ball hinkommt", "Fertig zum Schlag: Schläger zurück"],
+    teilziel: "Schnell hoch, dann ruhig schlagen",
     focus: ["Beinarbeit", "Koordination", "Vorhand", "Rückhand"],
     diagram: { items: [...feeding, kid(0, 10.5, "1"), ...queue(4, 11, 2), run(0, 10.5, -1, 7.5), shot(0.5, -8.5, -1.2, 7)] },
   },
@@ -861,7 +861,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Schlagen, dann als Taxi einen Ball über die Seite zum Trainer bringen. Das Taxi ist erst zurück, wenn es wieder in der Reihe ist.",
     description:
       "Das Kind schlägt zwei Grundschläge (einen kurz an der T-Linie, einen weiter hinten). Dann holt es einen Ball aus einem Reifen an der Seite, läuft außen um den Netzpfosten auf die Trainerseite und legt ihn in den Korb, danach außen zurück in die Reihe. So bleibt der Korb voll und keiner steht. Mit Ball auf dem Schläger wird es schwieriger.",
-    tips: ["Zwei Schläge, dann Taxi!", "Außen herum, nie über das Netz steigen", "Beim Schlag kurz stehen bleiben"],
+    teilziel: "Zwei Schläge, dann Taxi",
     focus: ["Vorhand", "Rückhand", "Beinarbeit"],
     diagram: {
       items: [...feeding, kid(-1.5, 6.4, "1"), target(-6.5, 4), ball(-6.5, 4), run(-1.5, 7, -6.5, 4.4), run(-6.5, 3.8, -6.8, -0.4), run(-6.8, -0.4, 1.3, -8), ...queue(3, 10.5, 2), shot(0.5, -8.5, -1.5, 6)],
@@ -874,7 +874,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Zwei Hütchen sind das Tor auf der Gegenseite. Grundschläge müssen durchs Tor rollen oder springen.",
     description:
       "Auf der Trainerseite stehen zwei Hütchen als Tor an der Grundlinie (anfangs 3 m breit). Ein Kind ist Torwart und darf den Ball nur mit dem Schläger aufhalten, nicht fangen. Die anderen schlagen nacheinander zugespielte Bälle: Tor = Punkt, gehalten = Punkt für den Torwart. Nach 5 Schüssen wird der Schütze Torwart. Das Tor wird kleiner, wenn es zu leicht ist.",
-    tips: ["Schau zum Tor, dann zum Ball", "Mit Schwung durch den Ball", "Torwart: tief stehen, Schläger runter"],
+    teilziel: "Schau zum Tor, dann zum Ball",
     focus: ["Vorhand", "Rückhand", "Ballgefühl"],
     diagram: {
       items: [coach(4, -4), basket(5, -4), cone(-1.5, -11.9), cone(1.5, -11.9), kid(0, -11.3, "T"), kid(0, 8, "1"), ...queue(-3, 10, 2), shot(4, -4, 0, 7.5), shot(0, 7.6, 0.7, -11.5)],
@@ -891,7 +891,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Grundschläge im Wechsel: ein kurzer Ball an der T-Linie, ein langer an der Midcourt-Linie.",
     description:
       "Das Kind startet an der T-Linie. Der Trainer spielt einen kurzen Ball, das Kind schlägt ihn von der T-Linie, läuft rückwärts zur Midcourt-Linie und schlägt dort den langen Ball. Dann Vorhand und Rückhand tauschen. Nach 4 Bällen ist das nächste Kind dran; auf dem Rückweg Bälle einsammeln. Ziel: jeder Ball übers Netz ins Orange-Feld.",
-    tips: ["Nach dem Schlag gleich zurück!", "Seitlich stellen, dann schlagen", "Treffpunkt vor dem Körper"],
+    teilziel: "Nach dem Schlag gleich zurück",
     focus: ["Vorhand", "Rückhand", "Beinarbeit"],
     stages: ["orange"],
     diagram: {
@@ -905,7 +905,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Paare spielen miteinander von der Midcourt-Linie: Wie viele Ballwechsel schafft ihr am Stück?",
     description:
       "Je zwei Kinder spielen sich im Orange-Feld von der Midcourt-Linie aus zu, nur Grundschläge. Gezählt wird laut, wie viele Bälle übers Netz gehen. Jedes Paar versucht, seinen Rekord zu brechen, am Ende gibt es einen Gruppenrekord. Wer schon sicher ist, spielt nur cross oder abwechselnd Vorhand und Rückhand.",
-    tips: ["Laut mitzählen!", "Hoch übers Netz, dann fällt er rein", "Nach jedem Schlag zurück zur Mitte"],
+    teilziel: "Laut mitzählen",
     focus: ["Vorhand", "Rückhand", "Ballgefühl"],
     stages: ["orange"],
     diagram: {
@@ -919,7 +919,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Aufschlag zuerst von der T-Linie; jeder Treffer im Aufschlagfeld ist eine Sprosse zurück bis zur Midcourt-Linie.",
     description:
       "Die Kinder schlagen von der T-Linie ins Aufschlagfeld gegenüber auf. Wer trifft, geht einen großen Schritt zurück, drei Sprossen bis zur Midcourt-Linie. Wer dort zweimal trifft, darf ein Hütchen im Aufschlagfeld abschießen. Bei Fehlern bleibt man stehen, nie zurück nach vorne.",
-    tips: ["Ball hoch werfen, über den Kopf", "Ellbogen hoch wie beim Werfen", "Ruhig, kein Zeitdruck"],
+    teilziel: "Ball hoch werfen, über den Kopf",
     focus: ["Aufschlag"],
     stages: ["orange"],
     diagram: {
@@ -933,7 +933,7 @@ const exercises: (Omit<ExerciseInput, "playersMin" | "playersMax" | "variations"
     summary: "Gegeneinander im Orange-Feld mit Aufschlag von der Midcourt-Linie: König des Platzes.",
     description:
       "Zwei Kinder spielen einen Punkt im Orange-Feld, mit Aufschlag von der Midcourt-Linie (wer noch unsicher ist, spielt von unten ein). Der Gewinner bleibt auf der Königsseite, der Verlierer stellt sich hinten an und der Nächste fordert. Wer auf der Königsseite einen Punkt gewinnt, bekommt einen Punkt. Wer hat am Ende die meisten?",
-    tips: ["Erst sicher, dann fest", "In die freie Ecke spielen", "Nach dem Aufschlag bereit machen"],
+    teilziel: "Erst sicher, dann fest",
     focus: ["Taktik", "Aufschlag"],
     stages: ["orange"],
     diagram: {

@@ -15,7 +15,11 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   ArrowLeftRightIcon,
   CheckIcon,
+  ChevronDownIcon,
   ChevronLeftIcon,
+  CopyIcon,
+  CrosshairIcon,
+  FlagIcon,
   DicesIcon,
   GripVerticalIcon,
   InfoIcon,
@@ -41,7 +45,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { planWithAi, saveSession, setFavorite } from "./actions";
+import { planWithAi, saveSession, setExerciseTeilziel, setFavorite } from "./actions";
 import { Court } from "./court";
 import {
   fitsGroup,
@@ -60,6 +64,7 @@ import {
   playersLabel,
   phases,
   pickExercise,
+  teilzielOf,
   timeline,
   todayInGermany,
   type Exercise,
@@ -68,10 +73,13 @@ import {
   type Phase,
   type Stage,
   type PlanItem,
+  type Player,
+  type Session,
   type StandIn,
 } from "./data";
 import { ExerciseDetails } from "./exercise-details";
 import { Chip } from "./exercise-form";
+import { TeilzielLine, TeilzielPicker } from "./teilziel-picker";
 
 const PATH = "/m/tennis";
 const durations = [45, 60, 75, 90];
@@ -83,7 +91,11 @@ export type PlannerValues = {
   startTime: string;
   minutes: number;
   focus: string | null;
+  // The Stundenziel, e.g. "Vorhand-Drive".
+  goal: string;
   plan: PlanItem[];
+  // Kids of the group who won't come.
+  absent: string[];
 };
 
 // Plans a session: the server hands in a generated plan for the chosen group,
@@ -95,9 +107,10 @@ export function Planner({
   favorites: savedFavorites,
   recent,
   players,
-  absent,
+  kids: allKids,
   holidays,
   standIns,
+  sessions,
   initial,
 }: {
   sessionId: string | null;
@@ -107,14 +120,19 @@ export function Planner({
   favorites: string[];
   // Exercise ids of each group's last sessions.
   recent: Record<string, string[]>;
-  // Kids per group, and how many of the session's group cancelled.
+  // Kids per group, and all kids by name.
   players: Record<string, number>;
-  absent: number;
+  kids: Player[];
   holidays: Holiday[];
   standIns: StandIn[];
+  // The other sessions, newest first: to take exercises from and for the
+  // group's last notes.
+  sessions: Session[];
   initial: PlannerValues;
 }) {
   const [values, setValues] = useState(initial);
+  // The plan item whose Teilziel is being picked.
+  const [choosingGoal, setChoosingGoal] = useState<number | null>(null);
   const [favorites, setFavorites] = useState(() => new Set(savedFavorites));
   const [picking, setPicking] = useState<{ index: number | null; phase: Phase } | null>(null);
   // The plan item whose details are open.
@@ -134,8 +152,10 @@ export function Planner({
   // (any exercise fits) when the group has no players entered.
   function kids(groupId = values.groupId) {
     if (!groupId || !players[groupId]) return null;
-    return Math.max(0, players[groupId] - (sessionId && groupId === initial.groupId ? absent : 0));
+    const away = groupId === values.groupId ? values.absent.filter((id) => groupKids.some((kid) => kid.id === id)).length : 0;
+    return Math.max(0, players[groupId] - away);
   }
+  const groupKids = allKids.filter((kid) => kid.groupId === values.groupId);
   const kidCount = kids();
   const groupOf = (groupId: string | null) => groups.find((group) => group.id === groupId);
   const group = groupOf(values.groupId);
@@ -204,8 +224,28 @@ export function Planner({
     setPlan(
       plan.map((entry, at) => {
         if (at !== index) return entry;
-        const base = { exerciseId: entry.exerciseId, minutes: entry.minutes };
+        const base: PlanItem = { ...entry };
+        delete base.note;
         return note === undefined ? base : { ...base, note };
+      }),
+    );
+  }
+
+  // A Teilziel for this session; the exercise's own one needs no override.
+  function setGoal(index: number, goal: string, asDefault: boolean) {
+    const exercise = byId.get(plan[index].exerciseId)!;
+    if (asDefault) {
+      setExerciseTeilziel(exercise.id, goal).then(
+        () => toast.success(goal ? `„${goal}“ ist jetzt das Teilziel von ${exercise.name}` : `${exercise.name} hat kein Teilziel mehr`),
+        () => toast.error("Standard konnte nicht gespeichert werden."),
+      );
+    }
+    setPlan(
+      plan.map((entry, at) => {
+        if (at !== index) return entry;
+        const base: PlanItem = { ...entry };
+        delete base.goal;
+        return goal === exercise.teilziel && !asDefault ? base : { ...base, goal };
       }),
     );
   }
@@ -248,7 +288,7 @@ export function Planner({
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4 pb-24">
+    <div className="mx-auto max-w-2xl space-y-4 pb-24 lg:max-w-6xl">
       <div className="-ml-2 flex items-center gap-1">
         <Button asChild variant="ghost" size="icon" className="size-10 text-muted-foreground">
           <Link href={sessionId ? `${PATH}?session=${sessionId}` : PATH} aria-label="Zurück">
@@ -260,16 +300,38 @@ export function Planner({
         </h2>
       </div>
 
-      <AiPlanner
-        values={values}
-        onPlan={(next) => {
-          const previous = values;
-          setValues(next);
-          return () => setValues(previous);
-        }}
-        groups={groups}
-      />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-6">
+      <div className="min-w-0 space-y-4 lg:col-start-2 lg:row-start-1">
+        <AiPlanner
+          values={values}
+          onPlan={(next) => {
+            const previous = values;
+            setValues(next);
+            return () => setValues(previous);
+          }}
+          groups={groups}
+        />
+        <CopyPanel
+          sessions={sessions}
+          groups={groups}
+          group={group}
+          byId={byId}
+          onCopy={(items, replace, source) => {
+            const previous = values;
+            setValues({
+              ...values,
+              plan: replace ? items : [...plan, ...items],
+              goal: values.goal || source.goal,
+            });
+            toast.success(
+              `${items.length === 1 ? "1 Übung" : `${items.length} Übungen`} ${replace ? "übernommen" : "angehängt"}`,
+              { action: { label: "Rückgängig", onClick: () => setValues(previous) } },
+            );
+          }}
+        />
+      </div>
 
+      <div className="min-w-0 space-y-4 lg:col-start-1 lg:row-span-2 lg:row-start-1">
       <Card>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -282,6 +344,7 @@ export function Planner({
                   update(
                     {
                       groupId: group?.id ?? null,
+                      absent: group?.id === initial.groupId ? initial.absent : [],
                       ...(group && !sessionId && { startTime: group.startTime, minutes: group.minutes }),
                       ...(group &&
                         !sessionId && { date: nextTrainingDate(group, todayInGermany(), holidays, standIns) ?? values.date }),
@@ -331,13 +394,58 @@ export function Planner({
               {formatSessionDate(values.date)}: {holiday.name || "Ferien"}, eigentlich kein Training.
             </p>
           )}
-          {kidCount !== null && (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <UsersIcon className="size-4 shrink-0" />
-              Geplant für {kidCount} {kidCount === 1 ? "Kind" : "Kinder"}
-              {sessionId && absent > 0 && ` (${absent} abgesagt)`}
-            </p>
+          {groupKids.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-baseline gap-2">
+                <span className="flex flex-1 items-center gap-1.5 text-sm font-medium">
+                  <UsersIcon className="size-4 shrink-0" /> Wer kommt?
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  <span className="font-mono text-foreground">{kidCount}</span> von {groupKids.length}
+                </span>
+              </div>
+              <ul className="flex flex-wrap gap-1.5">
+                {groupKids.map((kid) => {
+                  const away = values.absent.includes(kid.id);
+                  return (
+                    <li key={kid.id}>
+                      <button
+                        type="button"
+                        aria-pressed={!away}
+                        onClick={() =>
+                          update({ absent: away ? values.absent.filter((id) => id !== kid.id) : [...values.absent, kid.id] })
+                        }
+                        className={cn(
+                          "h-9 cursor-pointer rounded-full border px-3 text-sm transition-colors",
+                          away ? "bg-card text-muted-foreground line-through decoration-2" : "border-brand bg-good text-good-foreground",
+                        )}
+                      >
+                        {kid.name}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="text-xs text-muted-foreground">
+                Tippe auf ein Kind, das nicht kommt. Übungen, die für {kidCount} {kidCount === 1 ? "Kind" : "Kinder"} nicht passen, sind
+                markiert; „Alles neu würfeln“ plant passend.
+              </p>
+            </div>
           )}
+
+          <GoalField
+            value={values.goal}
+            onChange={(goal) => update({ goal })}
+            recent={[
+              ...new Set(
+                sessions
+                  .filter((session) => session.goal && (!values.groupId || session.groupId === values.groupId))
+                  .map((session) => session.goal),
+              ),
+            ]
+              .filter((goal) => goal !== values.goal)
+              .slice(0, 4)}
+          />
 
           <div className="space-y-2">
             <span className="text-sm font-medium">Dauer</span>
@@ -422,6 +530,23 @@ export function Planner({
                           </button>
                           <p className="line-clamp-2 text-sm text-muted-foreground">{exercise.summary}</p>
                           <FitWarnings exercise={exercise} kids={kidCount} group={group} />
+                          <button
+                            type="button"
+                            onClick={() => setChoosingGoal(index)}
+                            className={cn(
+                              "-mx-1.5 mt-1 flex min-h-9 cursor-pointer items-center rounded-lg px-1.5 py-1 text-left text-sm hover:bg-accent",
+                              teilzielOf(item, exercise) ? "bg-good/60 text-good-foreground" : "text-muted-foreground",
+                            )}
+                            aria-label={`Teilziel für ${exercise.name}`}
+                          >
+                            {teilzielOf(item, exercise) ? (
+                              <TeilzielLine value={teilzielOf(item, exercise)} withSay />
+                            ) : (
+                              <span className="flex items-center gap-1.5">
+                                <CrosshairIcon className="size-4" /> Teilziel festlegen
+                              </span>
+                            )}
+                          </button>
                         </div>
                         {handle}
                       </div>
@@ -505,7 +630,15 @@ export function Planner({
       )}
 
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <div className="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-2xl justify-end">
+      </div>
+
+      <div className="min-w-0 space-y-4 lg:col-start-2 lg:row-start-2">
+        <LastSession sessions={sessions} groupId={values.groupId} date={values.date} />
+        {group && <ClosingPreview group={group} />}
+      </div>
+      </div>
+
+      <div className="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-2xl justify-end lg:max-w-6xl">
         <Button size="lg" className="shadow-lg" onClick={save} disabled={pending || plan.length === 0 || !values.date || !values.startTime}>
           {pending && <Loader2Icon className="animate-spin" />}
           {sessionId ? "Speichern" : "Stunde speichern"}
@@ -540,6 +673,18 @@ export function Planner({
             </>
           )
         }
+      />
+
+      <TeilzielPicker
+        open={choosingGoal !== null && plan[choosingGoal] !== undefined}
+        onOpenChange={(open) => !open && setChoosingGoal(null)}
+        title={choosingGoal !== null && plan[choosingGoal] ? byId.get(plan[choosingGoal].exerciseId)!.name : ""}
+        value={choosingGoal !== null && plan[choosingGoal] ? teilzielOf(plan[choosingGoal], byId.get(plan[choosingGoal].exerciseId)!) : ""}
+        defaultLabel={choosingGoal !== null && plan[choosingGoal] ? byId.get(plan[choosingGoal].exerciseId)!.teilziel : undefined}
+        onPick={(goal, asDefault) => {
+          if (choosingGoal !== null) setGoal(choosingGoal, goal, asDefault);
+          setChoosingGoal(null);
+        }}
       />
 
       <ExercisePicker
@@ -795,6 +940,8 @@ function AiPlanner({
           startTime: result.startTime ?? (groupChanged && group ? group.startTime : values.startTime),
           minutes,
           focus: editing ? (result.focus ?? values.focus) : result.focus,
+          goal: values.goal,
+          absent: groupChanged ? [] : values.absent,
           plan: editing ? keepNotes(result.plan, values.plan) : result.plan,
         });
         if (editing) setRequest("");
@@ -862,6 +1009,228 @@ function AiPlanner({
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         {note && <p className="rounded-lg bg-muted px-3 py-2 text-sm">{note}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+// The Stundenziel (BTV "Gesamtziel"): what the session is about; the
+// Teilziele of the exercises build on it.
+function GoalField({ value, onChange, recent }: { value: string; onChange: (value: string) => void; recent: string[] }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="plan-goal">Stundenziel</Label>
+      <Input
+        id="plan-goal"
+        maxLength={80}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="z. B. Vorhand-Drive"
+        className="font-medium"
+      />
+      {recent.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">Zuletzt:</span>
+          {recent.map((goal) => (
+            <Chip key={goal} active={false} onClick={() => onChange(goal)}>
+              {goal}
+            </Chip>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// "Übungen übernehmen": exercises (with their Teilziele) from another
+// session, e.g. of a group on the same level, so similar groups don't have
+// to be planned twice. Folded on the phone, always open on a wide screen.
+function CopyPanel({
+  sessions,
+  groups,
+  group,
+  byId,
+  onCopy,
+}: {
+  sessions: Session[];
+  groups: Group[];
+  group: Group | undefined;
+  byId: Map<string, Exercise>;
+  onCopy: (items: PlanItem[], replace: boolean, source: Session) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const groupOf = (id: string | null) => groups.find((entry) => entry.id === id);
+  const sameStage = (session: Session) => Boolean(group?.stage && groupOf(session.groupId)?.stage === group.stage);
+  const sources = sessions
+    .filter((session) => session.plan.some((item) => byId.has(item.exerciseId)))
+    .slice(0, 30)
+    .sort((a, b) => Number(sameStage(b)) - Number(sameStage(a)))
+    .slice(0, 8);
+  const [sourceId, setSourceId] = useState<string | null>(null);
+  const [off, setOff] = useState<Set<number>>(() => new Set());
+  const source = sources.find((session) => session.id === sourceId) ?? sources[0];
+  if (!source) return null;
+  const items = source.plan.filter((item) => byId.has(item.exerciseId));
+  const picked = items.filter((_, index) => !off.has(index));
+
+  function copy(replace: boolean) {
+    onCopy(
+      picked.map((item) => ({ exerciseId: item.exerciseId, minutes: item.minutes, ...(item.goal !== undefined && { goal: item.goal }) })),
+      replace,
+      source,
+    );
+    setOff(new Set());
+    setOpen(false);
+  }
+
+  return (
+    <Card className="gap-0 py-0">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        className="flex min-h-12 w-full cursor-pointer items-center gap-2 px-4 py-3 text-left text-sm font-medium lg:cursor-default"
+      >
+        <CopyIcon className="size-4 text-brand" />
+        <span className="flex-1">Übungen übernehmen</span>
+        <ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform lg:hidden", open && "rotate-180")} />
+      </button>
+      <CardContent className={cn("space-y-3 px-4 pb-4", !open && "hidden lg:block")}>
+        <p className="text-xs text-muted-foreground">Aus der Stunde einer ähnlichen Gruppe, die Teilziele kommen mit.</p>
+        <ul className="space-y-1.5">
+          {sources.map((session) => {
+            const selected = session.id === source.id;
+            const sourceGroup = groupOf(session.groupId);
+            return (
+              <li key={session.id}>
+                <button
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => {
+                    setSourceId(session.id);
+                    setOff(new Set());
+                  }}
+                  className={cn(
+                    "flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm",
+                    selected ? "border-hero bg-hero text-hero-foreground" : "bg-card hover:bg-accent",
+                  )}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">
+                      {sourceGroup?.name ?? "Ohne Gruppe"} · {formatSessionDate(session.date)}
+                    </span>
+                    {session.goal && <span className="block truncate text-xs opacity-80">Stundenziel: {session.goal}</span>}
+                  </span>
+                  {sourceGroup?.stage && (
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
+                        sameStage(session)
+                          ? selected
+                            ? "bg-hero-bar text-hero"
+                            : "bg-good text-good-foreground"
+                          : selected
+                            ? "bg-hero-track text-hero-muted"
+                            : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {stageName(sourceGroup.stage)}
+                      {sameStage(session) && " · gleiche Stufe"}
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <ul className="divide-y border-t">
+          {items.map((item, index) => {
+            const exercise = byId.get(item.exerciseId)!;
+            const on = !off.has(index);
+            const teilziel = teilzielOf(item, exercise);
+            return (
+              <li key={index}>
+                <button
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() =>
+                    setOff((current) => {
+                      const next = new Set(current);
+                      if (next.has(index)) next.delete(index);
+                      else next.add(index);
+                      return next;
+                    })
+                  }
+                  className="flex min-h-11 w-full cursor-pointer items-center gap-3 py-1.5 text-left"
+                >
+                  <span
+                    className={cn(
+                      "flex size-5 shrink-0 items-center justify-center rounded-md border-2 border-muted-foreground/50",
+                      on && "border-brand bg-brand text-brand-foreground",
+                    )}
+                  >
+                    {on && <CheckIcon className="size-3.5" strokeWidth={3} />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className={cn("block text-sm font-medium", !on && "text-muted-foreground")}>{exercise.name}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{teilziel ? `Teilziel: ${teilziel}` : "ohne Teilziel"}</span>
+                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">{item.minutes}′</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" disabled={picked.length === 0} onClick={() => copy(false)}>
+            Anhängen
+          </Button>
+          <Button variant="brand" className="flex-1" disabled={picked.length === 0} onClick={() => copy(true)}>
+            Plan ersetzen
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// What the coach wrote after the group's last session ("Wie lief's?").
+function LastSession({ sessions, groupId, date }: { sessions: Session[]; groupId: string | null; date: string }) {
+  const last = groupId ? sessions.find((session) => session.groupId === groupId && session.date < date) : undefined;
+  if (!last) return null;
+  return (
+    <Card className="gap-2 py-4">
+      <CardContent className="space-y-2 px-4">
+        <Link href={`${PATH}?session=${last.id}`} className="block text-sm font-medium underline-offset-4 hover:underline">
+          Letzte Stunde · {formatSessionDate(last.date)}
+        </Link>
+        {last.goal && <p className="text-xs text-muted-foreground">Stundenziel: {last.goal}</p>}
+        {last.notes ? (
+          <p className="rounded-lg bg-muted px-3 py-2 text-sm whitespace-pre-line">„{last.notes}“</p>
+        ) : (
+          <p className="text-sm text-muted-foreground">Keine Notiz zur Stunde.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// The group's lists for the end of the session, as a reminder.
+function ClosingPreview({ group }: { group: Group }) {
+  if (group.afterSession.length === 0 && group.dayEnd.length === 0) return null;
+  return (
+    <Card className="gap-2 py-4">
+      <CardContent className="space-y-1.5 px-4 text-sm">
+        <div className="flex items-baseline gap-2">
+          <span className="flex flex-1 items-center gap-1.5 font-medium">
+            <FlagIcon className="size-4" /> Zum Abschluss
+          </span>
+          <Link href={`${PATH}?group=${group.id}`} className="text-xs text-brand underline-offset-4 hover:underline">
+            In der Gruppe ändern
+          </Link>
+        </div>
+        {group.afterSession.length > 0 && <p className="text-muted-foreground">Nach der Stunde: {group.afterSession.join(" · ")}</p>}
+        {group.dayEnd.length > 0 && <p className="text-muted-foreground">Letzte Stunde des Tages: {group.dayEnd.join(" · ")}</p>}
       </CardContent>
     </Card>
   );
