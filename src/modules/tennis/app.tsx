@@ -517,6 +517,7 @@ function PlanView({ sessionId, groupId, date }: { sessionId: string | null; grou
       focus: existing.focus,
       goal: existing.goal,
       plan: existing.plan,
+      absent: existing.absent,
     };
   } else {
     const group = groups.find((entry) => entry.id === groupId) ?? groups[0];
@@ -529,6 +530,7 @@ function PlanView({ sessionId, groupId, date }: { sessionId: string | null; grou
       minutes,
       focus: null,
       goal: "",
+      absent: [],
       plan: generatePlan(minutes, {
         exercises,
         favorites: new Set(favorites.filter((key) => group && key.startsWith(`${group.id}:`)).map((key) => key.split(":")[1])),
@@ -550,7 +552,7 @@ function PlanView({ sessionId, groupId, date }: { sessionId: string | null; grou
       favorites={favorites}
       recent={recent}
       players={players}
-      absent={existing?.absent.length ?? 0}
+      kids={playerRows}
       holidays={holidays}
       standIns={standIns}
       sessions={allSessions.filter((session) => session.id !== sessionId).slice(0, 60)}

@@ -73,6 +73,7 @@ import {
   type Phase,
   type Stage,
   type PlanItem,
+  type Player,
   type Session,
   type StandIn,
 } from "./data";
@@ -93,6 +94,8 @@ export type PlannerValues = {
   // The Stundenziel, e.g. "Vorhand-Drive".
   goal: string;
   plan: PlanItem[];
+  // Kids of the group who won't come.
+  absent: string[];
 };
 
 // Plans a session: the server hands in a generated plan for the chosen group,
@@ -104,7 +107,7 @@ export function Planner({
   favorites: savedFavorites,
   recent,
   players,
-  absent,
+  kids: allKids,
   holidays,
   standIns,
   sessions,
@@ -117,9 +120,9 @@ export function Planner({
   favorites: string[];
   // Exercise ids of each group's last sessions.
   recent: Record<string, string[]>;
-  // Kids per group, and how many of the session's group cancelled.
+  // Kids per group, and all kids by name.
   players: Record<string, number>;
-  absent: number;
+  kids: Player[];
   holidays: Holiday[];
   standIns: StandIn[];
   // The other sessions, newest first: to take exercises from and for the
@@ -149,8 +152,10 @@ export function Planner({
   // (any exercise fits) when the group has no players entered.
   function kids(groupId = values.groupId) {
     if (!groupId || !players[groupId]) return null;
-    return Math.max(0, players[groupId] - (sessionId && groupId === initial.groupId ? absent : 0));
+    const away = groupId === values.groupId ? values.absent.filter((id) => groupKids.some((kid) => kid.id === id)).length : 0;
+    return Math.max(0, players[groupId] - away);
   }
+  const groupKids = allKids.filter((kid) => kid.groupId === values.groupId);
   const kidCount = kids();
   const groupOf = (groupId: string | null) => groups.find((group) => group.id === groupId);
   const group = groupOf(values.groupId);
@@ -339,6 +344,7 @@ export function Planner({
                   update(
                     {
                       groupId: group?.id ?? null,
+                      absent: group?.id === initial.groupId ? initial.absent : [],
                       ...(group && !sessionId && { startTime: group.startTime, minutes: group.minutes }),
                       ...(group &&
                         !sessionId && { date: nextTrainingDate(group, todayInGermany(), holidays, standIns) ?? values.date }),
@@ -388,12 +394,43 @@ export function Planner({
               {formatSessionDate(values.date)}: {holiday.name || "Ferien"}, eigentlich kein Training.
             </p>
           )}
-          {kidCount !== null && (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <UsersIcon className="size-4 shrink-0" />
-              Geplant für {kidCount} {kidCount === 1 ? "Kind" : "Kinder"}
-              {sessionId && absent > 0 && ` (${absent} abgesagt)`}
-            </p>
+          {groupKids.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-baseline gap-2">
+                <span className="flex flex-1 items-center gap-1.5 text-sm font-medium">
+                  <UsersIcon className="size-4 shrink-0" /> Wer kommt?
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  <span className="font-mono text-foreground">{kidCount}</span> von {groupKids.length}
+                </span>
+              </div>
+              <ul className="flex flex-wrap gap-1.5">
+                {groupKids.map((kid) => {
+                  const away = values.absent.includes(kid.id);
+                  return (
+                    <li key={kid.id}>
+                      <button
+                        type="button"
+                        aria-pressed={!away}
+                        onClick={() =>
+                          update({ absent: away ? values.absent.filter((id) => id !== kid.id) : [...values.absent, kid.id] })
+                        }
+                        className={cn(
+                          "h-9 cursor-pointer rounded-full border px-3 text-sm transition-colors",
+                          away ? "bg-card text-muted-foreground line-through decoration-2" : "border-brand bg-good text-good-foreground",
+                        )}
+                      >
+                        {kid.name}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="text-xs text-muted-foreground">
+                Tippe auf ein Kind, das nicht kommt. Übungen, die für {kidCount} {kidCount === 1 ? "Kind" : "Kinder"} nicht passen, sind
+                markiert; „Alles neu würfeln“ plant passend.
+              </p>
+            </div>
           )}
 
           <GoalField
@@ -904,6 +941,7 @@ function AiPlanner({
           minutes,
           focus: editing ? (result.focus ?? values.focus) : result.focus,
           goal: values.goal,
+          absent: groupChanged ? [] : values.absent,
           plan: editing ? keepNotes(result.plan, values.plan) : result.plan,
         });
         if (editing) setRequest("");

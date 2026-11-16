@@ -326,7 +326,15 @@ export async function savePrinciples(formData: FormData) {
 
 export async function saveSession(
   id: string | null,
-  values: { groupId: string | null; date: string; startTime: string; focus: string | null; goal: string; plan: PlanItem[] },
+  values: {
+    groupId: string | null;
+    date: string;
+    startTime: string;
+    focus: string | null;
+    goal: string;
+    plan: PlanItem[];
+    absent?: string[];
+  },
 ) {
   if (!isDate(values.date) || !isTime(values.startTime)) throw new Error("Ungültiges Datum oder Uhrzeit");
   const plan = values.plan
@@ -341,6 +349,7 @@ export async function saveSession(
     focus: values.focus && (focusTags as readonly string[]).includes(values.focus) ? values.focus : null,
     goal: String(values.goal ?? "").trim().slice(0, 80),
     plan,
+    ...(Array.isArray(values.absent) && { absent: [...new Set(values.absent.filter(isId))].slice(0, 60) }),
   };
   const supabase = await db();
   let savedId = id;
