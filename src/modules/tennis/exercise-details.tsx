@@ -1,6 +1,8 @@
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { Court } from "./court";
 import { hasVariations, phaseName, playersLabel, showsMidcourt, stageLabel, type Exercise, type Stage } from "./data";
+import { findTeilziel } from "./teilziele";
 import { VariationList } from "./variations";
 
 // Everything about an exercise: badges, sketch, how it works, cues and
@@ -38,18 +40,7 @@ export function ExerciseDetails({
       <div className="space-y-3">
         {exercise.summary && <p className="font-medium">{exercise.summary}</p>}
         {exercise.description && <p className="text-sm whitespace-pre-line">{exercise.description}</p>}
-        {exercise.tips.length > 0 && (
-          <div className="space-y-1.5">
-            <p className="text-sm text-muted-foreground">Zum Zurufen</p>
-            <ul className="flex flex-wrap gap-1.5">
-              {exercise.tips.map((tip) => (
-                <li key={tip} className="rounded-full bg-good px-2.5 py-0.5 text-sm text-good-foreground">
-                  „{tip}“
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {exercise.teilziel && <TeilzielBox teilziel={exercise.teilziel} />}
         {hasVariations(exercise.variations) && (
           <div className="space-y-1.5">
             <p className="text-sm text-muted-foreground">Variationen</p>
@@ -63,6 +54,31 @@ export function ExerciseDetails({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// The Teilziel with how to say it and what helps when it doesn't work (from
+// the catalog, for the ones in it).
+export function TeilzielBox({ teilziel, className }: { teilziel: string; className?: string }) {
+  const known = findTeilziel(teilziel);
+  return (
+    <div className={cn("space-y-1 rounded-lg bg-good px-3 py-2 text-good-foreground", className)}>
+      <p className="text-xs font-medium tracking-wide uppercase opacity-75">Teilziel</p>
+      <p className="font-semibold">{teilziel}</p>
+      {known && (
+        <>
+          <p className="text-sm">
+            <span className="opacity-75">So sagst du’s: </span>„{known.say}“
+          </p>
+          {known.fix && (
+            <p className="text-sm">
+              <span className="opacity-75">Wenn’s nicht klappt: </span>
+              {known.fix}
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }

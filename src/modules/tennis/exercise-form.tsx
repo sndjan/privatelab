@@ -23,6 +23,8 @@ import {
   type Variations,
 } from "./data";
 import { DiagramEditor } from "./diagram-editor";
+import { TeilzielPicker } from "./teilziel-picker";
+import { findTeilziel } from "./teilziele";
 
 const PATH = "/m/tennis";
 
@@ -33,7 +35,8 @@ export function ExerciseForm({ id, initial }: { id: string | null; initial: Exer
   const [minutes, setMinutes] = useState(String(initial.minutes));
   const [summary, setSummary] = useState(initial.summary);
   const [description, setDescription] = useState(initial.description);
-  const [tips, setTips] = useState(initial.tips.join("\n"));
+  const [teilziel, setTeilziel] = useState(initial.teilziel);
+  const [pickingTeilziel, setPickingTeilziel] = useState(false);
   const [focus, setFocus] = useState(initial.focus);
   const [diagram, setDiagram] = useState<Diagram>(initial.diagram);
   const [playersMin, setPlayersMin] = useState(initial.playersMin === null ? "" : String(initial.playersMin));
@@ -54,7 +57,7 @@ export function ExerciseForm({ id, initial }: { id: string | null; initial: Exer
           minutes: Number(minutes) || 10,
           summary,
           description,
-          tips: tips.split("\n"),
+          teilziel,
           focus,
           diagram,
           playersMin: playersMin ? Number(playersMin) : null,
@@ -200,13 +203,33 @@ export function ExerciseForm({ id, initial }: { id: string | null; initial: Exer
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="exercise-tips">Zum Zurufen (ein Tipp pro Zeile)</Label>
-            <Textarea
-              id="exercise-tips"
-              rows={3}
-              value={tips}
-              onChange={(event) => setTips(event.target.value)}
-              placeholder={"Früh ausholen!\nTreffpunkt vor dem Körper"}
+            <Label htmlFor="exercise-teilziel">Teilziel</Label>
+            <div className="flex gap-2">
+              <Input
+                id="exercise-teilziel"
+                maxLength={120}
+                value={teilziel}
+                onChange={(event) => setTeilziel(event.target.value)}
+                placeholder="z. B. Treffpunkt seitlich vor dem Körper"
+              />
+              <Button type="button" variant="outline" onClick={() => setPickingTeilziel(true)}>
+                Auswählen
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {findTeilziel(teilziel)
+                ? `So sagst du’s: „${findTeilziel(teilziel)!.say}“`
+                : "Der eine Punkt, auf den du achtest und den du korrigierst. Beim Planen pro Stunde änderbar."}
+            </p>
+            <TeilzielPicker
+              open={pickingTeilziel}
+              onOpenChange={setPickingTeilziel}
+              title={name || "Neue Übung"}
+              value={teilziel}
+              onPick={(value) => {
+                setTeilziel(value);
+                setPickingTeilziel(false);
+              }}
             />
           </div>
 

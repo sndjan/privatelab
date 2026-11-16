@@ -3,7 +3,10 @@
 import type { Loader } from "@/lib/query/loaders";
 import { createClient } from "@/lib/supabase/server";
 import {
+  cleanChecklist,
   cleanPlanItem,
+  defaultAfterSession,
+  defaultDayEnd,
   isStage,
   parseDiagram,
   parseStages,
@@ -23,12 +26,15 @@ import {
 // Exercises, groups and players are read with "*": before the migration
 // 20261116000000_tennis_variations_ages_principles.sql their new columns
 // (variations, stage, birth_year) don't exist yet; the same goes for
-// 20261125000000_tennis_midcourt.sql (stages, serves, games_between).
+// 20261125000000_tennis_midcourt.sql (stages, serves, games_between), and
+// 20261204000000_tennis_teilziele_abschluss.sql (teilziel, goal, done,
+// after_session, day_end). Sessions too, for the last one.
 const standInColumns = "id, group_id, date, note";
-const sessionColumns = "id, group_id, date, start_time, minutes, focus, plan, notes, absent";
 const holidayColumns = "id, name, start_date, end_date";
 
-type ExerciseRow = Omit<Exercise, "diagram" | "playersMin" | "playersMax" | "variations" | "stages"> & {
+type ExerciseRow = Omit<Exercise, "diagram" | "playersMin" | "playersMax" | "variations" | "stages" | "teilziel"> & {
+  teilziel?: string | null;
+  tips?: string[] | null;
   diagram: unknown;
   players_min: number | null;
   players_max: number | null;
@@ -46,6 +52,8 @@ type GroupRow = {
   stage?: string | null;
   serves?: boolean | null;
   games_between?: boolean | null;
+  after_session?: unknown;
+  day_end?: unknown;
 };
 type StandInRow = { id: string; group_id: string; date: string; note: string };
 type PlayerRow = { id: string; group_id: string; name: string; gender: Gender | null; birth_year?: number | null };
@@ -60,6 +68,8 @@ type SessionRow = {
   plan: unknown;
   notes: string;
   absent: string[] | null;
+  goal?: string | null;
+  done?: string[] | null;
 };
 
 const toExercise = (row: ExerciseRow): Exercise => ({
@@ -69,7 +79,8 @@ const toExercise = (row: ExerciseRow): Exercise => ({
   minutes: row.minutes,
   summary: row.summary,
   description: row.description,
-  tips: row.tips,
+  // Before the migration the first cue stands in.
+  teilziel: row.teilziel ?? (row.tips?.[0] ?? "").replace(/!+$/, ""),
   focus: row.focus,
   diagram: parseDiagram(row.diagram),
   notes: row.notes,
@@ -100,6 +111,8 @@ const toGroup = (row: GroupRow): Group => ({
   stage: isStage(row.stage) ? row.stage : null,
   serves: row.serves ?? true,
   gamesBetween: row.games_between ?? false,
+  afterSession: row.after_session === undefined ? defaultAfterSession : cleanChecklist(row.after_session),
+  dayEnd: row.day_end === undefined ? defaultDayEnd : cleanChecklist(row.day_end),
 });
 
 const toStandIn = (row: StandInRow): StandIn => ({ id: row.id, groupId: row.group_id, date: row.date, note: row.note });
@@ -113,9 +126,11 @@ function toSession(row: SessionRow): Session {
     startTime: row.start_time.slice(0, 5),
     minutes: row.minutes,
     focus: row.focus,
+    goal: row.goal ?? "",
     plan,
     notes: row.notes,
     absent: row.absent ?? [],
+    done: row.done ?? [],
   };
 }
 
@@ -136,7 +151,7 @@ export const tennisLoaders = {
     const supabase = await createClient();
     const { data } = await supabase
       .from("tennis_sessions")
-      .select(sessionColumns)
+      .select("*")
       .order("date", { ascending: false })
       .order("start_time", { ascending: false });
     return ((data ?? []) as SessionRow[]).map(toSession);

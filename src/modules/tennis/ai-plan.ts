@@ -13,6 +13,7 @@ import {
   stageLabel,
   stageName,
   stages,
+  teilzielExamples,
   weekdayNames,
   type Exercise,
   type Group,
@@ -49,7 +50,7 @@ const newExercise = {
     minutes: { type: "integer" },
     summary: { type: "string" },
     description: { type: "string" },
-    tips: { type: "array", items: { type: "string" } },
+    teilziel: { type: "string" },
     focus: { type: "array", items: { type: "string", enum: [...focusTags] } },
     players_min: { type: "integer", description: "0 if any number" },
     players_max: { type: "integer", description: "0 if any number" },
@@ -72,7 +73,7 @@ const newExercise = {
     },
     diagram: { type: "array", items: diagramItem },
   },
-  required: ["name", "phase", "minutes", "summary", "description", "tips", "focus", "players_min", "players_max", "stages", "variations", "diagram"],
+  required: ["name", "phase", "minutes", "summary", "description", "teilziel", "focus", "players_min", "players_max", "stages", "variations", "diagram"],
   additionalProperties: false,
 } as const;
 
@@ -120,7 +121,7 @@ export type AiPlanAnswer = {
 };
 
 // How a good exercise for the collection looks; shared by both requests.
-const exerciseGuide = `A new exercise is kid-friendly and in German: a catchy name, a one-sentence summary, a 2-5 sentence description (setup, rules, points, rotation), 2-3 short cues to call out, the variations (easier, harder, for fewer and for more kids; this is what keeps a block from getting boring), and a court sketch with 3-12 items (coordinates in meters from the net center: x across from -8 to 8, doubles sidelines at ±5.49, singles sidelines at ±4.12; y along from -14.5 to 14.5, service lines ("T-Linie") at ±6.4, midcourt lines (baseline of the Orange court) at ±9, baselines at ±11.89; the coach's half is y < 0; "run" and "shot" arrows go from x,y to x2,y2; pieces use 0 for x2/y2; player labels 1-3 characters, empty for other pieces). Prefer game forms (with or against each other, points, records, team contests) over plain drills, and forms that run without the coach feeding every ball.`;
+const exerciseGuide = `A new exercise is kid-friendly and in German: a catchy name, a one-sentence summary, a 2-5 sentence description (setup, rules, points, rotation), exactly one Teilziel (BTV: the one point the coach watches and corrects in this exercise, in German like the BTV Technikskript, e.g. ${teilzielExamples}; "" if the exercise needs none), the variations (easier, harder, for fewer and for more kids; this is what keeps a block from getting boring), and a court sketch with 3-12 items (coordinates in meters from the net center: x across from -8 to 8, doubles sidelines at ±5.49, singles sidelines at ±4.12; y along from -14.5 to 14.5, service lines ("T-Linie") at ±6.4, midcourt lines (baseline of the Orange court) at ±9, baselines at ±11.89; the coach's half is y < 0; "run" and "shot" arrows go from x,y to x2,y2; pieces use 0 for x2/y2; player labels 1-3 characters, empty for other pieces). Prefer game forms (with or against each other, points, records, team contests) over plain drills, and forms that run without the coach feeding every ball.`;
 
 const system = `You plan tennis training sessions for a club coach in Bavaria (BTV C-Trainer training) who trains groups of children and teenagers (beginners to intermediate). The coach writes a short request in German; you answer with the session as JSON.
 

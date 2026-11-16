@@ -2,6 +2,8 @@
 // types, the court diagram format, the session generator and the JSON format
 // for exercises written by an AI chat.
 
+import { teilzielAreas } from "./teilziele";
+
 export const phases = [
   { id: "warmup", name: "Aufwärmen" },
   { id: "technique", name: "Technik" },
@@ -31,8 +33,10 @@ export type Exercise = {
   minutes: number;
   summary: string;
   description: string;
-  // Short cues to call out while the kids play.
-  tips: string[];
+  // The one point the coach watches and corrects (BTV "Teilziel"), e.g.
+  // "Treffpunkt seitlich vor dem Körper"; "" = none. A session can set
+  // another one per plan item (PlanItem.goal). See teilziele.ts.
+  teilziel: string;
   focus: string[];
   diagram: Diagram;
   notes: string;
@@ -86,7 +90,24 @@ export type Group = {
   // Short playful games between the technique blocks instead of one game at
   // the end (see slotsFor).
   gamesBetween: boolean;
+  // To do after each session of the group, and additionally after the last
+  // session of the day (e.g. "Platz abziehen", "Foto vom Plan schicken").
+  afterSession: string[];
+  dayEnd: string[];
 };
+
+export const defaultAfterSession = ["Platz abziehen", "Linien kehren"];
+export const defaultDayEnd = ["Foto vom Plan schicken", "Fehlende Kinder eintragen", "Alles aufräumen"];
+
+// A checklist from the browser or the database: up to 10 short, distinct items.
+export function cleanChecklist(value: unknown): string[] {
+  const list = Array.isArray(value) ? value : [];
+  const items = list
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim().slice(0, 80))
+    .filter(Boolean);
+  return [...new Set(items)].slice(0, 10);
+}
 
 // The DTB/BTV Play+Stay stages, by age (6-13 years over 3-4 years).
 export const stages = [
@@ -146,27 +167,41 @@ export const genderName = { m: "Junge", f: "Mädchen" } as const;
 export type Holiday = { id: string; name: string; startDate: string; endDate: string };
 
 // `note`: a reminder for this session only, e.g. "Hütchen mitnehmen"; the
-// exercise itself stays as it is.
-export type PlanItem = { exerciseId: string; minutes: number; note?: string };
+// exercise itself stays as it is. `goal`: the Teilziel for this session
+// instead of the exercise's own ("" = none this time); without it, the
+// exercise's Teilziel applies.
+export type PlanItem = { exerciseId: string; minutes: number; note?: string; goal?: string };
 
 // A plan item from the browser or the database, or null if it isn't one.
 export function cleanPlanItem(value: unknown): PlanItem | null {
   if (!value || typeof value !== "object") return null;
-  const { exerciseId, minutes, note } = value as Record<string, unknown>;
+  const { exerciseId, minutes, note, goal } = value as Record<string, unknown>;
   if (typeof exerciseId !== "string" || typeof minutes !== "number" || !Number.isFinite(minutes)) return null;
   const text = typeof note === "string" ? note.trim().slice(0, 300) : "";
-  return { exerciseId, minutes: Math.min(90, Math.max(1, Math.round(minutes))), ...(text && { note: text }) };
+  return {
+    exerciseId,
+    minutes: Math.min(90, Math.max(1, Math.round(minutes))),
+    ...(text && { note: text }),
+    ...(typeof goal === "string" && { goal: goal.trim().slice(0, 120) }),
+  };
 }
 
-// Notes stay with their exercise when a plan is replaced (e.g. by the AI):
-// each new item takes the note of the same exercise in the old plan.
+// The Teilziel of a plan item: its own for this session, else the exercise's.
+export const teilzielOf = (item: Pick<PlanItem, "goal">, exercise: Pick<Exercise, "teilziel">) => item.goal ?? exercise.teilziel;
+
+// Notes and Teilziele stay with their exercise when a plan is replaced (e.g.
+// by the AI): each new item takes them from the same exercise in the old plan.
 export function keepNotes(next: PlanItem[], previous: PlanItem[]): PlanItem[] {
-  const left = previous.filter((item) => item.note);
+  const left = previous.filter((item) => item.note || item.goal !== undefined);
   return next.map((item) => {
     const at = left.findIndex((entry) => entry.exerciseId === item.exerciseId);
     if (at < 0) return item;
     const [match] = left.splice(at, 1);
-    return { ...item, note: match.note };
+    return {
+      ...item,
+      ...(match.note && { note: match.note }),
+      ...(match.goal !== undefined && { goal: match.goal }),
+    };
   });
 }
 
@@ -177,11 +212,20 @@ export type Session = {
   startTime: string; // "16:00"
   minutes: number;
   focus: string | null;
+  // The Stundenziel (BTV "Gesamtziel"), e.g. "Vorhand-Drive"; "" = none.
+  goal: string;
   plan: PlanItem[];
   notes: string;
   // Players of the group who cancelled.
   absent: string[];
+  // Checklist items ticked off after the session.
+  done: string[];
 };
+
+// Whether no other session of mine follows on the same day: then the
+// group's "Tagesende" list applies too.
+export const isLastOfDay = (session: Pick<Session, "id" | "date" | "startTime">, sessions: Pick<Session, "id" | "date" | "startTime">[]) =>
+  !sessions.some((other) => other.id !== session.id && other.date === session.date && other.startTime > session.startTime);
 
 // --- Court diagram ------------------------------------------------------------
 //
@@ -539,10 +583,9 @@ export function cleanExercise(value: Record<string, unknown>): ExerciseInput | n
   if (!name) return null;
   const phase = phases.some((entry) => entry.id === value.phase) ? (value.phase as Phase) : "technique";
   const minutes = Math.min(60, Math.max(5, Math.round(Number(value.minutes) || 10)));
-  const tips = (Array.isArray(value.tips) ? value.tips : typeof value.tips === "string" ? value.tips.split("\n") : [])
-    .map((tip) => text(tip, 120))
-    .filter(Boolean)
-    .slice(0, 6);
+  // Older JSON has cues ("tips") instead; the first one stands in.
+  const oldTips = Array.isArray(value.tips) ? value.tips : typeof value.tips === "string" ? value.tips.split("\n") : [];
+  const teilziel = text(value.teilziel, 120) || text(oldTips[0], 120).replace(/!+$/, "");
   const focus = (Array.isArray(value.focus) ? value.focus : []).filter((tag): tag is string =>
     (focusTags as readonly unknown[]).includes(tag),
   );
@@ -554,7 +597,7 @@ export function cleanExercise(value: Record<string, unknown>): ExerciseInput | n
     minutes,
     summary: text(value.summary, 200),
     description: text(value.description, 2000),
-    tips,
+    teilziel,
     focus,
     diagram: parseDiagram(value.diagram),
     playersMin,
@@ -593,6 +636,11 @@ export function parseExercises(input: string): { exercises: ExerciseInput[]; err
   return { exercises, error: exercises.length === 0 ? "Keine Übung mit Namen gefunden." : null };
 }
 
+// A few Teilziele from the catalog, for prompts.
+export const teilzielExamples = teilzielAreas
+  .flatMap((area) => area.points.slice(0, 2).map((point) => `„${point.label}“`))
+  .join(", ");
+
 // A prompt for any AI chat (free Claude or ChatGPT is enough). The answer is
 // pasted back into the import dialog.
 export function aiPrompt(wish: string, existing: string[], principles: string) {
@@ -609,7 +657,7 @@ ${existing.length > 0 ? `Diese Übungen habe ich schon, bitte nichts Gleiches:\n
     "minutes": 10,
     "summary": "Ein Satz: worum geht es?",
     "description": "Ablauf in 2–5 Sätzen: Aufbau, Regeln, Punkte, Wechsel.",
-    "tips": ["Kurzer Zuruf für die Kinder", "Noch einer"],
+    "teilziel": "Der eine Punkt, auf den der Trainer achtet und den er korrigiert, z. B. Treffpunkt seitlich vor dem Körper",
     "focus": ["Vorhand"],
     "playersMin": 2,
     "playersMax": null,
@@ -624,6 +672,7 @@ ${existing.length > 0 ? `Diese Übungen habe ich schon, bitte nichts Gleiches:\n
   }
 ]
 
+"teilziel": genau EIN Teilziel (BTV), z. B. ${teilzielExamples}; "" wenn die Übung keins braucht.
 "focus" nur aus: ${focusTags.join(", ")}.
 "playersMin"/"playersMax": für wie viele Kinder die Übung mindestens/höchstens funktioniert (z. B. 4 für Teams 2 gegen 2), null wenn egal.
 "stages": für welche Play+Stay-Stufen die Übung gemacht ist, aus ${stages.map((stage) => `"${stage.id}" (${stage.name}, ${stage.court})`).join(", ")}; [] wenn für alle.

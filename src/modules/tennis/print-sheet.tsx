@@ -1,12 +1,12 @@
 import { cn } from "@/lib/utils";
 import { Court } from "./court";
-import { formatClock, formatSessionDate, showsMidcourt, timeline, type Exercise, type Group, type Session, type Stage } from "./data";
+import { formatClock, formatSessionDate, showsMidcourt, teilzielOf, timeline, type Exercise, type Group, type Session, type Stage } from "./data";
 
 type SheetProps = {
   title: string;
   subtitle: string;
   startTime: string;
-  items: { exercise: Exercise; minutes: number; note?: string }[];
+  items: { exercise: Exercise; minutes: number; note?: string; teilziel?: string }[];
   notes: string;
   stage?: Stage | null;
 };
@@ -17,12 +17,12 @@ export function sheetFor(session: Session, groups: Group[], exercises: Exercise[
   const group = groups.find((entry) => entry.id === session.groupId);
   const items = session.plan.flatMap((item) => {
     const exercise = exercises.find((entry) => entry.id === item.exerciseId);
-    return exercise ? [{ exercise, minutes: item.minutes, note: item.note ?? "" }] : [];
+    return exercise ? [{ exercise, minutes: item.minutes, note: item.note ?? "", teilziel: teilzielOf(item, exercise) }] : [];
   });
   const end = formatClock(timeline(session.startTime, session.plan).at(-1)?.end ?? 0);
   return {
     title: `${group?.name ?? "Training"} · Tennistraining`,
-    subtitle: `${formatSessionDate(session.date)} · ${session.startTime}–${end}${session.focus ? ` · ${session.focus}` : ""}`,
+    subtitle: `${formatSessionDate(session.date)} · ${session.startTime}–${end}${session.goal ? ` · Ziel: ${session.goal}` : session.focus ? ` · ${session.focus}` : ""}`,
     startTime: session.startTime,
     items,
     notes: session.notes,
@@ -82,7 +82,7 @@ function Sheet({
         <p className="text-right">{subtitle}</p>
       </header>
       <ol>
-        {items.map(({ exercise, minutes, note }, index) => {
+        {items.map(({ exercise, minutes, note, teilziel }, index) => {
           const easier = shortText(exercise.variations.easier, 60);
           const harder = shortText(exercise.variations.harder, 60);
           return (
@@ -93,6 +93,7 @@ function Sheet({
               </div>
               <div className="min-w-0 flex-1 space-y-px">
                 <p className="text-[9pt] font-bold">{exercise.name}</p>
+                {teilziel && <p className="italic">Teilziel: {teilziel}</p>}
                 {note && <p className="font-bold">» {note}</p>}
                 {exercise.summary && <p>{shortText(exercise.summary, 110)}</p>}
                 {(easier || harder) && (
