@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarIcon, MinusIcon, PlusIcon, Trash2Icon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { confirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,42 @@ function rememberedPerson() {
   }
 }
 
+// Unsaved input is kept on this device, so a closed sheet, a reload or a
+// crashed tab does not lose it. One draft per new entry / edited entry;
+// drafts older than a day are ignored.
+const DRAFT = "weight:entry-draft";
+const DRAFT_MAX_AGE = 24 * 60 * 60 * 1000;
+
+type Fields = { weight: string; bodyFat: string; muscleMass: string; fatFreeMass: string };
+type Extras = { bodyFat: boolean; muscleMass: boolean; fatFreeMass: boolean };
+type Draft = {
+  scope: string;
+  savedAt: number;
+  personId: string;
+  date: string;
+  fields: Fields;
+  extras: Extras;
+  measures: Record<string, string>;
+};
+
+const draftScope = (request: SheetRequest) => (request.edit ? `edit:${request.kind}:${request.edit.participantId}:${request.edit.date}` : "new");
+
+function readDraft(scope: string): Draft | null {
+  try {
+    const draft = JSON.parse(window.localStorage.getItem(DRAFT) ?? "null") as Draft | null;
+    if (!draft || draft.scope !== scope || Date.now() - draft.savedAt > DRAFT_MAX_AGE) return null;
+    return draft;
+  } catch {
+    return null;
+  }
+}
+function writeDraft(draft: Draft | null) {
+  try {
+    if (draft) window.localStorage.setItem(DRAFT, JSON.stringify(draft));
+    else window.localStorage.removeItem(DRAFT);
+  } catch {}
+}
+
 // "Neue Messung": a weighing (weight, optional KFA, muscles, FFM) or a set of
 // circumferences for one person and day. A person has at most one of each
 // per day, so picking a day that already has values edits them.
@@ -42,14 +78,22 @@ export function EntrySheet({ request, today, onClose }: { request: SheetRequest;
   const change = useChange();
   const editing = request.edit;
 
+  const scope = draftScope(request);
+  const [draft] = useState(() => {
+    const saved = readDraft(scope);
+    return saved && participants.some((participant) => participant.id === saved.personId) && isDate(saved.date) ? saved : null;
+  });
+  const [restored, setRestored] = useState(draft !== null);
+
   const [kind, setKind] = useState(request.kind);
   const initialPerson =
+    draft?.personId ??
     editing?.participantId ??
     participants.find((participant) => participant.userId === me.id)?.id ??
     participants.find((participant) => participant.id === rememberedPerson())?.id ??
     participants[0].id;
   const [personId, setPersonId] = useState(initialPerson);
-  const [date, setDate] = useState(editing?.date ?? today);
+  const [date, setDate] = useState(draft?.date ?? editing?.date ?? today);
 
   const weighingAt = (id: string, day: string) => weighings.find((weighing) => weighing.participantId === id && weighing.date === day);
   const setAt = (id: string, day: string) => circumferences.find((set) => set.participantId === id && set.date === day);
@@ -72,13 +116,49 @@ export function EntrySheet({ request, today, onClose }: { request: SheetRequest;
     return Object.fromEntries(Object.entries(existing?.values ?? {}).map(([key, value]) => [key, toField(value)]));
   }
 
-  const [fields, setFields] = useState(() => weightFields(personId, date));
-  const [extras, setExtras] = useState(() => ({
-    bodyFat: fields.bodyFat !== "",
-    muscleMass: fields.muscleMass !== "",
-    fatFreeMass: fields.fatFreeMass !== "",
-  }));
-  const [measures, setMeasures] = useState<Record<string, string>>(() => measureFields(personId, date));
+  const [fields, setFields] = useState<Fields>(() => draft?.fields ?? weightFields(personId, date));
+  const [extras, setExtras] = useState<Extras>(
+    () =>
+      draft?.extras ?? {
+        bodyFat: fields.bodyFat !== "",
+        muscleMass: fields.muscleMass !== "",
+        fatFreeMass: fields.fatFreeMass !== "",
+      },
+  );
+  const [measures, setMeasures] = useState<Record<string, string>>(() => draft?.measures ?? measureFields(personId, date));
+
+  // Keep the draft in sync once something was changed; the untouched
+  // starting values are not worth keeping.
+  const pristine = useRef(draft ? null : JSON.stringify({ personId, date, fields, extras, measures }));
+  const finished = useRef(false);
+  useEffect(() => {
+    if (finished.current) return;
+    const current = { personId, date, fields, extras, measures };
+    if (JSON.stringify(current) === pristine.current) return;
+    pristine.current = null;
+    writeDraft({ scope, savedAt: Date.now(), ...current });
+  }, [scope, personId, date, fields, extras, measures]);
+
+  function discardDraft() {
+    writeDraft(null);
+    const id = editing?.participantId ?? personId;
+    const day = editing?.date ?? date;
+    const next = weightFields(id, day);
+    const nextExtras = { bodyFat: next.bodyFat !== "", muscleMass: next.muscleMass !== "", fatFreeMass: next.fatFreeMass !== "" };
+    const nextMeasures = measureFields(id, day);
+    pristine.current = JSON.stringify({ personId: id, date: day, fields: next, extras: nextExtras, measures: nextMeasures });
+    setPersonId(id);
+    setDate(day);
+    setFields(next);
+    setExtras(nextExtras);
+    setMeasures(nextMeasures);
+    setRestored(false);
+  }
+  function finish() {
+    finished.current = true;
+    writeDraft(null);
+    onClose();
+  }
 
   function choose(id: string, day: string) {
     setPersonId(id);
@@ -183,7 +263,7 @@ export function EntrySheet({ request, today, onClose }: { request: SheetRequest;
       void applySets([...(moved ? [{ ...moved, next: null }] : []), { ...target, next }]);
       toast.success("Gespeichert", { action: { label: "Rückgängig", onClick: () => void applySets(undo) } });
     }
-    onClose();
+    finish();
   }
 
   async function remove() {
@@ -199,7 +279,7 @@ export function EntrySheet({ request, today, onClose }: { request: SheetRequest;
       void applySets([{ ...editing, next: null }]);
       toast.success("Gelöscht", { action: { label: "Rückgängig", onClick: () => void applySets([{ ...editing, next: old }]) } });
     }
-    onClose();
+    finish();
   }
 
   // --- Layout ---------------------------------------------------------------------
@@ -217,6 +297,15 @@ export function EntrySheet({ request, today, onClose }: { request: SheetRequest;
           save();
         }}
       >
+        {restored && (
+          <p className="flex items-center justify-between gap-2 rounded-lg bg-muted px-3 py-1.5 text-xs text-muted-foreground">
+            <span>Ungespeicherte Eingaben wiederhergestellt</span>
+            <button type="button" onClick={discardDraft} className="cursor-pointer font-medium text-foreground underline-offset-2 hover:underline">
+              Verwerfen
+            </button>
+          </p>
+        )}
+
         {!editing && (
           <Segmented
             label="Art"
