@@ -125,6 +125,9 @@ export function BottomSheet({
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
           aria-describedby={undefined}
+          // Sheets hold forms: a stray tap next to them must not throw away
+          // what was typed. Close via the X button or Escape instead.
+          onInteractOutside={(event) => event.preventDefault()}
           className={cn(
             "fixed inset-x-0 bottom-0 z-50 flex max-h-[92dvh] flex-col rounded-t-2xl border-t bg-background shadow-lg",
             "pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]",
