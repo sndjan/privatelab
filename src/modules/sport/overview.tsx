@@ -27,14 +27,17 @@ import {
   weekday,
 } from "./calc";
 import { Sparkline } from "./charts";
-import { PLAN_START, planWeekOf, plannedDay } from "./plan";
+import { runLoad, streaks } from "./analytics";
+import { planFromSettings, planWeekOf, plannedDay } from "./plan";
 import { kindColor, Panel, Stat } from "./ui";
 
 export function OverviewTab({ today }: { today: string }) {
   const data = useSportData();
   const ready = readiness(data.health, today);
   const monday = mondayOf(today);
-  const plan = planWeekOf(today);
+  const fullPlan = planFromSettings(data.settings);
+  const planStart = fullPlan[0].start;
+  const plan = planWeekOf(fullPlan, today);
   const days = trainingDays(data.activities, data.workouts);
   const todayPlan = plannedDay(weekday(today), plan);
 
@@ -57,6 +60,14 @@ export function OverviewTab({ today }: { today: string }) {
   const doneSessions = weekDays.filter((entry) => entry.done).length;
   const plannedSessions = plan ? weekDays.filter((entry) => entry.planned.kind !== "free").length : null;
   const lastSync = data.syncRuns[0];
+  const load = runLoad(data.runs, today);
+  const gymByWeek = new Map<string, number>();
+  for (const workout of data.workouts) gymByWeek.set(mondayOf(workout.day), (gymByWeek.get(mondayOf(workout.day)) ?? 0) + 1);
+  const runsByWeek = new Map<string, number>();
+  for (const run of data.runs) runsByWeek.set(mondayOf(run.day), (runsByWeek.get(mondayOf(run.day)) ?? 0) + 1);
+  const streak = streaks(data, today, gymByWeek, runsByWeek, fullPlan);
+  const lastWeight = data.weight.at(-1);
+  const firstWeight = data.weight[0];
 
   return (
     <div className="space-y-4">
@@ -65,7 +76,7 @@ export function OverviewTab({ today }: { today: string }) {
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-lg font-semibold">Heute</h2>
             <span className="text-sm text-hero-muted">
-              {plan ? `Plan: ${todayPlan.label}` : today < PLAN_START ? `Plan startet am ${formatDate(PLAN_START)}` : "Plan beendet"}
+              {plan ? `Plan: ${todayPlan.label}` : today < planStart ? `Plan startet am ${formatDate(planStart)}` : "Plan beendet"}
             </span>
           </div>
           <p className="text-xl font-semibold text-balance">{ready.headline}</p>
@@ -138,6 +149,41 @@ export function OverviewTab({ today }: { today: string }) {
             </div>
           </div>
         </Panel>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Link href="/m/sport?tab=laufen" className={cn("flex min-w-0 flex-col gap-0.5 rounded-xl border p-4", load.level === "spike" || load.level === "high" ? "border-debt bg-bad" : "bg-card")}>
+          <span className="text-xs text-muted-foreground">Belastung Laufen</span>
+          <span className="font-semibold">{load.label}</span>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {formatMinutes(load.acute)} in 7 Tagen{load.ratio != null ? ` · ${formatNumber(load.ratio * 100)} % vom Schnitt` : ""}
+          </span>
+        </Link>
+        <div className="flex min-w-0 flex-col gap-0.5 rounded-xl border bg-card p-4">
+          <span className="text-xs text-muted-foreground">Serien</span>
+          <span className="text-sm">
+            <strong className="tabular-nums">{streak.gym}</strong> Wo. Gym-Ziel · <strong className="tabular-nums">{streak.runs}</strong> Wo. Läufe
+          </span>
+          <span className="text-sm">
+            <strong className="tabular-nums">{streak.sleep}</strong> Nächte im Schlafbereich · <strong className="tabular-nums">{streak.steps}</strong> Tage Schritte
+          </span>
+        </div>
+        <Link href="/m/sport?tab=erholung" className="flex min-w-0 flex-col gap-0.5 rounded-xl border bg-card p-4">
+          <span className="text-xs text-muted-foreground">Gewicht</span>
+          <span className="text-xl font-bold tabular-nums">{lastWeight ? `${String(lastWeight.kg).replace(".", ",")} kg` : "–"}</span>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {lastWeight && firstWeight && lastWeight !== firstWeight
+              ? `${lastWeight.kg - firstWeight.kg > 0 ? "+" : ""}${String(Math.round((lastWeight.kg - firstWeight.kg) * 10) / 10).replace(".", ",")} kg seit ${formatDate(firstWeight.day)}`
+              : lastWeight
+                ? formatDate(lastWeight.day)
+                : "aus der Gewicht-Challenge"}
+          </span>
+        </Link>
+        <Link href="/m/sport?tab=erholung" className="flex min-w-0 flex-col gap-0.5 rounded-xl border bg-card p-4">
+          <span className="text-xs text-muted-foreground">Schritte heute</span>
+          <span className="text-xl font-bold tabular-nums">{formatNumber(data.health.at(-1)?.day === today ? (data.health.at(-1)?.steps ?? 0) : 0)}</span>
+          <span className="text-xs text-muted-foreground tabular-nums">Ziel {formatNumber(data.settings.stepsGoal ?? data.health.at(-1)?.stepsGoal ?? 7000)}</span>
+        </Link>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

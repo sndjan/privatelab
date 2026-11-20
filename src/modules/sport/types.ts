@@ -30,6 +30,13 @@ export type HealthDay = {
   hrvStatus: string | null;
   hrvLow: number | null;
   hrvHigh: number | null;
+  steps: number | null;
+  stepsGoal: number | null;
+  // Local wall-clock times "YYYY-MM-DDTHH:MM:SS"
+  bed: string | null;
+  wake: string | null;
+  // Only on days Garmin's VO2max changed
+  vo2max: number | null;
 };
 
 export type ExerciseSession = {
@@ -42,7 +49,12 @@ export type ExerciseSession = {
   volumeKg: number;
   topWeightKg: number | null;
   topReps: number | null;
+  templateId: string | null;
+  // Working sets, heaviest first: [kg, reps]
+  setList: [number | null, number | null][];
 };
+
+export type Template = { title: string | null; primary: string | null; secondary: string[] };
 
 export type Workout = {
   id: string;
@@ -59,6 +71,25 @@ export type Activity = {
   name: string | null;
   km: number | null;
   durationS: number | null;
+  avgHr: number | null;
+};
+
+export type Weighing = { day: string; kg: number; bodyFat: number | null; muscle: number | null };
+
+export type PlanChange = { week: number; action: "repeat" | "skip" };
+
+export type Settings = {
+  sleepMinH: number;
+  sleepMaxH: number;
+  sleepGoalH: number;
+  gymPerWeek: number;
+  zone1GoalPct: number;
+  stepsGoal: number | null;
+  planStart: string;
+  planChanges: PlanChange[];
+  notifyMorning: boolean;
+  notifyMorningHour: number;
+  notifyWeekly: boolean;
 };
 
 export type SyncRun = {
@@ -74,5 +105,9 @@ export type SportData = {
   exercises: ExerciseSession[];
   workouts: Workout[];
   activities: Activity[];
+  templates: Record<string, Template>;
+  weight: Weighing[];
+  settings: Settings;
+  pushEndpoints: string[];
   syncRuns: SyncRun[];
 };
