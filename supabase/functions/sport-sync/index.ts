@@ -187,10 +187,11 @@ async function hevy(full: boolean, details: Record<string, unknown>) {
 // against the synced templates. A routine with the same title in Hevy is
 // replaced (PUT), otherwise created (POST). dry=1 only reports what would happen.
 
-type PushExercise = {
-  name: string; templateId: string | null; sets: number; repsMin: number; repsMax: number;
-  weightKg: number | null; restSeconds: number; notes: string;
+type PushSet = {
+  type: "normal" | "warmup"; weightKg: number | null; reps: number | null;
+  repsMin: number | null; repsMax: number | null; durationS: number | null;
 };
+type PushExercise = { name: string; templateId: string | null; restSeconds: number | null; notes: string; sets: PushSet[] };
 type PushRoutine = { title: string; notes: string; exercises: PushExercise[] };
 
 const json = (body: unknown, status = 200) =>
@@ -275,13 +276,13 @@ async function pushRoutines(req: Request, dry: boolean) {
         superset_id: null,
         rest_seconds: exercise.restSeconds ?? null,
         notes: exercise.notes || null,
-        sets: Array.from({ length: Math.max(1, Math.min(10, exercise.sets)) }, () => ({
-          type: "normal",
-          weight_kg: exercise.weightKg ?? null,
-          reps: null,
-          rep_range: { start: exercise.repsMin, end: exercise.repsMax },
+        sets: (Array.isArray(exercise.sets) ? exercise.sets : []).slice(0, 10).map((set) => ({
+          type: set.type === "warmup" ? "warmup" : "normal",
+          weight_kg: set.weightKg ?? null,
+          reps: set.reps ?? null,
+          rep_range: set.repsMin != null && set.repsMax != null ? { start: set.repsMin, end: set.repsMax } : null,
           distance_meters: null,
-          duration_seconds: null,
+          duration_seconds: set.durationS ?? null,
           custom_metric: null,
         })),
       }));
