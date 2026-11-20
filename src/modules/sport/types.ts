@@ -110,4 +110,6 @@ export type SportData = {
   settings: Settings;
   pushEndpoints: string[];
   syncRuns: SyncRun[];
+  // First name from the Gewicht-Challenge, if the viewer is a participant there.
+  viewerName: string | null;
 };

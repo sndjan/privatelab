@@ -4,7 +4,7 @@ import { CalendarCheckIcon, CalendarDaysIcon, DumbbellIcon, FootprintsIcon, Hous
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Loading } from "@/components/loading";
-import { ViewLink as Link } from "@/lib/query/view-link";
+import { ViewLink as Link, useViewNavigate } from "@/lib/query/view-link";
 import { cn } from "@/lib/utils";
 import { CalendarTab } from "./calendar";
 import { todayInGermany } from "./calc";
@@ -13,7 +13,10 @@ import { OverviewTab } from "./overview";
 import { RecoveryTab } from "./recovery";
 import { RunningTab } from "./running";
 import { SettingsTab } from "./settings";
+import { useSportData } from "./store";
 import { PlanTab } from "./week-check";
+import { yearReview } from "./wrapped";
+import { WrappedStory } from "./wrapped-story";
 
 const PATH = "/m/sport";
 
@@ -51,6 +54,7 @@ function Shell() {
   const today = todayInGermany();
   const href = (id: TabId) => (id === "uebersicht" ? PATH : `${PATH}?tab=${id}`);
   const showRange = tab === "laufen" || tab === "erholung" || tab === "gym";
+  const reviewYear = Number(searchParams.get("rueckblick")) || null;
 
   return (
     <div className="space-y-4 pb-24 sm:space-y-5 sm:pb-0">
@@ -114,6 +118,7 @@ function Shell() {
       {tab === "kalender" && <CalendarTab today={today} />}
       {tab === "plan" && <PlanTab today={today} />}
       {tab === "einstellungen" && <SettingsTab />}
+      {reviewYear && <ReviewOverlay year={reviewYear} today={today} />}
 
       <nav
         aria-label="Bereiche"
@@ -140,4 +145,18 @@ function Shell() {
       </nav>
     </div>
   );
+}
+
+// The year review over the page, opened by ?rueckblick=<year>.
+function ReviewOverlay({ year, today }: { year: number; today: string }) {
+  const data = useSportData();
+  const navigate = useViewNavigate();
+  const searchParams = useSearchParams();
+  const close = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("rueckblick");
+    const query = params.toString();
+    navigate(query ? `${PATH}?${query}` : PATH, { replace: true, scroll: false });
+  };
+  return <WrappedStory review={yearReview(data, year, today)} name={data.viewerName ?? "Mein Jahr"} onClose={close} />;
 }

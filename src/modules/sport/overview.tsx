@@ -1,6 +1,10 @@
 "use client";
 
 import { CheckIcon } from "lucide-react";
+import { useSyncExternalStore } from "react";
+import { useViewNavigate } from "@/lib/query/view-link";
+import { yearReview } from "./wrapped";
+import { WrappedBanner } from "./wrapped-story";
 import { ViewLink as Link } from "@/lib/query/view-link";
 import { cn } from "@/lib/utils";
 import { useSportData } from "./store";
@@ -71,6 +75,7 @@ export function OverviewTab({ today }: { today: string }) {
 
   return (
     <div className="space-y-4">
+      <ReviewBanner today={today} />
       <div className="grid gap-3 lg:grid-cols-2">
         <section className="space-y-3 rounded-2xl bg-hero p-5 text-hero-foreground">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -272,5 +277,49 @@ function SyncLog({ runs }: { runs: { startedAt: string; ok: boolean | null; erro
         ))}
       </ul>
     </details>
+  );
+}
+
+// From 1 December (and until 15 January for the year before) the year review
+// is offered at the top; "Später" hides it on this device.
+const DISMISS_KEY = "sport-review-dismissed";
+const listeners = new Set<() => void>();
+const readDismissed = () => {
+  try {
+    return localStorage.getItem(DISMISS_KEY) ?? "";
+  } catch {
+    return "";
+  }
+};
+
+function ReviewBanner({ today }: { today: string }) {
+  const data = useSportData();
+  const navigate = useViewNavigate();
+  const dismissed = useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    readDismissed,
+    () => "server",
+  );
+  const month = Number(today.slice(5, 7));
+  const year = month === 12 ? Number(today.slice(0, 4)) : month === 1 && Number(today.slice(8, 10)) <= 15 ? Number(today.slice(0, 4)) - 1 : null;
+  if (!year || dismissed === "server" || dismissed === String(year)) return null;
+  const review = yearReview(data, year, today);
+  if (review.activeDays === 0) return null;
+  return (
+    <WrappedBanner
+      review={review}
+      onOpen={() => navigate(`/m/sport?rueckblick=${year}`, { scroll: false })}
+      onLater={() => {
+        try {
+          localStorage.setItem(DISMISS_KEY, String(year));
+        } catch {
+          // storage blocked: the banner stays
+        }
+        listeners.forEach((listener) => listener());
+      }}
+    />
   );
 }

@@ -3,6 +3,7 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ViewLink } from "@/lib/query/view-link";
 import { cn } from "@/lib/utils";
 import { activityLabel, addDays, formatDuration, formatKm, formatMinutes, formatNumber, formatSleep, mondayOf, trainingDays, WEEKDAYS, weekday } from "./calc";
 import { planFromSettings, planWeekOf, plannedDay } from "./plan";
@@ -151,6 +152,15 @@ export function CalendarTab({ today }: { today: string }) {
         </Panel>
       ) : (
         <Panel aside={<MetricPicker metric={metric} setMetric={setMetric} />} title="Jahresübersicht">
+          {String(year) <= today.slice(0, 4) && data.health.some((day) => day.day.startsWith(String(year))) && (
+            <ViewLink
+              href={`/m/sport?tab=kalender&rueckblick=${year}`}
+              scroll={false}
+              className="flex w-fit items-center gap-2 rounded-full bg-hero px-4 py-2 text-sm font-semibold text-hero-foreground"
+            >
+              Jahresrückblick {year} ansehen
+            </ViewLink>
+          )}
           <YearGrid year={year} today={today} onPick={pick} color={(day) => colorFor(metric, day, days.get(day), health.get(day), runMinutes.get(day), settings)} />
           <YearLegend metric={metric} />
         </Panel>
