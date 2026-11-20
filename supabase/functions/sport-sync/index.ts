@@ -37,7 +37,7 @@ async function garminToken(details: Record<string, unknown>): Promise<string> {
   return token;
 }
 
-async function garmin(days: number, endDate: Date, details: Record<string, unknown>) {
+async function garmin(days: number, endDate: Date, details: Record<string, unknown>, parts: string[] | null) {
   let h = { Authorization: `Bearer ${await garminToken(details)}` };
   // A cached token that Garmin no longer accepts is dropped and fetched again once.
   try {
@@ -47,7 +47,7 @@ async function garmin(days: number, endDate: Date, details: Record<string, unkno
     await sql`delete from sport.garmin_token`;
     h = { Authorization: `Bearer ${await garminToken(details)}` };
   }
-  await syncGarmin(h, days, endDate, details);
+  await syncGarmin(h, days, endDate, details, parts);
 }
 
 async function fetchGarminToken(details: Record<string, unknown>): Promise<string> {
@@ -69,13 +69,13 @@ async function fetchGarminToken(details: Record<string, unknown>): Promise<strin
   return token;
 }
 
-async function syncGarmin(h: Record<string, string>, days: number, endDate: Date, details: Record<string, unknown>) {
+async function syncGarmin(h: Record<string, string>, days: number, endDate: Date, details: Record<string, unknown>, parts: string[] | null) {
   const end = endDate;
   const start = addDays(end, -days);
 
   // Activities
   let n = 0;
-  for (let off = 0; off < 5000; off += 100) {
+  for (let off = 0; (!parts || parts.includes("activities")) && off < 5000; off += 100) {
     const list = await getJson(
       `${GARMIN}/activitylist-service/activities/search/activities?start=${off}&limit=100&startDate=${iso(start)}&endDate=${iso(end)}`, h);
     const arr: any[] = Array.isArray(list) ? list : (list?.activityList ?? list?.activities ?? []);
@@ -100,8 +100,11 @@ async function syncGarmin(h: Record<string, string>, days: number, endDate: Date
     ["summary", (s, e) => `/usersummary-service/v2/dailysummaries?startDate=${s}&endDate=${e}`],
     ["sleep", (s, e) => `/sleep-service/sleep/dailySleepSummariesByDate?startDate=${s}&endDate=${e}`],
     ["hrv", (s, e) => `/hrv-service/hrv/daily/${s}/${e}`],
+    // VO2max (Garmin "maxmet"): one entry per day it changed, under "generic".
+    ["vo2max", (s, e) => `/metrics-service/metrics/maxmet/daily/${s}/${e}`],
   ];
   for (const [kind, path] of kinds) {
+    if (parts && !parts.includes(kind)) continue;
     let cnt = 0;
     try {
       for (let s = start; s <= end; s = addDays(s, 28)) {
@@ -139,6 +142,42 @@ async function hevy(full: boolean, details: Record<string, unknown>) {
     if (!arr.length || page >= (res?.page_count ?? 0)) break;
   }
   details.hevy_workouts = n;
+
+  // Routines (few, so every run) and exercise templates with their muscle
+  // groups (several hundred, so once a day or on a backfill).
+  let routines = 0;
+  for (let page = 1; page <= 50; page++) {
+    const res = await getJson(`${HEVY}/v1/routines?page=${page}&pageSize=10`, { "api-key": key });
+    const arr: any[] = res?.routines ?? [];
+    for (const r of arr) {
+      await sql`insert into sport.hevy_routines (routine_id, title, folder_id, updated_at, raw, synced_at)
+        values (${r.id}, ${r.title ?? null}, ${r.folder_id ?? null}, ${r.updated_at ?? null}, ${sql.json(r)}, now())
+        on conflict (routine_id) do update set title=excluded.title, folder_id=excluded.folder_id, updated_at=excluded.updated_at,
+          raw=excluded.raw, synced_at=now()`;
+      routines++;
+    }
+    if (!arr.length || page >= (res?.page_count ?? 0)) break;
+  }
+  details.hevy_routines = routines;
+
+  const [fresh] = await sql`select count(*)::int as n from sport.hevy_exercise_templates where synced_at > now() - interval '1 day'`;
+  if (full || !fresh?.n) {
+    let templates = 0;
+    for (let page = 1; page <= 50; page++) {
+      const res = await getJson(`${HEVY}/v1/exercise_templates?page=${page}&pageSize=100`, { "api-key": key });
+      const arr: any[] = res?.exercise_templates ?? [];
+      for (const t of arr) {
+        await sql`insert into sport.hevy_exercise_templates (template_id, title, type, primary_muscle_group, secondary_muscle_groups, is_custom, raw, synced_at)
+          values (${t.id}, ${t.title ?? null}, ${t.type ?? null}, ${t.primary_muscle_group ?? null}, ${t.secondary_muscle_groups ?? []},
+            ${t.is_custom ?? false}, ${sql.json(t)}, now())
+          on conflict (template_id) do update set title=excluded.title, type=excluded.type, primary_muscle_group=excluded.primary_muscle_group,
+            secondary_muscle_groups=excluded.secondary_muscle_groups, is_custom=excluded.is_custom, raw=excluded.raw, synced_at=now()`;
+        templates++;
+      }
+      if (!arr.length || page >= (res?.page_count ?? 0)) break;
+    }
+    details.hevy_templates = templates;
+  }
 }
 
 // Query parameters:
@@ -146,6 +185,8 @@ async function hevy(full: boolean, details: Record<string, unknown>) {
 //   days=N       window length in days
 //   end=YYYY-MM-DD  end of the Garmin window (default today), to backfill in blocks
 //   only=garmin|hevy  run just one source
+//   parts=activities,summary,sleep,hrv,vo2max  only these Garmin parts (Garmin allows
+//               about 100 requests per hour, so long backfills go part by part)
 Deno.serve(async (req) => {
   const rows = await sql`select decrypted_secret as secret from vault.decrypted_secrets where name = 'sport_sync_secret'`;
   const secret = rows[0]?.secret;
@@ -157,10 +198,11 @@ Deno.serve(async (req) => {
   const endParam = url.searchParams.get("end");
   const endDate = endParam && /^\d{4}-\d{2}-\d{2}$/.test(endParam) ? new Date(`${endParam}T12:00:00Z`) : new Date();
   const only = url.searchParams.get("only");
-  const details: Record<string, unknown> = { full, days, end: iso(endDate), only };
+  const parts = url.searchParams.get("parts")?.split(",").filter(Boolean) ?? null;
+  const details: Record<string, unknown> = { full, days, end: iso(endDate), only, parts };
   const [{ id }] = await sql`insert into sport.sync_runs default values returning id`;
   let ok = true;
-  const jobs = [["garmin", () => garmin(days, endDate, details)], ["hevy", () => hevy(full, details)]] as const;
+  const jobs = [["garmin", () => garmin(days, endDate, details, parts)], ["hevy", () => hevy(full, details)]] as const;
   for (const [name, fn] of jobs) {
     if (only && only !== name) continue;
     try { await fn(); } catch (e) { ok = false; details[`${name}_error`] = String(e); }

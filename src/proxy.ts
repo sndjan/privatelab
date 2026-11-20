@@ -3,8 +3,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Paths that work without being signed in. Module pages check visibility
 // themselves; /w/<token> is the public share page of a wishlist and
-// /k/<code> a crossword opened by its secret link.
-const PUBLIC_PATHS = ["/", "/login", "/auth", "/m", "/offline", "/w", "/k"];
+// /k/<code> a crossword opened by its secret link. /api/sport/notify is
+// called by a pg_cron job and checks its own shared secret.
+const PUBLIC_PATHS = ["/", "/login", "/auth", "/m", "/offline", "/w", "/k", "/api/sport/notify"];
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some(

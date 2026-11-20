@@ -11,6 +11,7 @@ export function StackedBars({
   height = 200,
   line,
   lineClassName = "stroke-foreground",
+  lineOnBarScale = false,
   ariaLabel,
   startLabel,
   endLabel,
@@ -20,12 +21,15 @@ export function StackedBars({
   // Optional overlay with its own scale, one value per bar.
   line?: number[];
   lineClassName?: string;
+  // Draw the line on the bars' scale (e.g. a plan target) instead of its own.
+  lineOnBarScale?: boolean;
   ariaLabel: string;
   startLabel?: string;
   endLabel?: string;
 }) {
-  const max = Math.max(1, ...bars.map((bar) => bar.segments.reduce((sum, segment) => sum + segment.value, 0)));
-  const lineMax = line ? Math.max(1, ...line) : 1;
+  const barMax = Math.max(1, ...bars.map((bar) => bar.segments.reduce((sum, segment) => sum + segment.value, 0)));
+  const max = lineOnBarScale && line ? Math.max(barMax, ...line) : barMax;
+  const lineMax = lineOnBarScale ? max : line ? Math.max(1, ...line) : 1;
   const points = line?.map((value, index) => `${((index + 0.5) / line.length) * 100},${100 - (value / lineMax) * 92}`).join(" ");
   return (
     <figure className="m-0 space-y-1" aria-label={ariaLabel}>
@@ -47,7 +51,7 @@ export function StackedBars({
         ))}
         {points && (
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" className="pointer-events-none absolute inset-0 size-full overflow-visible">
-            <polyline points={points} fill="none" className={lineClassName} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+            <polyline points={points} fill="none" className={lineClassName} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeDasharray={lineOnBarScale ? "5 4" : undefined} />
           </svg>
         )}
       </div>
@@ -84,6 +88,8 @@ export function LineChart({
   values,
   smooth,
   band,
+  goal,
+  dots,
   height = 160,
   ariaLabel,
   format,
@@ -94,13 +100,17 @@ export function LineChart({
   smooth?: (number | null)[];
   // Shaded range (e.g. the HRV normal range).
   band?: [number, number] | null;
+  // Dashed line, e.g. a goal.
+  goal?: number | null;
+  // Draw the smooth line's values as dots too (sparse data like VO2max).
+  dots?: boolean;
   height?: number;
   ariaLabel: string;
   format: (value: number) => string;
   startLabel?: string;
   endLabel?: string;
 }) {
-  const all = [...values, ...(smooth ?? []), ...(band ?? [])].filter((value): value is number => value != null);
+  const all = [...values, ...(smooth ?? []), ...(band ?? []), ...(goal != null ? [goal] : [])].filter((value): value is number => value != null);
   if (all.length === 0) return <p className="text-sm text-muted-foreground">Noch keine Werte.</p>;
   const min = Math.min(...all);
   const max = Math.max(...all);
@@ -115,11 +125,27 @@ export function LineChart({
           {segmentsOf(values, min, max, H).map((points, index) => (
             <polyline key={`d${index}`} points={points} fill="none" className="stroke-chart-3" strokeWidth="1.25" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
           ))}
+          {goal != null && (
+            <line x1="0" x2="100" y1={yOf(goal)} y2={yOf(goal)} className="stroke-debt" strokeWidth="1.5" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+          )}
           {smooth &&
             segmentsOf(smooth, min, max, H).map((points, index) => (
               <polyline key={`s${index}`} points={points} fill="none" className="stroke-brand" strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
             ))}
         </svg>
+        {dots && smooth && (
+          <div className="pointer-events-none absolute inset-0">
+            {smooth.map((value, index) =>
+              value == null ? null : (
+                <span
+                  key={index}
+                  className="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand"
+                  style={{ left: `${smooth.length === 1 ? 50 : (index / (smooth.length - 1)) * 100}%`, top: `${(yOf(value) / H) * 100}%` }}
+                />
+              ),
+            )}
+          </div>
+        )}
         <span className="pointer-events-none absolute top-0 right-0 text-[11px] text-muted-foreground tabular-nums">{format(max)}</span>
         <span className="pointer-events-none absolute right-0 bottom-0 text-[11px] text-muted-foreground tabular-nums">{format(min)}</span>
       </div>
