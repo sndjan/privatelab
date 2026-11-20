@@ -318,6 +318,19 @@ async function pushRoutines(req: Request, dry: boolean) {
 //               about 100 requests per hour, so long backfills go part by part)
 //   push=routines (POST, with a user's session instead of the secret)  write the
 //               gym routine to Hevy, see pushRoutines(); dry=1 only previews
+async function runSync(o: { full: boolean; days: number; endDate: Date; only: string | null; parts: string[] | null; manual: boolean }) {
+  const details: Record<string, unknown> = { full: o.full, days: o.days, end: iso(o.endDate), only: o.only, parts: o.parts, manual: o.manual };
+  const [{ id }] = await sql`insert into sport.sync_runs default values returning id`;
+  let ok = true;
+  const jobs = [["garmin", () => garmin(o.days, o.endDate, details, o.parts)], ["hevy", () => hevy(o.full, details)]] as const;
+  for (const [name, fn] of jobs) {
+    if (o.only && o.only !== name) continue;
+    try { await fn(); } catch (e) { ok = false; details[`${name}_error`] = String(e); }
+  }
+  await sql`update sport.sync_runs set finished_at = now(), ok = ${ok}, details = ${sql.json(details)} where id = ${id}`;
+  return { ok, details };
+}
+
 Deno.serve(async (req) => {
   const params = new URL(req.url).searchParams;
   if (params.get("push") === "routines") {
@@ -325,6 +338,18 @@ Deno.serve(async (req) => {
     try { return await pushRoutines(req, params.get("dry") === "1"); }
     catch (e) { return json({ error: String(e).replace(/^Error: /, "") }, 502); }
   }
+  // Manual refresh from the app ("Aktualisieren"): the viewer's session instead
+  // of the secret, last 3 days only, and at most once every 2 minutes.
+  if (params.get("manual") === "1") {
+    if (req.method !== "POST") return json({ error: "POST erwartet." }, 405);
+    if (!(await viewerHasAccess(req))) return json({ error: "Kein Zugriff." }, 403);
+    const [recent] = await sql`select 1 from sport.sync_runs where started_at > now() - interval '2 minutes' and (finished_at is null or details->>'manual' = 'true') limit 1`;
+    if (recent) return json({ error: "Läuft gerade oder lief eben erst. In zwei Minuten noch einmal." }, 429);
+    const only = params.get("only");
+    const result = await runSync({ full: false, days: 3, endDate: new Date(), only: only === "garmin" || only === "hevy" ? only : null, parts: null, manual: true });
+    return json(result);
+  }
+
   const rows = await sql`select decrypted_secret as secret from vault.decrypted_secrets where name = 'sport_sync_secret'`;
   const secret = rows[0]?.secret;
   if (!secret || req.headers.get("x-sync-secret") !== secret) return new Response("forbidden", { status: 403 });
@@ -336,15 +361,7 @@ Deno.serve(async (req) => {
   const endDate = endParam && /^\d{4}-\d{2}-\d{2}$/.test(endParam) ? new Date(`${endParam}T12:00:00Z`) : new Date();
   const only = url.searchParams.get("only");
   const parts = url.searchParams.get("parts")?.split(",").filter(Boolean) ?? null;
-  const details: Record<string, unknown> = { full, days, end: iso(endDate), only, parts };
-  const [{ id }] = await sql`insert into sport.sync_runs default values returning id`;
-  let ok = true;
-  const jobs = [["garmin", () => garmin(days, endDate, details, parts)], ["hevy", () => hevy(full, details)]] as const;
-  for (const [name, fn] of jobs) {
-    if (only && only !== name) continue;
-    try { await fn(); } catch (e) { ok = false; details[`${name}_error`] = String(e); }
-  }
-  await sql`update sport.sync_runs set finished_at = now(), ok = ${ok}, details = ${sql.json(details)} where id = ${id}`;
+  const { ok, details } = await runSync({ full, days, endDate, only, parts, manual: false });
   return new Response(JSON.stringify({ ok, details }), { headers: { "Content-Type": "application/json" } });
 });
 

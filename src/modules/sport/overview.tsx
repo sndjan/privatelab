@@ -23,6 +23,7 @@ import {
 } from "./calc";
 import { planFromSettings, planWeekOf, plannedDay, routine } from "./plan";
 import { useSportData } from "./store";
+import { SyncButtons } from "./sync-button";
 import { kindColor, ListRow, Panel, Rings, SessionBar } from "./ui";
 import { yearReview } from "./wrapped";
 import { WrappedBanner } from "./wrapped-story";
@@ -65,7 +66,6 @@ export function OverviewTab({ today }: { today: string }) {
   const todayHealth = data.health.at(-1)?.day === today ? data.health.at(-1) : undefined;
   const stepsGoal = settings.stepsGoal ?? data.health.at(-1)?.stepsGoal ?? 7000;
   const rhrDiff = ready.rhr && ready.monthRhr ? ready.rhr.value - ready.monthRhr : null;
-  const lastSync = data.syncRuns[0];
 
   return (
     <div className="space-y-4">
@@ -200,7 +200,7 @@ export function OverviewTab({ today }: { today: string }) {
         </ul>
       </Panel>
 
-      {lastSync && <SyncLog runs={data.syncRuns} />}
+      <SyncLog runs={data.syncRuns} />
     </div>
   );
 }
@@ -288,25 +288,47 @@ function TodayCard({ today }: { today: string }) {
 }
 
 function SyncLog({ runs }: { runs: { startedAt: string; ok: boolean | null; errors: Record<string, string> | null }[] }) {
-  const time = (value: string) => new Date(value).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Berlin" });
+  const time = (value: string) => new Date(value).toLocaleString("de-DE", { dateStyle: "short", timeZone: "Europe/Berlin", timeStyle: "short" });
   const last = runs[0];
+  // Per API: when it last went through without an error.
+  const lastOk = (name: string) => runs.find((run) => run.ok !== null && !run.errors?.[`${name}_error`]);
   return (
-    <details className="text-xs text-muted-foreground">
-      <summary className="flex min-h-11 cursor-pointer items-center">
-        Zuletzt synchronisiert {time(last.startedAt)}
-        {last.ok === false ? " · mit Fehlern" : ""} · Garmin und Hevy, alle 6 Stunden
-      </summary>
-      <ul className="space-y-1 pb-2">
-        {runs.map((run) => (
-          <li key={run.startedAt}>
-            {time(run.startedAt)} · {run.ok === null ? "läuft" : run.ok ? "ok" : "Fehler"}
-            {run.errors && Object.keys(run.errors).length > 0 && (
-              <span className="block break-words">{Object.entries(run.errors).map(([key, value]) => `${key}: ${value}`).join(" · ")}</span>
-            )}
-          </li>
-        ))}
-      </ul>
-    </details>
+    <section className="space-y-3 rounded-2xl border bg-card p-4" aria-labelledby="sync-title">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="sync-title" className="text-base font-bold">
+          Daten
+        </h2>
+        <span className="text-xs text-muted-foreground">automatisch alle 6 Stunden</span>
+      </div>
+      <dl className="grid grid-cols-2 gap-3 text-sm">
+        {(["garmin", "hevy"] as const).map((name) => {
+          const ok = lastOk(name);
+          const failing = last?.errors?.[`${name}_error`];
+          return (
+            <div key={name}>
+              <dt className="text-xs font-semibold text-muted-foreground">{name === "garmin" ? "Garmin" : "Hevy"}</dt>
+              <dd className={cn("font-semibold tabular-nums", failing && "text-bad-foreground")}>{failing ? "Fehler beim letzten Mal" : ok ? time(ok.startedAt) : "–"}</dd>
+            </div>
+          );
+        })}
+      </dl>
+      <SyncButtons />
+      {last && (
+        <details className="text-xs text-muted-foreground">
+          <summary className="flex min-h-8 cursor-pointer items-center">Protokoll{last.ok === false ? " · letzter Lauf mit Fehlern" : ""}</summary>
+          <ul className="space-y-1 pb-1">
+            {runs.map((run) => (
+              <li key={run.startedAt}>
+                {time(run.startedAt)} · {run.ok === null ? "läuft" : run.ok ? "ok" : "Fehler"}
+                {run.errors && Object.keys(run.errors).length > 0 && (
+                  <span className="block break-words">{Object.entries(run.errors).map(([key, value]) => `${key}: ${value}`).join(" · ")}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
   );
 }
 

@@ -15,6 +15,7 @@ import { RecoveryTab } from "./recovery";
 import { RunningTab } from "./running";
 import { SettingsTab } from "./settings";
 import { useSportData } from "./store";
+import { SyncButton } from "./sync-button";
 import { SubNav } from "./ui";
 import { PlanTab } from "./week-check";
 import { yearReview } from "./wrapped";
@@ -113,6 +114,7 @@ function Shell() {
               ))}
             </div>
           )}
+          <SyncButton />
           <Link
             href={href("einstellungen")}
             aria-label="Einstellungen"

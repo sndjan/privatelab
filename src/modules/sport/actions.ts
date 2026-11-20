@@ -98,3 +98,33 @@ export async function pushRoutinesToHevy(routines: RoutineUpload[], dry: boolean
   if (!response.ok || !body.routines) return { error: body.error ?? `Hevy-Übertragung fehlgeschlagen (${response.status}).` };
   return { routines: body.routines };
 }
+
+export type SyncResult = { ok: boolean; errors: Record<string, string> } | { error: string };
+
+// Manual refresh of Garmin and/or Hevy (the last 3 days). Same path as above:
+// the edge function checks the viewer's session and module access.
+export async function syncNow(only: "garmin" | "hevy" | null): Promise<SyncResult> {
+  const supabase = await db();
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) return { error: "Nicht angemeldet." };
+  const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/sport-sync?manual=1${only ? `&only=${only}` : ""}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    },
+    cache: "no-store",
+  });
+  const text = await response.text();
+  let body: { ok?: boolean; details?: Record<string, unknown>; error?: string } = {};
+  try {
+    body = JSON.parse(text);
+  } catch {
+    // Not JSON, e.g. a gateway error page.
+  }
+  if (!response.ok || typeof body.ok !== "boolean") return { error: body.error ?? `Aktualisieren fehlgeschlagen (${response.status}).` };
+  const errors: Record<string, string> = {};
+  for (const [key, value] of Object.entries(body.details ?? {})) if (key.endsWith("_error")) errors[key.replace("_error", "")] = String(value);
+  return { ok: body.ok, errors };
+}
