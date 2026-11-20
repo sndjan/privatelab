@@ -2,6 +2,7 @@
 
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import type { RoutinePreview, RoutineUpload } from "./hevy-routines";
 import type { PlanChange, Settings } from "./types";
 
 // Writes go through security definer functions that check module access
@@ -66,4 +67,34 @@ export async function deletePushSubscription(endpoint: string) {
   const supabase = await db();
   const { error } = await supabase.rpc("sport_delete_push", { p_endpoint: endpoint });
   if (error) throw new Error(error.message);
+}
+
+// Gym routine to Hevy: the edge function sport-sync holds the Hevy key, so the
+// request goes there with the viewer's session; it checks module access itself.
+// dry: only report what would be created or replaced. Errors come back as
+// { error } because thrown messages are hidden in production.
+export async function pushRoutinesToHevy(routines: RoutineUpload[], dry: boolean): Promise<{ routines: RoutinePreview[] } | { error: string }> {
+  const supabase = await db();
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) return { error: "Nicht angemeldet." };
+  const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/sport-sync?push=routines${dry ? "&dry=1" : ""}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    },
+    body: JSON.stringify({ routines: routines.slice(0, 10) }),
+    cache: "no-store",
+  });
+  const text = await response.text();
+  let body: { routines?: RoutinePreview[]; error?: string } = {};
+  try {
+    body = JSON.parse(text);
+  } catch {
+    // Not JSON, e.g. a gateway error page.
+  }
+  if (!response.ok || !body.routines) return { error: body.error ?? `Hevy-Übertragung fehlgeschlagen (${response.status}).` };
+  return { routines: body.routines };
 }

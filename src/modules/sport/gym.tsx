@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { progressionHint, records, routineCheck, sessionE1rm, setsPerMuscle } from "./analytics";
 import { addDays, weekday, exerciseSummaries, formatDate, formatDayDate, formatMinutes, formatSet, formatTonnes, gymWeeks, lastWeeks } from "./calc";
 import { LineChart, StackedBars } from "./charts";
+import { HevyUpload } from "./hevy-upload";
 import { routine, sameExercise } from "./plan";
 import { useSportData } from "./store";
 import { Note, Panel } from "./ui";
@@ -58,7 +59,15 @@ export function GymTab({ today, weeks: count }: { today: string; weeks: number }
         <Note>Unterstützte Übungen (z. B. Klimmzüge mit Hilfe) zählen nicht zum Volumen, weil Hevy dort die Hilfe als Gewicht speichert.</Note>
       </Panel>
 
-      <Panel title="Nächstes Mal" aside={<span className="text-xs text-muted-foreground">doppelte Progression aus deiner Routine</span>}>
+      <Panel
+        title="Nächstes Mal"
+        aside={
+          <span className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground">doppelte Progression aus deiner Routine</span>
+            <HevyUpload />
+          </span>
+        }
+      >
         <div role="group" aria-label="Trainingstag" className="flex w-fit gap-1 rounded-lg bg-muted p-1 lg:hidden">
           {routine.map((day) => (
             <button
