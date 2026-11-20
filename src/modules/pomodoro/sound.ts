@@ -74,6 +74,13 @@ export function playEyesDone(volume: number) {
   });
 }
 
+// The countdown before looking away: a short tick for 5…1, a higher one for "now".
+export function playTick(volume: number, go = false) {
+  withVolume(volume, (ctx, out, at) => {
+    tone(ctx, out, at, go ? 1319 : 880, go ? 0.45 : 0.3, go ? 0.5 : 0.15, 0.004);
+  });
+}
+
 // Two water drops: a short sine whose pitch jumps up, like a "plop".
 export function playDrink(volume: number) {
   withVolume(volume, (ctx, out, at) => {
