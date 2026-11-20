@@ -12,6 +12,7 @@ import KegelnModule from "./kegeln";
 import { moduleMeta, type ModuleMeta } from "./meta";
 import NochmalModule from "./nochmal";
 import PackingModule from "./packing";
+import PomodoroModule from "./pomodoro";
 import TennisModule from "./tennis";
 import ThesisModule from "./thesis";
 import TvbModule from "./tvb";
@@ -41,6 +42,7 @@ const pages: Record<string, ComponentType<ModulePageProps>> = {
   kegeln: KegelnModule,
   nochmal: NochmalModule,
   packing: PackingModule,
+  pomodoro: PomodoroModule,
   tennis: TennisModule,
   thesis: ThesisModule,
   tvb: TvbModule,
