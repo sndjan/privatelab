@@ -73,6 +73,14 @@ export const moduleMeta: ModuleMeta[] = [
     status: "live",
   },
   {
+    id: "sport",
+    name: "Sport",
+    description: "Laufen, Erholung und Gym aus Garmin und Hevy, mit Wochen-Check gegen den Trainingsplan.",
+    icon: "🏃",
+    category: "alltag",
+    status: "live",
+  },
+  {
     id: "weight",
     name: "Gewicht-Challenge",
     description: "Gemeinsam ab- oder zunehmen: Gewicht, Körperwerte und Maße für alle eintragen, mit Rangliste und Verlauf.",
