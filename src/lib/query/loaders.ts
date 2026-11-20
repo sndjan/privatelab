@@ -5,6 +5,7 @@ import { fokusLoaders } from "@/modules/fokus/loaders";
 import { kegelnLoaders } from "@/modules/kegeln/loaders";
 import { nochmalLoaders } from "@/modules/nochmal/loaders";
 import { packingLoaders } from "@/modules/packing/loaders";
+import { sportLoaders } from "@/modules/sport/loaders";
 import { tennisLoaders } from "@/modules/tennis/loaders";
 import { thesisLoaders } from "@/modules/thesis/loaders";
 import { wasteLoaders } from "@/modules/waste/loaders";
@@ -24,6 +25,7 @@ export const loaders = {
   kegeln: kegelnLoaders,
   nochmal: nochmalLoaders,
   packing: packingLoaders,
+  sport: sportLoaders,
   tennis: tennisLoaders,
   thesis: thesisLoaders,
   waste: wasteLoaders,

@@ -25,7 +25,32 @@ function collectDaily(node: unknown, out: Map<string, unknown>) {
   }
 }
 
+// The token is valid for 24 hours and the token endpoint is rate-limited, so
+// it is kept in sport.garmin_token and reused for 23 hours.
+async function garminToken(details: Record<string, unknown>): Promise<string> {
+  const [cached] = await sql`select token from sport.garmin_token where fetched_at > now() - interval '23 hours'`;
+  if (cached?.token) { details.garmin_token = "cached"; return cached.token; }
+  const token = await fetchGarminToken(details);
+  await sql`insert into sport.garmin_token (id, token, fetched_at) values (true, ${token}, now())
+    on conflict (id) do update set token = excluded.token, fetched_at = now()`;
+  details.garmin_token = "new";
+  return token;
+}
+
 async function garmin(days: number, endDate: Date, details: Record<string, unknown>) {
+  let h = { Authorization: `Bearer ${await garminToken(details)}` };
+  // A cached token that Garmin no longer accepts is dropped and fetched again once.
+  try {
+    await getJson(`${GARMIN}/activitylist-service/activities/search/activities?start=0&limit=1`, h);
+  } catch (e) {
+    if (!/^Error: 401/.test(String(e))) throw e;
+    await sql`delete from sport.garmin_token`;
+    h = { Authorization: `Bearer ${await garminToken(details)}` };
+  }
+  await syncGarmin(h, days, endDate, details);
+}
+
+async function fetchGarminToken(details: Record<string, unknown>): Promise<string> {
   const key = Deno.env.get("GARMIN_API_KEY");
   if (!key) throw new Error("GARMIN_API_KEY fehlt");
   const tr = await fetch(`${GARMIN}/personalapitoken-service/personal-api/personal-api-key/token`, {
@@ -41,8 +66,10 @@ async function garmin(days: number, endDate: Date, details: Record<string, unkno
     details.garmin_token_keys = Object.keys(j);
   }
   if (!token) throw new Error("Garmin Token: leere Antwort");
-  const h = { Authorization: `Bearer ${token}` };
+  return token;
+}
 
+async function syncGarmin(h: Record<string, string>, days: number, endDate: Date, details: Record<string, unknown>) {
   const end = endDate;
   const start = addDays(end, -days);
 
