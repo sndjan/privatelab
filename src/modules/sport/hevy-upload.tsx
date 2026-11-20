@@ -66,7 +66,7 @@ export function HevyUpload() {
           <DialogHeader>
             <DialogTitle>Routine nach Hevy</DialogTitle>
             <DialogDescription>
-              Tag A, B und C werden in Hevy zu „Ganzkörper A/B/C“, mit Sätzen, Wiederholungsbereich, Pausen und dem Startgewicht aus „Nächstes
+              Tag A, B und C werden in Hevy zu „Ganzkörper A/B/C“: erst das Aufwärmen, dann die Übungen mit Sätzen, Wiederholungsbereich, Pausen und dem Startgewicht aus „Nächstes
               Mal“. Gibt es eine Routine mit dem Titel schon, wird sie ersetzt.
             </DialogDescription>
           </DialogHeader>

@@ -7,7 +7,7 @@ import { progressionHint, records, routineCheck, sessionE1rm, setsPerMuscle } fr
 import { addDays, weekday, exerciseSummaries, formatDate, formatDayDate, formatMinutes, formatSet, formatTonnes, gymWeeks, lastWeeks } from "./calc";
 import { LineChart, StackedBars } from "./charts";
 import { HevyUpload } from "./hevy-upload";
-import { routine, sameExercise } from "./plan";
+import { routine, sameExercise, warmup } from "./plan";
 import { useSportData } from "./store";
 import { Note, Panel } from "./ui";
 
@@ -81,6 +81,22 @@ export function GymTab({ today, weeks: count }: { today: string; weeks: number }
             </button>
           ))}
         </div>
+        <details className="rounded-lg border p-2.5">
+          <summary className="cursor-pointer text-sm font-semibold">
+            Aufwärmen <span className="font-normal text-muted-foreground">· 10–12 min, vor jedem Tag</span>
+          </summary>
+          <ul className="mt-2 space-y-1.5">
+            {warmup.map((item) => (
+              <li key={item.name} className="text-sm">
+                <p className="flex items-baseline justify-between gap-2">
+                  <span className="min-w-0">{item.name}</span>
+                  <span className="flex-none text-xs text-muted-foreground tabular-nums">{item.amount}</span>
+                </p>
+                <p className="text-xs text-muted-foreground">{item.note}</p>
+              </li>
+            ))}
+          </ul>
+        </details>
         <div className="grid gap-4 lg:grid-cols-3">
           {routine.map((day) => (
             <div key={day.id} className={cn("min-w-0 space-y-2", routineDay !== day.id && "hidden lg:block")}>
