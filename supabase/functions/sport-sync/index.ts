@@ -180,6 +180,133 @@ async function hevy(full: boolean, details: Record<string, unknown>) {
   }
 }
 
+// --- Routines to Hevy (?push=routines) -------------------------------------------
+// Called by the Sport module's Gym tab with the viewer's session token. The
+// body holds the routine from src/modules/sport/plan.ts (one routine per day);
+// exercises without a template id from past workouts are matched by name
+// against the synced templates. A routine with the same title in Hevy is
+// replaced (PUT), otherwise created (POST). dry=1 only reports what would happen.
+
+type PushExercise = {
+  name: string; templateId: string | null; sets: number; repsMin: number; repsMax: number;
+  weightKg: number | null; restSeconds: number; notes: string;
+};
+type PushRoutine = { title: string; notes: string; exercises: PushExercise[] };
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+
+// The same comparison as sameExercise() in plan.ts: names without brackets
+// (equipment, gym name) first, then letters only.
+const words = (name: string) => name.toLowerCase().replace(/\(.*?\)/g, " ").replace(/[^a-zäöüß]+/g, " ").trim();
+const letters = (name: string) => name.toLowerCase().replace(/[^a-zäöüß]+/g, "");
+
+async function viewerHasAccess(req: Request): Promise<boolean> {
+  const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const apikey = req.headers.get("apikey") ?? Deno.env.get("SUPABASE_ANON_KEY");
+  if (!token || !apikey) return false;
+  const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/auth/v1/user`, { headers: { Authorization: `Bearer ${token}`, apikey } });
+  if (!r.ok) return false;
+  const user = await r.json();
+  if (!user?.id) return false;
+  // private.has_module_access() reads auth.uid() from the request claims.
+  const [row] = await sql.begin(async (tx) => {
+    await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: user.id, role: "authenticated" })}, true)`;
+    return tx`select private.has_module_access('sport') as ok`;
+  });
+  return row?.ok === true;
+}
+
+async function hevySend(method: "POST" | "PUT", path: string, key: string, body: unknown) {
+  const r = await fetch(`${HEVY}${path}`, {
+    method, headers: { Accept: "application/json", "Content-Type": "application/json", "api-key": key }, body: JSON.stringify(body),
+  });
+  const t = await r.text();
+  if (!r.ok) throw new Error(`Hevy ${r.status}: ${t.slice(0, 200)}`);
+  return t ? JSON.parse(t) : null;
+}
+
+async function pushRoutines(req: Request, dry: boolean) {
+  if (!(await viewerHasAccess(req))) return json({ error: "Kein Zugriff." }, 403);
+  const key = Deno.env.get("HEVY_API_KEY");
+  if (!key) return json({ error: "HEVY_API_KEY fehlt" }, 500);
+  let input: { routines?: PushRoutine[] };
+  try { input = await req.json(); } catch { return json({ error: "Ungültige Anfrage." }, 400); }
+  const routines = (input.routines ?? []).slice(0, 10);
+  if (!routines.length) return json({ error: "Keine Routinen." }, 400);
+
+  const templates: { template_id: string; title: string | null }[] =
+    await sql`select template_id, title from sport.hevy_exercise_templates order by is_custom desc, template_id`;
+  if (!templates.length) return json({ error: "Noch keine Hevy-Übungen synchronisiert. Einmal den Sync laufen lassen." }, 409);
+  const titleOf = new Map(templates.map((t) => [t.template_id, t.title]));
+  const match = (name: string) =>
+    templates.find((t) => t.title && letters(t.title) === letters(name)) ??
+    templates.find((t) => t.title && words(t.title) === words(name) && words(name).length > 0) ??
+    null;
+
+  // Existing routines by title, live from Hevy (the synced table can be hours old).
+  const existing = new Map<string, string>();
+  for (let page = 1; page <= 50; page++) {
+    const res = await getJson(`${HEVY}/v1/routines?page=${page}&pageSize=10`, { "api-key": key });
+    const arr: any[] = res?.routines ?? [];
+    for (const r of arr) if (r.title) existing.set(String(r.title).trim().toLowerCase(), r.id);
+    if (!arr.length || page >= (res?.page_count ?? 0)) break;
+  }
+
+  const results = [];
+  for (const routine of routines) {
+    const resolved: { exercise: PushExercise; templateId: string }[] = [];
+    const missing: string[] = [];
+    for (const exercise of routine.exercises ?? []) {
+      const templateId = exercise.templateId && titleOf.has(exercise.templateId) ? exercise.templateId : match(exercise.name)?.template_id;
+      if (templateId) resolved.push({ exercise, templateId });
+      else missing.push(exercise.name);
+    }
+    const id = existing.get(routine.title.trim().toLowerCase());
+    const result: Record<string, unknown> = {
+      title: routine.title,
+      action: id ? "update" : "create",
+      exercises: resolved.map(({ exercise, templateId }) => ({ name: exercise.name, templateId, templateTitle: titleOf.get(templateId) ?? null })),
+      missing,
+    };
+    if (!dry && resolved.length) {
+      const exercises = resolved.map(({ exercise, templateId }) => ({
+        exercise_template_id: templateId,
+        superset_id: null,
+        rest_seconds: exercise.restSeconds ?? null,
+        notes: exercise.notes || null,
+        sets: Array.from({ length: Math.max(1, Math.min(10, exercise.sets)) }, () => ({
+          type: "normal",
+          weight_kg: exercise.weightKg ?? null,
+          reps: null,
+          rep_range: { start: exercise.repsMin, end: exercise.repsMax },
+          distance_meters: null,
+          duration_seconds: null,
+          custom_metric: null,
+        })),
+      }));
+      try {
+        // PUT takes no folder_id, so a replaced routine stays in its folder.
+        const res = id
+          ? await hevySend("PUT", `/v1/routines/${id}`, key, { routine: { title: routine.title, notes: routine.notes || null, exercises } })
+          : await hevySend("POST", "/v1/routines", key, { routine: { title: routine.title, folder_id: null, notes: routine.notes || "", exercises } });
+        // The answer is { routine: {…} } or { routine: [{…}] }, depending on the endpoint.
+        const saved = Array.isArray(res?.routine) ? res.routine[0] : res?.routine;
+        if (saved?.id) {
+          await sql`insert into sport.hevy_routines (routine_id, title, folder_id, updated_at, raw, synced_at)
+            values (${saved.id}, ${saved.title ?? null}, ${saved.folder_id ?? null}, ${saved.updated_at ?? null}, ${sql.json(saved)}, now())
+            on conflict (routine_id) do update set title=excluded.title, folder_id=excluded.folder_id, updated_at=excluded.updated_at,
+              raw=excluded.raw, synced_at=now()`;
+        }
+      } catch (e) {
+        result.error = String(e).replace(/^Error: /, "");
+      }
+    }
+    results.push(result);
+  }
+  return json({ routines: results });
+}
+
 // Query parameters:
 //   backfill=1   longer window (days, default 730) and all Hevy pages
 //   days=N       window length in days
@@ -187,7 +314,15 @@ async function hevy(full: boolean, details: Record<string, unknown>) {
 //   only=garmin|hevy  run just one source
 //   parts=activities,summary,sleep,hrv,vo2max  only these Garmin parts (Garmin allows
 //               about 100 requests per hour, so long backfills go part by part)
+//   push=routines (POST, with a user's session instead of the secret)  write the
+//               gym routine to Hevy, see pushRoutines(); dry=1 only previews
 Deno.serve(async (req) => {
+  const params = new URL(req.url).searchParams;
+  if (params.get("push") === "routines") {
+    if (req.method !== "POST") return json({ error: "POST erwartet." }, 405);
+    try { return await pushRoutines(req, params.get("dry") === "1"); }
+    catch (e) { return json({ error: String(e).replace(/^Error: /, "") }, 502); }
+  }
   const rows = await sql`select decrypted_secret as secret from vault.decrypted_secrets where name = 'sport_sync_secret'`;
   const secret = rows[0]?.secret;
   if (!secret || req.headers.get("x-sync-secret") !== secret) return new Response("forbidden", { status: 403 });
