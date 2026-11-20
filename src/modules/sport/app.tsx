@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarCheckIcon, CalendarDaysIcon, DumbbellIcon, FootprintsIcon, HouseIcon, MoonIcon, Settings2Icon } from "lucide-react";
+import { ActivityIcon, CalendarCheckIcon, HouseIcon, MoonIcon, Settings2Icon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Loading } from "@/components/loading";
@@ -9,27 +9,41 @@ import { cn } from "@/lib/utils";
 import { CalendarTab } from "./calendar";
 import { todayInGermany } from "./calc";
 import { GymTab } from "./gym";
+import { GymPlanTab } from "./gym-plan";
 import { OverviewTab } from "./overview";
 import { RecoveryTab } from "./recovery";
 import { RunningTab } from "./running";
 import { SettingsTab } from "./settings";
 import { useSportData } from "./store";
+import { SubNav } from "./ui";
 import { PlanTab } from "./week-check";
 import { yearReview } from "./wrapped";
 import { WrappedStory } from "./wrapped-story";
 
 const PATH = "/m/sport";
 
-const tabs = [
-  { id: "uebersicht", label: "Übersicht", short: "Start", icon: HouseIcon },
-  { id: "laufen", label: "Laufen", short: "Laufen", icon: FootprintsIcon },
-  { id: "erholung", label: "Erholung", short: "Erholung", icon: MoonIcon },
-  { id: "gym", label: "Gym", short: "Gym", icon: DumbbellIcon },
-  { id: "kalender", label: "Kalender", short: "Kalender", icon: CalendarDaysIcon },
-  { id: "plan", label: "Plan", short: "Plan", icon: CalendarCheckIcon },
+type TabId = "uebersicht" | "laufen" | "gym" | "kalender" | "erholung" | "plan" | "plan-gym" | "einstellungen";
+const TAB_IDS: TabId[] = ["uebersicht", "laufen", "gym", "kalender", "erholung", "plan", "plan-gym", "einstellungen"];
+
+// Four areas; Training and Plan have sub areas (old ?tab= links keep working).
+const groups = [
+  { id: "heute", label: "Heute", icon: HouseIcon, tabs: ["uebersicht"] as TabId[] },
+  { id: "training", label: "Training", icon: ActivityIcon, tabs: ["laufen", "gym", "kalender"] as TabId[] },
+  { id: "erholung", label: "Erholung", icon: MoonIcon, tabs: ["erholung"] as TabId[] },
+  { id: "plan", label: "Plan", icon: CalendarCheckIcon, tabs: ["plan", "plan-gym"] as TabId[] },
 ] as const;
 
-type TabId = (typeof tabs)[number]["id"] | "einstellungen";
+const subTabs: Partial<Record<(typeof groups)[number]["id"], { id: TabId; label: string }[]>> = {
+  training: [
+    { id: "laufen", label: "Laufen" },
+    { id: "gym", label: "Gym" },
+    { id: "kalender", label: "Kalender" },
+  ],
+  plan: [
+    { id: "plan", label: "Laufplan" },
+    { id: "plan-gym", label: "Gym" },
+  ],
+};
 
 export const RANGES = [
   { weeks: 12, label: "12 Wo." },
@@ -49,26 +63,28 @@ function Shell() {
   const searchParams = useSearchParams();
   const requested = searchParams.get("tab");
   // Old links to the week check (?tab=woche) open the Plan tab.
-  const tab: TabId = requested === "einstellungen" ? "einstellungen" : requested === "woche" ? "plan" : (tabs.find((entry) => entry.id === requested)?.id ?? "uebersicht");
+  const tab: TabId = requested === "woche" ? "plan" : (TAB_IDS.find((id) => id === requested) ?? "uebersicht");
+  const group = groups.find((entry) => entry.tabs.includes(tab));
   const [weeks, setWeeks] = useState<number>(12);
   const today = todayInGermany();
   const href = (id: TabId) => (id === "uebersicht" ? PATH : `${PATH}?tab=${id}`);
   const showRange = tab === "laufen" || tab === "erholung" || tab === "gym";
   const reviewYear = Number(searchParams.get("rueckblick")) || null;
+  const subs = group ? subTabs[group.id] : undefined;
 
   return (
     <div className="space-y-4 pb-24 sm:space-y-5 sm:pb-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <nav aria-label="Bereiche" className="hidden sm:block">
-          <ul className="flex gap-1 rounded-lg bg-muted p-1">
-            {tabs.map((entry) => (
+          <ul className="flex gap-1 rounded-xl bg-muted p-1">
+            {groups.map((entry) => (
               <li key={entry.id}>
                 <Link
-                  href={href(entry.id)}
-                  aria-current={entry.id === tab ? "page" : undefined}
+                  href={href(entry.tabs[0])}
+                  aria-current={entry.id === group?.id ? "page" : undefined}
                   className={cn(
-                    "flex h-9 items-center rounded-md px-3 text-sm whitespace-nowrap transition-colors",
-                    entry.id === tab ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
+                    "flex h-9 items-center rounded-lg px-4 text-sm whitespace-nowrap transition-colors",
+                    entry.id === group?.id ? "bg-background font-semibold shadow-sm" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {entry.label}
@@ -77,10 +93,10 @@ function Shell() {
             ))}
           </ul>
         </nav>
-        <h2 className="text-lg font-semibold sm:hidden">{tab === "einstellungen" ? "Einstellungen" : tabs.find((entry) => entry.id === tab)?.label}</h2>
+        <h2 className="text-2xl font-bold tracking-tight sm:hidden">{tab === "einstellungen" ? "Einstellungen" : group?.label}</h2>
         <div className="flex items-center gap-2">
           {showRange && (
-            <div role="group" aria-label="Zeitraum" className="flex gap-1 rounded-lg bg-muted p-1">
+            <div role="group" aria-label="Zeitraum" className="flex gap-1 rounded-xl bg-muted p-1">
               {RANGES.map((range) => (
                 <button
                   key={range.weeks}
@@ -88,7 +104,7 @@ function Shell() {
                   aria-pressed={weeks === range.weeks}
                   onClick={() => setWeeks(range.weeks)}
                   className={cn(
-                    "h-8 cursor-pointer rounded-md px-2.5 text-sm transition-colors sm:h-9 sm:px-3",
+                    "h-8 cursor-pointer rounded-lg px-2.5 text-sm transition-colors sm:h-9 sm:px-3",
                     weeks === range.weeks ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -102,7 +118,7 @@ function Shell() {
             aria-label="Einstellungen"
             aria-current={tab === "einstellungen" ? "page" : undefined}
             className={cn(
-              "flex size-10 items-center justify-center rounded-lg border bg-card transition-colors hover:bg-muted",
+              "flex size-10 items-center justify-center rounded-xl border bg-card transition-colors hover:bg-muted",
               tab === "einstellungen" && "border-brand text-brand",
             )}
           >
@@ -111,12 +127,15 @@ function Shell() {
         </div>
       </div>
 
+      {subs && <SubNav label={`${group!.label}: Unterbereiche`} current={tab} items={subs.map((entry) => ({ ...entry, href: href(entry.id) }))} />}
+
       {tab === "uebersicht" && <OverviewTab today={today} />}
       {tab === "laufen" && <RunningTab today={today} weeks={weeks} />}
       {tab === "erholung" && <RecoveryTab today={today} weeks={weeks} />}
       {tab === "gym" && <GymTab today={today} weeks={weeks} />}
       {tab === "kalender" && <CalendarTab today={today} />}
       {tab === "plan" && <PlanTab today={today} />}
+      {tab === "plan-gym" && <GymPlanTab today={today} />}
       {tab === "einstellungen" && <SettingsTab />}
       {reviewYear && <ReviewOverlay year={reviewYear} today={today} />}
 
@@ -126,18 +145,18 @@ function Shell() {
         className="fixed inset-x-0 bottom-0 z-40 border-t bg-card pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] sm:hidden print:hidden"
       >
         <ul className="flex">
-          {tabs.map((entry) => (
+          {groups.map((entry) => (
             <li key={entry.id} className="min-w-0 flex-1">
               <Link
-                href={href(entry.id)}
-                aria-current={entry.id === tab ? "page" : undefined}
+                href={href(entry.tabs[0])}
+                aria-current={entry.id === group?.id ? "page" : undefined}
                 className={cn(
-                  "flex h-16 flex-col items-center justify-center gap-0.5 text-[10.5px]",
-                  entry.id === tab ? "font-semibold text-brand" : "text-muted-foreground",
+                  "flex h-16 flex-col items-center justify-center gap-1 text-[11px]",
+                  entry.id === group?.id ? "font-semibold text-brand" : "text-muted-foreground",
                 )}
               >
-                <entry.icon className="size-5" aria-hidden="true" />
-                <span className="max-w-full truncate px-0.5">{entry.short}</span>
+                <entry.icon className="size-[22px]" aria-hidden="true" />
+                <span className="max-w-full truncate px-0.5">{entry.label}</span>
               </Link>
             </li>
           ))}

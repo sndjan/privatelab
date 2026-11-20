@@ -309,3 +309,55 @@ export function feed(data: SportData, limit: number): FeedItem[] {
   }
   return items.sort((a, b) => b.day.localeCompare(a.day) || a.key.localeCompare(b.key)).slice(0, limit);
 }
+
+// --- Planned sessions -------------------------------------------------------------
+
+export type SessionBlock = { kind: "run" | "walk"; minutes: number };
+
+// "5 × (4 min Laufen / 1 min Gehen)", "4 × (6 min / 1 min)", "40 min locker",
+// "Langer Lauf 70 min locker" → blocks; anything else (tests, tempo) → null.
+export function sessionBlocks(text: string | undefined): SessionBlock[] | null {
+  if (!text) return null;
+  const intervals = text.match(/^(\d+)\s*×\s*\((\d+)\s*min[^/]*\/\s*(\d+)\s*min/);
+  if (intervals) {
+    const [, count, run, walk] = intervals.map(Number);
+    return Array.from({ length: count }, (_, index) => [
+      { kind: "run" as const, minutes: run },
+      ...(index < count - 1 ? [{ kind: "walk" as const, minutes: walk }] : []),
+    ]).flat();
+  }
+  const steady = text.match(/^(?:Langer Lauf\s+)?(\d+)(?:–\d+)?\s*min/);
+  return steady ? [{ kind: "run", minutes: Number(steady[1]) }] : null;
+}
+
+export const sessionMinutes = (blocks: SessionBlock[] | null) => (blocks ? blocks.reduce((sum, block) => sum + block.minutes, 0) : null);
+
+// --- Recovery score -----------------------------------------------------------------
+
+// 0–100 from last night: HRV against Garmin's normal range (half), resting
+// heart rate against the 30-day average (30 %) and sleep against the goal
+// (20 %). Parts without values drop out and the rest is reweighted.
+export function recoveryScore(health: HealthDay[], today: string, sleepGoalH: number) {
+  const ready = readiness(health, today);
+  const clamp = (value: number) => Math.min(100, Math.max(0, value));
+  const parts: { weight: number; value: number }[] = [];
+  const hrv = ready.hrv;
+  if (hrv) {
+    const { hrvLow: low, hrvHigh: high, hrvStatus } = hrv.entry;
+    let value: number;
+    if (low && high && high > low) {
+      if (hrv.value < low) value = 55 * (hrv.value / low);
+      else if (hrv.value > high) value = 100;
+      else value = 60 + 40 * ((hrv.value - low) / (high - low));
+    } else value = hrvStatus === "BALANCED" ? 80 : hrvStatus === "UNBALANCED" ? 50 : 30;
+    parts.push({ weight: 0.5, value: clamp(value) });
+  }
+  if (ready.rhr && ready.monthRhr) {
+    const diff = ready.rhr.value - ready.monthRhr;
+    parts.push({ weight: 0.3, value: clamp(100 - Math.max(0, diff + 2) * 10) });
+  }
+  if (ready.sleep) parts.push({ weight: 0.2, value: clamp((ready.sleep.value / 3600 / sleepGoalH) * 100) });
+  const total = parts.reduce((sum, part) => sum + part.weight, 0);
+  const score = total ? Math.round(parts.reduce((sum, part) => sum + part.weight * part.value, 0) / total) : null;
+  return { ...ready, score };
+}
