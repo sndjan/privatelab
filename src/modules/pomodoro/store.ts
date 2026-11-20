@@ -15,6 +15,16 @@ export const phaseNames: Record<Phase, string> = {
 
 export type Reminder = { on: boolean; every: number; volume: number };
 
+export type Music = {
+  // A station id from music.tsx, or "custom" for `custom`.
+  station: string;
+  // A YouTube link or video id the user pasted.
+  custom: string;
+  volume: number;
+  // Quiet during breaks, back on with the next focus phase.
+  pauseInBreaks: boolean;
+};
+
 export type Settings = {
   // Minutes.
   focus: number;
@@ -31,6 +41,7 @@ export type Settings = {
   // Reminders only count while the timer runs, so a paused timer stays quiet.
   remindersWithTimer: boolean;
   notify: boolean;
+  music: Music;
 };
 
 export const defaultSettings: Settings = {
@@ -44,6 +55,7 @@ export const defaultSettings: Settings = {
   drink: { on: false, every: 10, volume: 50 },
   remindersWithTimer: true,
   notify: false,
+  music: { station: "lofi", custom: "", volume: 40, pauseInBreaks: true },
 };
 
 export type Timer = {
@@ -53,11 +65,15 @@ export type Timer = {
   running: boolean;
   // While running: when the phase ends (ms).
   endsAt: number | null;
-  // While paused: what is left (ms). null = the phase has not started yet.
+  // While paused: what is left (ms). null = the full phase.
   left: number | null;
+  // The phase was started (so the button says "Weiter" after a pause).
+  started: boolean;
+  // Minutes added or taken away with +1 / −1 (ms), so the ring stays right.
+  extra: number;
 };
 
-export const freshTimer: Timer = { phase: "focus", round: 0, running: false, endsAt: null, left: null };
+export const freshTimer: Timer = { phase: "focus", round: 0, running: false, endsAt: null, left: null, started: false, extra: 0 };
 
 const num = (value: unknown, min: number, max: number, fallback: number) => {
   const n = Number(value);
@@ -87,6 +103,18 @@ function parseSettings(raw: unknown): Settings {
     drink: parseReminder(s.drink, d.drink),
     remindersWithTimer: typeof s.remindersWithTimer === "boolean" ? s.remindersWithTimer : d.remindersWithTimer,
     notify: typeof s.notify === "boolean" ? s.notify : d.notify,
+    music: parseMusic(s.music),
+  };
+}
+
+function parseMusic(value: unknown): Music {
+  const m = (value ?? {}) as Partial<Music>;
+  const d = defaultSettings.music;
+  return {
+    station: typeof m.station === "string" && m.station.length <= 40 ? m.station : d.station,
+    custom: typeof m.custom === "string" ? m.custom.slice(0, 300) : d.custom,
+    volume: num(m.volume, 0, 100, d.volume),
+    pauseInBreaks: typeof m.pauseInBreaks === "boolean" ? m.pauseInBreaks : d.pauseInBreaks,
   };
 }
 
@@ -100,6 +128,8 @@ function parseTimer(raw: unknown): Timer {
     running,
     endsAt: running ? Number(t.endsAt) : null,
     left: !running && typeof t.left === "number" && t.left > 0 ? t.left : null,
+    started: running || Boolean(t.started),
+    extra: typeof t.extra === "number" && Number.isFinite(t.extra) ? t.extra : 0,
   };
 }
 
@@ -162,9 +192,26 @@ export function nextTimer(timer: Timer, settings: Settings, now: number, autoSta
   const round = timer.phase === "focus" ? timer.round + 1 : timer.round;
   const phase: Phase = timer.phase !== "focus" ? "focus" : round % settings.longEvery === 0 ? "long" : "short";
   return autoStart
-    ? { phase, round, running: true, endsAt: now + durationMs(settings, phase), left: null }
-    : { phase, round, running: false, endsAt: null, left: null };
+    ? { phase, round, running: true, endsAt: now + durationMs(settings, phase), left: null, started: true, extra: 0 }
+    : { phase, round, running: false, endsAt: null, left: null, started: false, extra: 0 };
 }
+
+// The phase as it would start again, keeping the rounds.
+export const restartTimer = (timer: Timer, phase: Phase = timer.phase): Timer => ({ ...freshTimer, phase, round: timer.round });
+
+// +1 / −1 minute (or any `delta`), running or not. At least one second stays.
+export function adjustTimer(timer: Timer, settings: Settings, now: number, delta: number): Timer {
+  const left = remaining(timer, settings, now);
+  const next = Math.max(1000, left + delta);
+  const applied = next - left;
+  if (applied === 0) return timer;
+  const extra = timer.extra + applied;
+  return timer.running && timer.endsAt !== null
+    ? { ...timer, endsAt: timer.endsAt + applied, extra }
+    : { ...timer, left: next, extra };
+}
+
+export const totalMs = (timer: Timer, settings: Settings) => Math.max(1000, durationMs(settings, timer.phase) + timer.extra);
 
 export function clock(ms: number) {
   const total = Math.ceil(ms / 1000);

@@ -1,69 +1,90 @@
 "use client";
 
-import { BellIcon, DropletIcon, EyeIcon, PauseIcon, PictureInPicture2Icon, PlayIcon, RotateCcwIcon, SkipForwardIcon, Volume2Icon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  BellIcon,
+  ChevronDownIcon,
+  DropletIcon,
+  EyeIcon,
+  PauseIcon,
+  PictureInPicture2Icon,
+  PlayIcon,
+  RotateCcwIcon,
+  SkipForwardIcon,
+  Volume2Icon,
+  XIcon,
+} from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
+import { stationName, stations, stationVideo, YoutubePlayer } from "./music";
 import { usePopout } from "./popout";
-import { notify, playBell, playDrink, playEyes, playEyesDone, ticker, unlockSound } from "./sound";
+import { notify, playBell, playDrink, playEyes, playEyesDone, playTick, ticker, unlockSound } from "./sound";
 import {
+  adjustTimer,
   clock,
-  durationMs,
   nextTimer,
   phaseNames,
   remaining,
+  restartTimer,
   settingsStore,
   timerStore,
+  totalMs,
+  type Music,
   type Phase,
   type Reminder,
   type Settings,
   type Timer,
 } from "./store";
 
+// 20-20-20: a short countdown first, so there is time to look up.
+const LEAD_IN_MS = 5_000;
 const LOOK_AWAY_MS = 20_000;
 const DRINK_BANNER_MS = 12_000;
+const RING = 2 * Math.PI * 140;
 
-const phaseLook: Record<Phase, { tint: string; text: string; bar: string; button: string }> = {
-  focus: {
-    tint: "bg-rose-500/10",
-    text: "text-rose-700 dark:text-rose-300",
-    bar: "bg-rose-500",
-    button: "bg-rose-600 text-white hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-600",
-  },
-  short: {
-    tint: "bg-emerald-500/10",
-    text: "text-emerald-700 dark:text-emerald-300",
-    bar: "bg-emerald-500",
-    button: "bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600",
-  },
-  long: {
-    tint: "bg-sky-500/10",
-    text: "text-sky-700 dark:text-sky-300",
-    bar: "bg-sky-500",
-    button: "bg-sky-600 text-white hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-600",
-  },
-};
+// The phase colors on the dark timer card.
+const phaseColor: Record<Phase, string> = { focus: "#ef6a4c", short: "#5cc398", long: "#7cb8e8" };
+const EYES_COLOR = "#8cc7ee";
 
 type Elapsed = { eyes: number; drink: number };
+// The 20-20-20 break: the countdown runs until `start`, looking away until `end`.
+type Look = { start: number; end: number };
 
+const setSettings = (change: Partial<Settings>) => settingsStore.write({ ...settingsStore.read(), ...change });
+const setMusic = (change: Partial<Music>) => setSettings({ music: { ...settingsStore.read().music, ...change } });
 const setTitle = (win: Window, title: string) => {
   win.document.title = title;
 };
+const timeOfDay = (ms: number) => new Date(ms).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 
-const setSettings = (change: Partial<Settings>) => settingsStore.write({ ...settingsStore.read(), ...change });
-
-// Space starts and pauses, unless the user is typing or on a control.
-function isTyping(target: EventTarget | null) {
+// Keys belong to the control the user is on: typing and a slider's arrows,
+// and the space bar also on buttons, which it presses.
+function ownsKey(target: EventTarget | null, key: string) {
   const el = target as HTMLElement | null;
-  return Boolean(el?.closest?.("input, textarea, select, button, [role=slider], [role=checkbox], [contenteditable=true]"));
+  const typing = "input, textarea, select, [role=slider], [contenteditable=true]";
+  return Boolean(el?.closest?.(key === " " ? `${typing}, button` : typing));
 }
+
+function buttonLabel(timer: Timer) {
+  return timer.running ? "Pause" : timer.started ? "Weiter" : "Start";
+}
+
+// Where the look-away break is at `now`: counting down, looking away, or over.
+function lookState(look: Look | null, now: number | null) {
+  if (!look || now === null) return null;
+  if (now < look.start) return { stage: "countdown" as const, seconds: Math.ceil((look.start - now) / 1000), progress: 0 };
+  return {
+    stage: "away" as const,
+    seconds: Math.max(0, Math.ceil((look.end - now) / 1000)),
+    progress: Math.min(1, (now - look.start) / (look.end - look.start)),
+  };
+}
+type LookState = ReturnType<typeof lookState>;
 
 export function PomodoroApp() {
   const settings = settingsStore.use();
@@ -71,18 +92,18 @@ export function PomodoroApp() {
   // null until the page runs in the browser, so server and first render match.
   const [now, setNow] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState<Elapsed>({ eyes: 0, drink: 0 });
-  const [lookAwayUntil, setLookAwayUntil] = useState<number | null>(null);
+  const [look, setLook] = useState<Look | null>(null);
   const [drinkUntil, setDrinkUntil] = useState<number | null>(null);
+  const [musicOn, setMusicOn] = useState(false);
   const popout = usePopout();
 
-  const latest = useRef({ elapsed, lookAwayUntil, drinkUntil, popoutOpen: false });
+  const latest = useRef({ elapsed, look, drinkUntil, popoutOpen: false, lastTick: 0 });
   useEffect(() => {
-    latest.current = { elapsed, lookAwayUntil, drinkUntil, popoutOpen: Boolean(popout.win) };
+    latest.current = { ...latest.current, elapsed, look, drinkUntil, popoutOpen: Boolean(popout.win) };
   });
 
   // One clock for everything: the end of a phase, the reminders and the
-  // 20 seconds of looking away. Runs in a worker, so it keeps time in a
-  // background tab (see sound.ts).
+  // 20-20-20 break. Runs in a worker, so it keeps time in a background tab.
   useEffect(() => {
     let last: number | null = null;
     return ticker(250, () => {
@@ -115,15 +136,16 @@ export function PomodoroApp() {
       const next: Elapsed = { ...state.elapsed };
       let eyesFired = false;
       if (!settings.eyes.on) next.eyes = 0;
-      else if (counting && state.lookAwayUntil === null) {
+      else if (counting && state.look === null) {
         next.eyes += dt;
         if (next.eyes >= settings.eyes.every * 60_000) {
           next.eyes = 0;
           eyesFired = true;
           playEyes(settings.eyes.volume);
-          state.lookAwayUntil = t + LOOK_AWAY_MS;
-          setLookAwayUntil(state.lookAwayUntil);
-          tell("20-20-20", "Schau 20 Sekunden lang in die Ferne, etwa 6 Meter weit.");
+          state.look = { start: t + LEAD_IN_MS, end: t + LEAD_IN_MS + LOOK_AWAY_MS };
+          state.lastTick = Math.ceil(LEAD_IN_MS / 1000) + 1;
+          setLook(state.look);
+          tell("20-20-20", "Gleich 20 Sekunden in die Ferne schauen, etwa 6 Meter weit.");
         }
       }
       if (!settings.drink.on) next.drink = 0;
@@ -131,7 +153,7 @@ export function PomodoroApp() {
         next.drink += dt;
         const due = settings.drink.every * 60_000;
         // Both due at once (every 20 and every 10 minutes): drink a moment later.
-        if (next.drink >= due && eyesFired) next.drink = due - 2500;
+        if (next.drink >= due && (eyesFired || state.look !== null)) next.drink = due;
         else if (next.drink >= due) {
           next.drink = 0;
           playDrink(settings.drink.volume);
@@ -145,10 +167,23 @@ export function PomodoroApp() {
         setElapsed(next);
       }
 
-      if (state.lookAwayUntil !== null && t >= state.lookAwayUntil) {
-        state.lookAwayUntil = null;
-        setLookAwayUntil(null);
-        playEyesDone(settings.eyes.volume);
+      // The 20-20-20 break: tick 5…1, a higher tone to look away, a chime when it is over.
+      if (state.look !== null && !eyesFired) {
+        if (t < state.look.start) {
+          const second = Math.ceil((state.look.start - t) / 1000);
+          if (second < state.lastTick) {
+            state.lastTick = second;
+            playTick(settings.eyes.volume);
+          }
+        } else if (state.lastTick > 0) {
+          state.lastTick = 0;
+          playTick(settings.eyes.volume, true);
+        }
+        if (t >= state.look.end) {
+          state.look = null;
+          setLook(null);
+          playEyesDone(settings.eyes.volume);
+        }
       }
       if (state.drinkUntil !== null && t >= state.drinkUntil) {
         state.drinkUntil = null;
@@ -157,9 +192,10 @@ export function PomodoroApp() {
     });
   }, []);
 
-  const left = now === null ? (timer.left ?? durationMs(settings, timer.phase)) : remaining(timer, settings, now);
-  const total = durationMs(settings, timer.phase);
+  const left = now === null ? (timer.left ?? totalMs(timer, settings)) : remaining(timer, settings, now);
+  const total = totalMs(timer, settings);
   const progress = Math.min(1, Math.max(0, 1 - left / total));
+  const lookNow = lookState(look, now);
 
   const toggle = useCallback(() => {
     unlockSound();
@@ -169,7 +205,7 @@ export function PomodoroApp() {
     if (current.running && current.endsAt !== null) {
       timerStore.write({ ...current, running: false, endsAt: null, left: Math.max(1000, current.endsAt - t) });
     } else {
-      timerStore.write({ ...current, running: true, endsAt: t + remaining(current, s, t), left: null });
+      timerStore.write({ ...current, running: true, endsAt: t + remaining(current, s, t), left: null, started: true });
     }
   }, []);
 
@@ -179,34 +215,41 @@ export function PomodoroApp() {
     timerStore.write(nextTimer(timerStore.read(), s, Date.now(), s.autoStart));
   }, []);
 
-  const reset = () => timerStore.write({ ...timerStore.read(), running: false, endsAt: null, left: null });
-  const switchPhase = (phase: Phase) => timerStore.write({ ...timerStore.read(), phase, running: false, endsAt: null, left: null });
+  const adjust = useCallback((minutes: number) => {
+    timerStore.write(adjustTimer(timerStore.read(), settingsStore.read(), Date.now(), minutes * 60_000));
+  }, []);
 
-  const endLookAway = useCallback(() => {
-    latest.current.lookAwayUntil = null;
-    setLookAwayUntil(null);
+  const reset = () => timerStore.write(restartTimer(timerStore.read()));
+  const switchPhase = (phase: Phase) => timerStore.write(restartTimer(timerStore.read(), phase));
+
+  const endLook = useCallback(() => {
+    latest.current.look = null;
+    setLook(null);
   }, []);
   const endDrink = useCallback(() => {
     latest.current.drinkUntil = null;
     setDrinkUntil(null);
   }, []);
 
-  // Space bar, in the page and in the mini window.
+  // Space starts and pauses, ← / → take away or add a minute; in the page and the mini window.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.code !== "Space" || event.repeat || isTyping(event.target)) return;
+      if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || ownsKey(event.target, event.key)) return;
+      if (event.code === "Space") toggle();
+      else if (event.key === "ArrowLeft") adjust(-1);
+      else if (event.key === "ArrowRight") adjust(1);
+      else return;
       event.preventDefault();
-      toggle();
     };
     const targets = [window, popout.win].filter((w): w is Window => w !== null);
     for (const target of targets) target.addEventListener("keydown", onKey);
     return () => {
       for (const target of targets) target.removeEventListener("keydown", onKey);
     };
-  }, [toggle, popout.win]);
+  }, [toggle, adjust, popout.win]);
 
   // The time in the tab title (and the mini window's title).
-  const title = timer.running || timer.left !== null ? `${clock(left)} · ${phaseNames[timer.phase]}` : null;
+  const title = timer.started ? `${clock(left)} · ${phaseNames[timer.phase]}` : null;
   const miniWin = popout.win;
   useEffect(() => {
     if (!title) return;
@@ -219,167 +262,540 @@ export function PomodoroApp() {
     };
   }, [title, miniWin]);
 
-  const lookAwayLeft = lookAwayUntil !== null && now !== null ? Math.max(0, lookAwayUntil - now) : null;
-  const look = phaseLook[timer.phase];
+  // Music plays while switched on, but not in breaks if so set.
+  const music = settings.music;
+  const video = stationVideo(music.station, music.custom);
+  const musicHeld = music.pauseInBreaks && timer.phase !== "focus";
+  const musicPlaying = musicOn && !musicHeld && video !== null;
 
   const openMini = async () => {
     unlockSound();
     if (!(await popout.open())) toast.error("Das Mini-Fenster wurde blockiert. Erlaube Pop-ups für diese Seite.");
   };
 
+  const endsAt = timer.running && timer.endsAt !== null ? timer.endsAt : null;
+  const nextLong = Math.ceil((timer.round + (timer.phase === "focus" ? 1 : 0)) / settings.longEvery) * settings.longEvery;
+  const timerProps = { timer, settings, left, progress, endsAt, onToggle: toggle, onSkip: skip, onAdjust: adjust };
+
   return (
-    <div className="mx-auto max-w-xl space-y-4">
-      {lookAwayLeft !== null && (
-        <Banner icon={<EyeIcon />} onClose={endLookAway}>
-          <strong>20-20-20:</strong> Schau in die Ferne, etwa 6 Meter weit.{" "}
-          <span className="tabular-nums">Noch {Math.ceil(lookAwayLeft / 1000)} s</span>
-        </Banner>
-      )}
+    <div className="mx-auto max-w-6xl space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Runde {Math.max(1, timer.round + (timer.phase === "focus" ? 1 : 0))} · lange Pause nach Runde {Math.max(settings.longEvery, nextLong)}
+          {timer.round > 0 && (
+            <>
+              {" · "}
+              <button type="button" className="cursor-pointer underline-offset-2 hover:text-foreground hover:underline" onClick={() => timerStore.write({ ...timerStore.read(), round: 0 })}>
+                Runden zurücksetzen
+              </button>
+            </>
+          )}
+        </p>
+        <Button variant="outline" className="hidden bg-card sm:inline-flex" onClick={popout.win ? popout.close : openMini}>
+          <PictureInPicture2Icon />
+          {popout.win ? "Mini schließen" : "Mini-Fenster"}
+        </Button>
+      </div>
+
+      {lookNow && <LookBanner look={lookNow} onClose={endLook} />}
       {drinkUntil !== null && (
         <Banner icon={<DropletIcon />} onClose={endDrink}>
           Zeit für einen Schluck Wasser.
         </Banner>
       )}
 
-      <Card className={cn("gap-0 overflow-hidden py-0 transition-colors", look.tint)}>
-        <CardContent className="space-y-6 px-4 py-5 sm:px-6">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-1" role="tablist" aria-label="Phase">
-              {(Object.keys(phaseNames) as Phase[]).map((phase) => (
-                <button
-                  key={phase}
-                  type="button"
-                  role="tab"
-                  aria-selected={timer.phase === phase}
-                  onClick={() => switchPhase(phase)}
-                  className={cn(
-                    "cursor-pointer rounded-md px-2.5 py-1 text-sm font-medium transition-colors",
-                    timer.phase === phase ? cn("bg-background shadow-sm", look.text) : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {phaseNames[phase]}
-                </button>
-              ))}
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="hidden shrink-0 sm:inline-flex"
-              onClick={popout.win ? popout.close : openMini}
-              title="Kleines Fenster nur mit dem Timer"
-            >
-              <PictureInPicture2Icon />
-              {popout.win ? "Mini schließen" : "Mini-Fenster"}
-            </Button>
-          </div>
+      <div className="flex flex-wrap items-start gap-6">
+        <TimerCard {...timerProps} onSwitchPhase={switchPhase} onReset={reset} />
 
-          <div className="text-center">
-            <div className={cn("text-7xl font-semibold tracking-tight tabular-nums sm:text-8xl", look.text)} aria-live="off">
-              {clock(left)}
-            </div>
-            <div className="mt-1 text-sm text-muted-foreground">
-              Runde {timer.round + (timer.phase === "focus" ? 1 : 0)}
-              {" · "}lange Pause nach {settings.longEvery}
-              {timer.round > 0 && (
-                <>
-                  {" · "}
-                  <button type="button" className="cursor-pointer underline-offset-2 hover:underline" onClick={() => timerStore.write({ ...timerStore.read(), round: 0 })}>
-                    Runden zurücksetzen
-                  </button>
-                </>
+        <div className="flex min-w-0 flex-[1_1_340px] flex-col gap-4">
+          <MusicCard music={music} on={musicOn} playing={musicPlaying} held={musicOn && musicHeld} video={video} onToggle={() => setMusicOn((on) => !on)} />
+          <RemindersCard settings={settings} timer={timer} elapsed={elapsed} looking={look !== null} />
+          <TimesCard settings={settings} />
+        </div>
+      </div>
+
+      {popout.win &&
+        createPortal(
+          <MiniTimer {...timerProps} look={lookNow} drinking={drinkUntil !== null} music={musicPlaying ? stationName(music.station) : null} onEndLook={endLook} onEndDrink={endDrink} />,
+          popout.win.document.body,
+        )}
+    </div>
+  );
+}
+
+type TimerProps = {
+  timer: Timer;
+  settings: Settings;
+  left: number;
+  progress: number;
+  endsAt: number | null;
+  onToggle: () => void;
+  onSkip: () => void;
+  onAdjust: (minutes: number) => void;
+};
+
+function RoundDots({ timer, settings, size }: { timer: Timer; settings: Settings; size: "sm" | "md" }) {
+  const count = Math.min(settings.longEvery, 12);
+  let done = timer.round % settings.longEvery;
+  if (timer.phase === "long" && timer.round > 0 && done === 0) done = settings.longEvery;
+  const color = phaseColor.focus;
+  return (
+    <div className="flex items-center gap-1.5" aria-label={`${done} von ${settings.longEvery} Runden bis zur langen Pause`}>
+      {Array.from({ length: count }, (_, i) => (
+        <span
+          key={i}
+          className={cn("rounded-full", size === "sm" ? "size-2" : "size-2.5")}
+          style={
+            i < done
+              ? { background: color }
+              : i === done && timer.phase === "focus"
+                ? { boxShadow: `inset 0 0 0 2px ${color}` }
+                : { background: "#2c3832" }
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+function TimerCard({ timer, settings, left, progress, endsAt, onToggle, onSkip, onAdjust, onSwitchPhase, onReset }: TimerProps & { onSwitchPhase: (phase: Phase) => void; onReset: () => void }) {
+  const color = phaseColor[timer.phase];
+  return (
+    <section
+      aria-label="Timer"
+      className="flex min-w-0 flex-[999_1_560px] flex-col items-center gap-7 rounded-3xl bg-[#16201c] px-5 pt-6 pb-7 text-[#f3f4f1] sm:px-8 dark:bg-[#0d1210] dark:ring-1 dark:ring-white/10"
+      style={{ "--phase": color } as CSSProperties}
+    >
+      <div className="flex w-full flex-wrap items-center justify-between gap-3">
+        <div role="tablist" aria-label="Phase" className="flex gap-1 rounded-xl bg-[#2c3832] p-1">
+          {(Object.keys(phaseNames) as Phase[]).map((phase) => (
+            <button
+              key={phase}
+              type="button"
+              role="tab"
+              aria-selected={timer.phase === phase}
+              onClick={() => onSwitchPhase(phase)}
+              className={cn(
+                "h-8 cursor-pointer rounded-lg px-3 text-sm font-medium transition-colors sm:px-3.5",
+                timer.phase === phase ? "bg-[#f3f4f1] font-semibold text-[#16201c]" : "text-[#b9c2bd] hover:text-[#f3f4f1]",
               )}
+            >
+              {phaseNames[phase]}
+            </button>
+          ))}
+        </div>
+        <RoundDots timer={timer} settings={settings} size="md" />
+      </div>
+
+      <div className="relative aspect-square w-full max-w-80">
+        <svg aria-hidden="true" viewBox="0 0 320 320" className="absolute inset-0 size-full -rotate-90">
+          <circle cx="160" cy="160" r="140" fill="none" stroke="#2c3832" strokeWidth="10" />
+          <circle
+            cx="160"
+            cy="160"
+            r="140"
+            fill="none"
+            stroke={color}
+            opacity={progress > 0 ? 1 : 0}
+            strokeWidth="10"
+            strokeLinecap="round"
+            strokeDasharray={RING}
+            strokeDashoffset={RING * (1 - progress)}
+            className="transition-[stroke-dashoffset] duration-300"
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5">
+          <span className="text-sm font-medium tracking-[0.06em] text-[var(--phase)] uppercase">{phaseNames[timer.phase]}</span>
+          <span className="text-7xl leading-none font-semibold tracking-tight tabular-nums sm:text-[84px]" aria-live="off">
+            {clock(left)}
+          </span>
+          <span className="text-sm text-[#b9c2bd]">{endsAt !== null ? `fertig um ${timeOfDay(endsAt)}` : timer.started ? "pausiert" : "bereit"}</span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 sm:gap-3">
+        <AdjustButton minutes={-1} onAdjust={onAdjust} />
+        <IconButton label="Zurücksetzen" onClick={onReset}>
+          <RotateCcwIcon className="size-5" />
+        </IconButton>
+        <PlayButton timer={timer} onToggle={onToggle} />
+        <IconButton label="Nächste Phase" onClick={onSkip}>
+          <SkipForwardIcon className="size-5" />
+        </IconButton>
+        <AdjustButton minutes={1} onAdjust={onAdjust} />
+      </div>
+      <p className="-mt-3 hidden text-xs text-[#9aa39e] sm:block">Leertaste: Start/Pause · ← / →: eine Minute weniger/mehr</p>
+    </section>
+  );
+}
+
+function PlayButton({ timer, onToggle, small }: { timer: Timer; onToggle: () => void; small?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={cn(
+        "flex cursor-pointer items-center gap-2 rounded-xl bg-[var(--phase)] font-semibold text-[#16201c] transition-[filter] hover:brightness-110 focus-visible:ring-[3px] focus-visible:ring-white/40 focus-visible:outline-none",
+        small ? "h-10 px-4 text-sm" : "h-11 px-5 text-[15px]",
+      )}
+    >
+      {timer.running ? <PauseIcon className="size-4 fill-current" /> : <PlayIcon className="size-4 fill-current" />}
+      {buttonLabel(timer)}
+    </button>
+  );
+}
+
+function AdjustButton({ minutes, onAdjust, small }: { minutes: number; onAdjust: (minutes: number) => void; small?: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-label={minutes > 0 ? "Eine Minute mehr" : "Eine Minute weniger"}
+      title={minutes > 0 ? "Eine Minute mehr" : "Eine Minute weniger"}
+      onClick={() => onAdjust(minutes)}
+      className={cn(
+        "cursor-pointer rounded-[10px] border border-[#3a4741] font-semibold tabular-nums transition-colors hover:bg-white/5 focus-visible:ring-[3px] focus-visible:ring-white/30 focus-visible:outline-none",
+        small ? "h-9 min-w-11 text-[13px]" : "h-10 min-w-12 px-3 text-sm sm:min-w-14",
+      )}
+    >
+      {minutes > 0 ? `+${minutes}` : `−${-minutes}`}
+    </button>
+  );
+}
+
+function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className="flex size-11 cursor-pointer items-center justify-center rounded-full text-[#b9c2bd] transition-colors hover:bg-white/5 hover:text-[#f3f4f1] focus-visible:ring-[3px] focus-visible:ring-white/30 focus-visible:outline-none"
+    >
+      {children}
+    </button>
+  );
+}
+
+// The mini window: fixed rows, so a reminder never moves the clock.
+function MiniTimer({
+  timer,
+  settings,
+  left,
+  progress,
+  endsAt,
+  onToggle,
+  onSkip,
+  onAdjust,
+  look,
+  drinking,
+  music,
+  onEndLook,
+  onEndDrink,
+}: TimerProps & { look: LookState; drinking: boolean; music: string | null; onEndLook: () => void; onEndDrink: () => void }) {
+  const color = look ? EYES_COLOR : phaseColor[timer.phase];
+  return (
+    <div
+      className="grid h-screen grid-rows-[24px_1fr_6px_52px_28px] gap-2.5 bg-[#16201c] px-[18px] py-4 text-[#f3f4f1] select-none"
+      style={{ "--phase": color, fontFamily: "var(--font-instrument-sans), system-ui, sans-serif" } as CSSProperties}
+    >
+      {look ? (
+        <>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold tracking-[0.06em] text-[var(--phase)] uppercase">20-20-20</span>
+            <span className="text-xs text-[#9aa39e] tabular-nums">
+              {phaseNames[timer.phase]} {clock(left)}
+            </span>
+          </div>
+          <div className="flex flex-col items-center justify-center gap-1 text-center">
+            <EyeIcon className="size-7 text-[var(--phase)]" />
+            <span className="text-lg font-semibold">{look.stage === "countdown" ? "Gleich in die Ferne schauen" : "In die Ferne schauen"}</span>
+            <span className="text-[13px] text-[#b9c2bd]">etwa 6 Meter weit, 20 Sekunden</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-[#2c3832]">
+            <div className="h-1.5 rounded-full bg-[var(--phase)] transition-[width] duration-300" style={{ width: `${look.progress * 100}%` }} />
+          </div>
+          <div className="flex items-center justify-center text-[40px] font-semibold tabular-nums">{look.stage === "countdown" ? look.seconds : `${look.seconds} s`}</div>
+          <button
+            type="button"
+            onClick={onEndLook}
+            className="h-7 cursor-pointer justify-self-center rounded-full border border-[#3a4741] px-3 text-xs font-medium text-[#b9c2bd] hover:text-[#f3f4f1]"
+          >
+            Überspringen
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold tracking-[0.06em] text-[var(--phase)] uppercase">{phaseNames[timer.phase]}</span>
+            <RoundDots timer={timer} settings={settings} size="sm" />
+          </div>
+          <div className="flex items-center justify-center text-[min(24vw,34vh)] leading-none font-semibold tracking-tight tabular-nums">{clock(left)}</div>
+          <div className="h-1.5 rounded-full bg-[#2c3832]">
+            <div className="h-1.5 rounded-full bg-[var(--phase)] transition-[width] duration-300" style={{ width: `${progress * 100}%` }} />
+          </div>
+          <div className="flex items-center justify-center gap-2">
+            <AdjustButton minutes={-1} onAdjust={onAdjust} small />
+            <PlayButton timer={timer} onToggle={onToggle} small />
+            <IconButton label="Nächste Phase" onClick={onSkip}>
+              <SkipForwardIcon className="size-[18px]" />
+            </IconButton>
+            <AdjustButton minutes={1} onAdjust={onAdjust} small />
+          </div>
+          {drinking ? (
+            <button
+              type="button"
+              onClick={onEndDrink}
+              className="flex h-7 cursor-pointer items-center gap-1.5 justify-self-center rounded-full bg-[#1f3a4a] px-3 text-xs font-medium text-[#cfe6f5]"
+            >
+              <DropletIcon className="size-3.5" /> Schluck Wasser trinken · ok
+            </button>
+          ) : (
+            <div className="flex items-center justify-center truncate text-xs text-[#9aa39e]">
+              {[endsAt !== null ? `fertig um ${timeOfDay(endsAt)}` : timer.started ? "pausiert" : "Leertaste startet", music && `♪ ${music}`]
+                .filter(Boolean)
+                .join(" · ")}
             </div>
-          </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
-          <div className="h-1.5 overflow-hidden rounded-full bg-foreground/10">
-            <div className={cn("h-full rounded-full transition-[width] duration-300", look.bar)} style={{ width: `${progress * 100}%` }} />
-          </div>
+function LookBanner({ look, onClose }: { look: NonNullable<LookState>; onClose: () => void }) {
+  return (
+    <Banner icon={<EyeIcon />} onClose={onClose}>
+      {look.stage === "countdown" ? (
+        <>
+          <strong>20-20-20:</strong> Gleich in die Ferne schauen … <span className="text-base font-semibold tabular-nums">{look.seconds}</span>
+        </>
+      ) : (
+        <>
+          <strong>20-20-20:</strong> Schau in die Ferne, etwa 6 Meter weit. <span className="tabular-nums">Noch {look.seconds} s</span>
+        </>
+      )}
+    </Banner>
+  );
+}
 
-          <div>
-            <div className="flex items-center justify-center gap-3">
-              <Button variant="ghost" size="icon" onClick={reset} aria-label="Zurücksetzen" title="Zurücksetzen">
-                <RotateCcwIcon />
-              </Button>
-              <Button size="lg" className={cn("h-12 min-w-36 text-base", look.button)} onClick={toggle}>
-                {timer.running ? <PauseIcon /> : <PlayIcon />}
-                {timer.running ? "Pause" : timer.left !== null ? "Weiter" : "Start"}
-              </Button>
-              <Button variant="ghost" size="icon" onClick={skip} aria-label="Nächste Phase" title="Nächste Phase">
-                <SkipForwardIcon />
-              </Button>
-            </div>
-            <p className="mt-4 hidden text-center text-xs text-muted-foreground sm:block">Leertaste startet und pausiert.</p>
-          </div>
-        </CardContent>
-      </Card>
+function Banner({ icon, children, onClose }: { icon: ReactNode; children: ReactNode; onClose: () => void }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-900 dark:text-sky-100 [&>svg]:size-5 [&>svg]:shrink-0">
+      {icon}
+      <div className="flex-1">{children}</div>
+      <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Schließen">
+        <XIcon />
+      </Button>
+    </div>
+  );
+}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Erinnerungen</CardTitle>
-          <CardDescription>Ein Ton (und auf Wunsch eine Benachrichtigung) in festen Abständen.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <ReminderRow
-            id="eyes"
-            icon={<EyeIcon />}
-            label="20-20-20-Regel"
-            hint="Alle 20 Minuten 20 Sekunden in die Ferne schauen."
-            reminder={settings.eyes}
-            leftMs={settings.eyes.every * 60_000 - elapsed.eyes}
-            paused={lookAwayUntil !== null || (settings.remindersWithTimer && !timer.running)}
-            onChange={(eyes) => setSettings({ eyes })}
-            onTest={() => playEyes(settings.eyes.volume)}
-          />
-          <ReminderRow
-            id="drink"
-            icon={<DropletIcon />}
-            label="Trinken"
-            hint="Ein Schluck Wasser zwischendurch."
-            reminder={settings.drink}
-            leftMs={settings.drink.every * 60_000 - elapsed.drink}
-            paused={settings.remindersWithTimer && !timer.running}
-            onChange={(drink) => setSettings({ drink })}
-            onTest={() => playDrink(settings.drink.volume)}
-          />
-          <CheckRow
-            id="with-timer"
-            checked={settings.remindersWithTimer}
-            onChange={(remindersWithTimer) => setSettings({ remindersWithTimer })}
-            label="Nur während der Timer läuft"
-            hint="Ist der Timer pausiert, bleiben die Erinnerungen still."
-          />
-        </CardContent>
-      </Card>
+function Panel({ title, action, children, className }: { title: string; action?: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <section aria-label={title} className={cn("flex flex-col gap-4 rounded-[20px] border bg-card p-5 text-card-foreground", className)}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold">{title}</h2>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Einstellungen</CardTitle>
-          <CardDescription>Gilt auf diesem Gerät.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <NumberField id="focus" label="Fokus (Min.)" value={settings.focus} max={240} onChange={(focus) => setSettings({ focus })} />
-            <NumberField id="short" label="Kurze Pause" value={settings.short} max={120} onChange={(short) => setSettings({ short })} />
-            <NumberField id="long" label="Lange Pause" value={settings.long} max={120} onChange={(long) => setSettings({ long })} />
-            <NumberField id="long-every" label="Lange nach … Runden" value={settings.longEvery} max={12} onChange={(longEvery) => setSettings({ longEvery })} />
+function MusicCard({ music, on, playing, held, video, onToggle }: { music: Music; on: boolean; playing: boolean; held: boolean; video: string | null; onToggle: () => void }) {
+  const status = !on ? "aus" : video === null ? "kein gültiger YouTube-Link" : held ? "pausiert bis zum nächsten Fokus" : `läuft · ${stationName(music.station)}`;
+  return (
+    <Panel
+      title="Lo-Fi"
+      action={
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={on ? "Musik aus" : "Musik an"}
+          title={on ? "Musik aus" : "Musik an"}
+          className="flex size-11 cursor-pointer items-center justify-center rounded-full bg-foreground text-background transition-opacity hover:opacity-90 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+        >
+          {on ? <PauseIcon className="size-4 fill-current" /> : <PlayIcon className="size-4 fill-current" />}
+        </button>
+      }
+    >
+      <p className="-mt-3 flex items-center gap-1.5 text-[13px] text-muted-foreground">
+        <span className={cn("size-[7px] rounded-full", playing ? "bg-brand" : "bg-muted-foreground/40")} />
+        {status}
+      </p>
+      <div role="radiogroup" aria-label="Sender" className="flex flex-wrap gap-1.5">
+        {[...stations.map((s) => ({ id: s.id as string, name: s.name as string })), { id: "custom", name: "Eigener Link" }].map((station) => (
+          <button
+            key={station.id}
+            type="button"
+            role="radio"
+            aria-checked={music.station === station.id}
+            onClick={() => setMusic({ station: station.id })}
+            className={cn(
+              "h-8 cursor-pointer rounded-full border px-3 text-[13px] font-medium transition-colors",
+              music.station === station.id ? "border-foreground bg-foreground text-background" : "bg-card hover:bg-muted",
+            )}
+          >
+            {station.name}
+          </button>
+        ))}
+      </div>
+      {music.station === "custom" && (
+        <Input
+          aria-label="YouTube-Link"
+          placeholder="YouTube-Link einfügen"
+          value={music.custom}
+          onChange={(event) => setMusic({ custom: event.target.value })}
+        />
+      )}
+      <VolumeSlider label="Lautstärke Musik" value={music.volume} onChange={(volume) => setMusic({ volume })} />
+      <SwitchRow label="In den Pausen anhalten" checked={music.pauseInBreaks} onChange={(pauseInBreaks) => setMusic({ pauseInBreaks })} />
+      {playing && video && <YoutubePlayer video={video} volume={music.volume} className="aspect-video w-full rounded-xl border-0 bg-black" />}
+    </Panel>
+  );
+}
+
+function RemindersCard({ settings, timer, elapsed, looking }: { settings: Settings; timer: Timer; elapsed: Elapsed; looking: boolean }) {
+  const quiet = settings.remindersWithTimer && !timer.running;
+  return (
+    <Panel title="Erinnerungen" className="gap-1">
+      <ReminderRow
+        icon={<EyeIcon />}
+        tile="bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-200"
+        label="20-20-20-Regel"
+        hint="20 Sekunden in die Ferne schauen, mit 5 Sekunden Vorlauf"
+        reminder={settings.eyes}
+        leftMs={settings.eyes.every * 60_000 - elapsed.eyes}
+        paused={looking || quiet}
+        onChange={(eyes) => setSettings({ eyes })}
+        onTest={() => playEyes(settings.eyes.volume)}
+      />
+      <ReminderRow
+        icon={<DropletIcon />}
+        tile="bg-emerald-100 text-emerald-900 dark:bg-emerald-500/15 dark:text-emerald-200"
+        label="Trinken"
+        hint="Ein Schluck Wasser zwischendurch"
+        reminder={settings.drink}
+        leftMs={settings.drink.every * 60_000 - elapsed.drink}
+        paused={quiet}
+        onChange={(drink) => setSettings({ drink })}
+        onTest={() => playDrink(settings.drink.volume)}
+      />
+      <div className="mt-2 border-t pt-3">
+        <SwitchRow
+          label="Nur während der Timer läuft"
+          hint="Ist der Timer pausiert, bleiben die Erinnerungen still."
+          checked={settings.remindersWithTimer}
+          onChange={(remindersWithTimer) => setSettings({ remindersWithTimer })}
+        />
+      </div>
+    </Panel>
+  );
+}
+
+function ReminderRow({
+  icon,
+  tile,
+  label,
+  hint,
+  reminder,
+  leftMs,
+  paused,
+  onChange,
+  onTest,
+}: {
+  icon: ReactNode;
+  tile: string;
+  label: string;
+  hint: string;
+  reminder: Reminder;
+  leftMs: number;
+  paused: boolean;
+  onChange: (reminder: Reminder) => void;
+  onTest: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const id = label.replace(/\W+/g, "-").toLowerCase();
+  const summary = reminder.on
+    ? `alle ${reminder.every} Min · ${paused ? "pausiert" : "nächste"} in ${clock(Math.max(0, leftMs))} · ${reminder.volume} %`
+    : `aus · alle ${reminder.every} Min`;
+  return (
+    <div className="border-b last-of-type:border-b-0">
+      <div className="flex items-center gap-3 py-2.5">
+        <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-[10px] [&>svg]:size-[18px]", tile)}>{icon}</span>
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          aria-controls={`${id}-details`}
+          className="flex min-w-0 flex-1 cursor-pointer flex-col items-start gap-0.5 text-left"
+        >
+          <span className="flex items-center gap-1 text-sm font-medium">
+            {label}
+            <ChevronDownIcon className={cn("size-3.5 text-muted-foreground transition-transform", open && "rotate-180")} />
+          </span>
+          <span className="truncate text-xs text-muted-foreground tabular-nums">{summary}</span>
+        </button>
+        <Switch
+          label={label}
+          checked={reminder.on}
+          onChange={(on) => {
+            unlockSound();
+            onChange({ ...reminder, on });
+          }}
+        />
+      </div>
+      {open && (
+        <div id={`${id}-details`} className="space-y-3 pb-3 pl-12">
+          <p className="text-xs text-muted-foreground">{hint}</p>
+          <div className="flex items-center gap-2">
+            <Label htmlFor={`${id}-every`} className="text-sm font-normal text-muted-foreground">
+              alle
+            </Label>
+            <MinutesInput id={`${id}-every`} value={reminder.every} max={240} onChange={(every) => onChange({ ...reminder, every })} className="w-16" />
+            <span className="text-sm text-muted-foreground">Min.</span>
           </div>
-          <VolumeRow
-            id="timer-volume"
-            icon={<BellIcon />}
-            label="Lautstärke Timer-Ende"
-            value={settings.timerVolume}
-            onChange={(timerVolume) => setSettings({ timerVolume })}
-            onTest={() => playBell(settings.timerVolume)}
-          />
-          <CheckRow
-            id="auto-start"
-            checked={settings.autoStart}
-            onChange={(autoStart) => setSettings({ autoStart })}
+          <VolumeSlider label={`Lautstärke ${label}`} value={reminder.volume} onChange={(volume) => onChange({ ...reminder, volume })} onTest={onTest} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimesCard({ settings }: { settings: Settings }) {
+  const [more, setMore] = useState(false);
+  return (
+    <Panel
+      title="Zeiten"
+      action={
+        <button type="button" onClick={() => setMore((value) => !value)} aria-expanded={more} className="cursor-pointer text-[13px] font-medium text-brand hover:underline">
+          {more ? "Weniger" : "Alle Einstellungen"}
+        </button>
+      }
+    >
+      <div className="grid grid-cols-4 gap-2">
+        <NumberField id="focus" label="Fokus" value={settings.focus} max={240} onChange={(focus) => setSettings({ focus })} />
+        <NumberField id="short" label="Kurz" value={settings.short} max={120} onChange={(short) => setSettings({ short })} />
+        <NumberField id="long" label="Lang" value={settings.long} max={120} onChange={(long) => setSettings({ long })} />
+        <NumberField id="long-every" label="Runden" value={settings.longEvery} max={12} onChange={(longEvery) => setSettings({ longEvery })} />
+      </div>
+      {more && (
+        <div className="space-y-4 border-t pt-4">
+          <div className="space-y-2">
+            <p className="flex items-center gap-1.5 text-sm font-medium [&>svg]:size-4">
+              <BellIcon /> Lautstärke Timer-Ende
+            </p>
+            <VolumeSlider label="Lautstärke Timer-Ende" value={settings.timerVolume} onChange={(timerVolume) => setSettings({ timerVolume })} onTest={() => playBell(settings.timerVolume)} />
+          </div>
+          <SwitchRow
             label="Nächste Phase automatisch starten"
             hint="Nach dem Fokus läuft die Pause gleich los und umgekehrt."
+            checked={settings.autoStart}
+            onChange={(autoStart) => setSettings({ autoStart })}
           />
-          <CheckRow
-            id="notify"
+          <SwitchRow
+            label="Benachrichtigung im Hintergrund"
+            hint="Zusätzlich zum Ton, wenn du in einem anderen Fenster bist."
             checked={settings.notify}
             onChange={async (on) => {
               if (on && typeof Notification !== "undefined" && Notification.permission !== "granted") {
@@ -391,210 +807,70 @@ export function PomodoroApp() {
               }
               setSettings({ notify: on });
             }}
-            label="Benachrichtigung, wenn der Tab im Hintergrund ist"
-            hint="Zusätzlich zum Ton, falls du gerade in einem anderen Fenster bist."
           />
-        </CardContent>
-      </Card>
-
-      {popout.win &&
-        createPortal(
-          <MiniTimer
-            timer={timer}
-            left={left}
-            progress={progress}
-            lookAwayLeft={lookAwayLeft}
-            drinking={drinkUntil !== null}
-            onToggle={toggle}
-            onSkip={skip}
-            onEndLookAway={endLookAway}
-            onEndDrink={endDrink}
-          />,
-          popout.win.document.body,
-        )}
-    </div>
-  );
-}
-
-// The mini window: only the clock, start/pause and skip.
-function MiniTimer({
-  timer,
-  left,
-  progress,
-  lookAwayLeft,
-  drinking,
-  onToggle,
-  onSkip,
-  onEndLookAway,
-  onEndDrink,
-}: {
-  timer: Timer;
-  left: number;
-  progress: number;
-  lookAwayLeft: number | null;
-  drinking: boolean;
-  onToggle: () => void;
-  onSkip: () => void;
-  onEndLookAway: () => void;
-  onEndDrink: () => void;
-}) {
-  const look = phaseLook[timer.phase];
-  return (
-    <div className={cn("flex h-screen flex-col items-center justify-center gap-3 p-4 select-none", look.tint)}>
-      {lookAwayLeft !== null ? (
-        <button type="button" onClick={onEndLookAway} className="flex cursor-pointer flex-col items-center gap-1 text-center">
-          <EyeIcon className="size-8 text-sky-600 dark:text-sky-300" />
-          <span className="text-lg font-semibold">In die Ferne schauen</span>
-          <span className="text-4xl font-semibold tabular-nums">{Math.ceil(lookAwayLeft / 1000)} s</span>
-        </button>
-      ) : (
-        <>
-          <div className={cn("text-sm font-medium", look.text)}>{phaseNames[timer.phase]}</div>
-          <div className={cn("text-[min(24vw,32vh)] leading-none font-semibold tracking-tight tabular-nums", look.text)}>{clock(left)}</div>
-          <div className="h-1 w-3/4 overflow-hidden rounded-full bg-foreground/10">
-            <div className={cn("h-full rounded-full", look.bar)} style={{ width: `${progress * 100}%` }} />
-          </div>
-          <div className="flex items-center gap-2">
-            <Button size="lg" className={cn("min-w-28", look.button)} onClick={onToggle}>
-              {timer.running ? <PauseIcon /> : <PlayIcon />}
-              {timer.running ? "Pause" : timer.left !== null ? "Weiter" : "Start"}
-            </Button>
-            <Button variant="ghost" size="icon" onClick={onSkip} aria-label="Nächste Phase" title="Nächste Phase">
-              <SkipForwardIcon />
-            </Button>
-          </div>
-        </>
-      )}
-      {drinking && (
-        <button type="button" onClick={onEndDrink} className="flex cursor-pointer items-center gap-1.5 rounded-full bg-sky-500/15 px-3 py-1 text-sm text-sky-700 dark:text-sky-300">
-          <DropletIcon className="size-4" /> Schluck Wasser trinken
-        </button>
-      )}
-    </div>
-  );
-}
-
-function Banner({ icon, children, onClose }: { icon: ReactNode; children: ReactNode; onClose: () => void }) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-900 dark:text-sky-100 [&>svg]:size-5 [&>svg]:shrink-0">
-      {icon}
-      <div className="flex-1">{children}</div>
-      <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Schließen">
-        <XIcon />
-      </Button>
-    </div>
-  );
-}
-
-function ReminderRow({
-  id,
-  icon,
-  label,
-  hint,
-  reminder,
-  leftMs,
-  paused,
-  onChange,
-  onTest,
-}: {
-  id: string;
-  icon: ReactNode;
-  label: string;
-  hint: string;
-  reminder: Reminder;
-  leftMs: number;
-  paused: boolean;
-  onChange: (reminder: Reminder) => void;
-  onTest: () => void;
-}) {
-  return (
-    <div className="space-y-3 rounded-lg border p-3">
-      <div className="flex items-start gap-3">
-        <Checkbox
-          id={`${id}-on`}
-          className="mt-0.5"
-          checked={reminder.on}
-          onCheckedChange={(checked) => {
-            unlockSound();
-            onChange({ ...reminder, on: checked === true });
-          }}
-        />
-        <div className="flex-1 space-y-0.5">
-          <Label htmlFor={`${id}-on`} className="flex items-center gap-1.5 [&>svg]:size-4">
-            {icon}
-            {label}
-          </Label>
-          <p className="text-xs text-muted-foreground">{hint}</p>
         </div>
-        {reminder.on && (
-          <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-            {paused ? "pausiert · " : ""}in {clock(Math.max(0, leftMs))}
-          </span>
-        )}
-      </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 pl-7">
-        <div className="flex items-center gap-2">
-          <Label htmlFor={`${id}-every`} className="text-sm font-normal text-muted-foreground">
-            alle
-          </Label>
-          <MinutesInput id={`${id}-every`} value={reminder.every} max={240} onChange={(every) => onChange({ ...reminder, every })} className="w-16" />
-          <span className="text-sm text-muted-foreground">Min.</span>
-        </div>
-        <VolumeSlider id={`${id}-volume`} value={reminder.volume} onChange={(volume) => onChange({ ...reminder, volume })} onTest={onTest} />
-      </div>
-    </div>
+      )}
+    </Panel>
   );
 }
 
-function VolumeRow({ id, icon, label, value, onChange, onTest }: { id: string; icon: ReactNode; label: string; value: number; onChange: (value: number) => void; onTest: () => void }) {
+function Switch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <div className="space-y-2">
-      <Label htmlFor={id} className="flex items-center gap-1.5 [&>svg]:size-4">
-        {icon}
-        {label}
-      </Label>
-      <VolumeSlider id={id} value={value} onChange={onChange} onTest={onTest} />
-    </div>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "relative h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+        checked ? "bg-brand" : "bg-input",
+      )}
+    >
+      <span className={cn("absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow-sm transition-transform", checked && "translate-x-4")} />
+    </button>
   );
 }
 
-function VolumeSlider({ id, value, onChange, onTest }: { id: string; value: number; onChange: (value: number) => void; onTest: () => void }) {
+function SwitchRow({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <div className="flex min-w-48 flex-1 items-center gap-3">
-      <Slider id={id} aria-label="Lautstärke" value={[value]} min={0} max={100} step={5} onValueChange={([v]) => onChange(v)} className="flex-1" />
-      <span className="w-9 text-right text-xs text-muted-foreground tabular-nums">{value} %</span>
-      <Button
-        variant="outline"
-        size="icon-sm"
-        aria-label="Ton testen"
-        title="Ton testen"
-        onClick={() => {
-          unlockSound();
-          onTest();
-        }}
-      >
-        <Volume2Icon />
-      </Button>
-    </div>
-  );
-}
-
-function CheckRow({ id, checked, onChange, label, hint }: { id: string; checked: boolean; onChange: (checked: boolean) => void; label: string; hint: string }) {
-  return (
-    <div className="flex items-start gap-3">
-      <Checkbox id={id} className="mt-0.5" checked={checked} onCheckedChange={(value) => onChange(value === true)} />
+    <div className="flex items-center justify-between gap-3">
       <div className="space-y-0.5">
-        <Label htmlFor={id}>{label}</Label>
-        <p className="text-xs text-muted-foreground">{hint}</p>
+        <p className="text-[13px] font-medium">{label}</p>
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </div>
+      <Switch label={label} checked={checked} onChange={onChange} />
+    </div>
+  );
+}
+
+function VolumeSlider({ label, value, onChange, onTest }: { label: string; value: number; onChange: (value: number) => void; onTest?: () => void }) {
+  return (
+    <div className="flex items-center gap-3">
+      <Volume2Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <Slider aria-label={label} value={[value]} min={0} max={100} step={5} onValueChange={([v]) => onChange(v)} className="flex-1" />
+      <span className="w-9 text-right text-xs text-muted-foreground tabular-nums">{value} %</span>
+      {onTest && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8"
+          onClick={() => {
+            unlockSound();
+            onTest();
+          }}
+        >
+          Test
+        </Button>
+      )}
     </div>
   );
 }
 
 function NumberField({ id, label, value, max, onChange }: { id: string; label: string; value: number; max: number; onChange: (value: number) => void }) {
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className="text-xs text-muted-foreground">
+    <div className="space-y-1">
+      <Label htmlFor={id} className="text-xs font-normal text-muted-foreground">
         {label}
       </Label>
       <MinutesInput id={id} value={value} max={max} onChange={onChange} />
