@@ -276,11 +276,12 @@ async function pushRoutines(req: Request, dry: boolean) {
         superset_id: null,
         rest_seconds: exercise.restSeconds ?? null,
         notes: exercise.notes || null,
+        // Hevy rejects rep_range: null, so sets without a range leave it out.
         sets: (Array.isArray(exercise.sets) ? exercise.sets : []).slice(0, 10).map((set) => ({
           type: set.type === "warmup" ? "warmup" : "normal",
           weight_kg: set.weightKg ?? null,
           reps: set.reps ?? null,
-          rep_range: set.repsMin != null && set.repsMax != null ? { start: set.repsMin, end: set.repsMax } : null,
+          ...(set.repsMin != null && set.repsMax != null ? { rep_range: { start: set.repsMin, end: set.repsMax } } : {}),
           distance_meters: null,
           duration_seconds: set.durationS ?? null,
           custom_metric: null,
