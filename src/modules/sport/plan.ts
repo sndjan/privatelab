@@ -166,6 +166,29 @@ export const routine: RoutineDay[] = [
   },
 ];
 
+// Warm-up before every gym day (about 7 min), as on the routine page without the rowing. Items with
+// a Hevy template become their own exercises in the Hevy routines (as warm-up
+// sets, so they don't count as working sets); the rest go into the note of
+// Hevy's "Warm Up" exercise.
+export type WarmupItem = {
+  name: string;
+  amount: string;
+  note: string;
+  hevy?: { templateId: string; reps?: number; durationS?: number };
+};
+
+export const warmup: WarmupItem[] = [
+  { name: "Mobilisation (Arme, Schultern, Hüfte, Beinschwingen)", amount: "2 min", note: "wie bisher" },
+  { name: "Short Foot (Fußgewölbe aktiv anheben)", amount: "2 × 30 s je Fuß", note: "Knick-Senkfuß; Wirkung erst nach über 6 Wochen messbar" },
+  { name: "Soleus Lunge", amount: "1 × 12 je Seite", note: "Knie über die Zehen schieben, Ferse bleibt unten", hevy: { templateId: "fe1d93a8-165e-48dd-b4c9-3c2203bafe5d", reps: 12 } },
+  { name: "Einbeinstand", amount: "1 × 30 s je Seite", note: "später auf weicher Unterlage oder mit Augen zu", hevy: { templateId: "6baa4ec1-9d22-4b77-b6e6-046f9d1f2938" } },
+  { name: "Pogo Hops", amount: "2 × 15", note: "kleine Sprünge aus dem Sprunggelenk; ab Woche 5 an Tag A zusätzlich Box Jumps 2 × 5, an Tag C Skater-Sprünge 2 × 5 je Seite; nur bei Knie ≤ 3/10" },
+  { name: "Aufwärmsätze der ersten Übung", amount: "ca. 50 / 70 / 85 %", note: "zählen nicht als Arbeitssätze" },
+];
+
+// Hevy's "Warm Up" exercise (duration) for the items without their own template.
+export const WARMUP_TEMPLATE = "79EF4E4F";
+
 // Hevy names can carry another equipment tag or a gym name
 // ("Crunch Maschine (Vöhringen)"); compare the words without brackets first.
 const words = (name: string) =>

@@ -239,7 +239,8 @@ export function records(exercises: ExerciseSession[]): Record_[] {
   return out.reverse();
 }
 
-export type Hint = { tone: "up" | "keep" | "down"; text: string };
+// kg: the weight (or, for assisted exercises, the help) to start with next time.
+export type Hint = { tone: "up" | "keep" | "down"; text: string; kg: number | null };
 
 // Double progression from the routine: reps up to the top of the range in every
 // working set, then +2.5–5 % weight; below the bottom of the range: 5–10 % less.
@@ -254,18 +255,19 @@ export function progressionHint(last: ExerciseSession): Hint | null {
   const weight = sets[0][0];
   const round = (kg: number) => Math.round(kg * 2) / 2;
   if (last.assisted) {
-    if (reps.every((value) => value >= plan.repsMax)) return { tone: "up", text: `Alle Sätze ≥ ${plan.repsMax} Wdh.: Hilfe verringern, z. B. ${weight != null ? `${de(round(Math.max(0, weight - 2.5)))} kg` : "−2,5 kg"}.` };
-    if (Math.max(...reps) < plan.repsMin) return { tone: "down", text: `Unter ${plan.repsMin} Wdh.: etwas mehr Hilfe nehmen.` };
-    return { tone: "keep", text: `Hilfe so lassen, Wiederholungen bis ${plan.repsMax} steigern.` };
+    const less = weight != null ? round(Math.max(0, weight - 2.5)) : null;
+    if (reps.every((value) => value >= plan.repsMax)) return { tone: "up", text: `Alle Sätze ≥ ${plan.repsMax} Wdh.: Hilfe verringern, z. B. ${less != null ? `${de(less)} kg` : "−2,5 kg"}.`, kg: less };
+    if (Math.max(...reps) < plan.repsMin) return { tone: "down", text: `Unter ${plan.repsMin} Wdh.: etwas mehr Hilfe nehmen.`, kg: weight };
+    return { tone: "keep", text: `Hilfe so lassen, Wiederholungen bis ${plan.repsMax} steigern.`, kg: weight };
   }
   if (reps.every((value) => value >= plan.repsMax) && weight) {
     const next = round(weight * 1.025) === weight ? weight + 1 : round(weight * 1.025);
-    return { tone: "up", text: `Obergrenze ${plan.repsMax} erreicht: nächstes Mal ${de(round(next))}–${de(round(weight * 1.05))} kg, wieder ab ${plan.repsMin} Wdh.` };
+    return { tone: "up", text: `Obergrenze ${plan.repsMax} erreicht: nächstes Mal ${de(round(next))}–${de(round(weight * 1.05))} kg, wieder ab ${plan.repsMin} Wdh.`, kg: round(next) };
   }
   if (Math.max(...reps) < plan.repsMin && weight) {
-    return { tone: "down", text: `Unter ${plan.repsMin} Wdh.: Gewicht um 5–10 % senken, auf ${de(round(weight * 0.92))} kg.` };
+    return { tone: "down", text: `Unter ${plan.repsMin} Wdh.: Gewicht um 5–10 % senken, auf ${de(round(weight * 0.92))} kg.`, kg: round(weight * 0.92) };
   }
-  return { tone: "keep", text: `Gewicht halten, Wiederholungen bis ${plan.repsMax} steigern (zuletzt ${reps.join(" / ")}).` };
+  return { tone: "keep", text: `Gewicht halten, Wiederholungen bis ${plan.repsMax} steigern (zuletzt ${reps.join(" / ")}).`, kg: weight };
 }
 
 export const muscleLabels: Record<string, string> = {
