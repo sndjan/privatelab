@@ -24,7 +24,7 @@ import { AEROBIC_HR, bestEffort, linearTrend, paceAt140, raceTimeFromVo2, riegel
 import { Legend, LineChart, StackedBars } from "./charts";
 import { planFromSettings } from "./plan";
 import { useSportData } from "./store";
-import { Note, Panel } from "./ui";
+import { Panel, SmallRing, TabHero } from "./ui";
 
 const kmFormat = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
@@ -54,18 +54,32 @@ export function RunningTab({ today, weeks: count }: { today: string; weeks: numb
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label="Kilometer" value={formatKm(km)} sub={`${runs.length} Läufe im Zeitraum`} />
-        <Kpi label="Laufzeit" value={formatMinutes(minutes)} sub={`Schnitt ${formatMinutes(minutes / count)} pro Woche`} />
-        <Kpi label="Zone 1" value={easy != null ? `${formatNumber(easy)} %` : "–"} sub="Anteil der Laufzeit" />
-        <Kpi
-          label="Längster Lauf"
-          value={longest?.km ? formatKm(longest.km) : "–"}
-          sub={longest ? `${formatMinutes((longest.durationS ?? 0) / 60)} am ${formatDate(longest.day)}` : undefined}
-        />
-      </div>
+      <TabHero
+        ring={
+          <SmallRing value={(easy ?? 0) / 100} size={132} label={`Zone 1: ${easy != null ? formatNumber(easy) : "keine"} Prozent der Laufzeit`}>
+            <span className="flex flex-col items-center leading-tight">
+              <span className="text-3xl font-extrabold tabular-nums">{easy != null ? `${formatNumber(easy)} %` : "–"}</span>
+              <span className="text-xs font-semibold text-muted-foreground">Zone 1</span>
+            </span>
+          </SmallRing>
+        }
+        figures={[
+          { label: "Kilometer", value: formatKm(km), sub: `${runs.length} Läufe` },
+          { label: "Laufzeit", value: formatMinutes(minutes), sub: `Ø ${formatMinutes(minutes / count)} pro Woche` },
+          {
+            label: "Zone 1",
+            value: easy != null ? `${formatNumber(easy)} %` : "–",
+            sub: `Ziel ${data.settings.zone1GoalPct} %`,
+            tone: easy == null ? undefined : easy >= data.settings.zone1GoalPct ? "good" : "bad",
+          },
+          { label: "Längster Lauf", value: longest?.km ? formatKm(longest.km) : "–", sub: longest ? `${formatMinutes((longest.durationS ?? 0) / 60)} am ${formatDate(longest.day)}` : undefined },
+        ]}
+      />
 
-      <Panel
+      <Panel info={<>
+          Zone 1 zählt die Zeit in Garmin-Zone 1 und 2. Mit deinen aktuellen Garmin-Zonen reicht das bis etwa 149 bpm; stell in
+          Garmin Connect die Obergrenze von Zone 2 auf 145 bpm, dann passt es genau. Läufe ohne Zonenzeiten zählen nach dem Ø-Puls.
+        </>}
         title="Laufzeit pro Woche nach Puls"
         aside={
           <Legend
@@ -94,14 +108,10 @@ export function RunningTab({ today, weeks: count }: { today: string; weeks: numb
           startLabel={formatDate(from)}
           endLabel="diese Woche"
         />
-        <Note>
-          Zone 1 zählt die Zeit in Garmin-Zone 1 und 2. Mit deinen aktuellen Garmin-Zonen reicht das bis etwa 149 bpm; stell in
-          Garmin Connect die Obergrenze von Zone 2 auf 145 bpm, dann passt es genau. Läufe ohne Zonenzeiten zählen nach dem Ø-Puls.
-        </Note>
       </Panel>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Panel title="Pace bei lockeren Läufen">
+        <Panel info={<>Läufe draußen mit Ø-Puls unter 145, einer pro Punkt. Sinkt die Linie, wirst du bei gleichem Puls schneller.</>} title="Pace bei lockeren Läufen">
           <LineChart
             ariaLabel="Pace der Läufe mit Ø-Puls unter 145 im Verlauf"
             values={easyRuns.map(() => null)}
@@ -111,9 +121,8 @@ export function RunningTab({ today, weeks: count }: { today: string; weeks: numb
             startLabel={easyRuns[0] ? formatDate(easyRuns[0].day) : undefined}
             endLabel={easyRuns.at(-1) ? formatDate(easyRuns.at(-1)!.day) : undefined}
           />
-          <Note>Läufe draußen mit Ø-Puls unter 145, einer pro Punkt. Sinkt die Linie, wirst du bei gleichem Puls schneller.</Note>
         </Panel>
-        <Panel title="10-%-Regel">
+        <Panel info={<>Aus deinem Laufplan: kein Lauf mehr als 10 % länger als der längste der letzten 30 Tage.</>} title="10-%-Regel">
           {rule ? (
             <>
               <p className="text-sm">
@@ -127,13 +136,14 @@ export function RunningTab({ today, weeks: count }: { today: string; weeks: numb
           ) : (
             <p className="text-sm">In den letzten 30 Tagen gab es keinen Lauf. Fang mit der ersten Einheit aus dem Plan an.</p>
           )}
-          <Note>Aus deinem Laufplan: kein Lauf mehr als 10 % länger als der längste der letzten 30 Tage.</Note>
+          
         </Panel>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-3">
-        <Panel title="Belastung" className={load.level === "spike" || load.level === "high" ? "border-debt" : undefined}>
+        <Panel info={<>Grün ist 80–130 % des Schnitts der letzten 4 Wochen.</>} title="Belastung" className={load.level === "spike" || load.level === "high" ? "border-debt" : undefined}>
           <p className="text-xl font-bold">{load.label}</p>
+          <p className="text-sm text-muted-foreground">{load.hint}</p>
           <p className="text-sm tabular-nums">
             Letzte 7 Tage <strong>{formatMinutes(load.acute)}</strong>, Schnitt der letzten 4 Wochen <strong>{formatMinutes(load.chronic)}</strong> pro Woche
             {load.ratio != null ? ` (${formatNumber(load.ratio * 100)} %)` : ""}.
@@ -143,9 +153,11 @@ export function RunningTab({ today, weeks: count }: { today: string; weeks: numb
               <span className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card bg-foreground" style={{ left: `${Math.min(100, (load.ratio / 2) * 100)}%` }} />
             )}
           </div>
-          <Note>{load.hint} Grün ist 80–130 % des Schnitts.</Note>
+          
         </Panel>
-        <Panel title={`Aerobe Fitness: Pace bei ${AEROBIC_HR} bpm`}>
+        <Panel info={<>
+            {aerobicTrend ? (aerobicTrend.slope < 0 ? "Wird schneller: gut. " : "Noch kein Fortschritt im Zeitraum. ") : ""}Pace jedes Laufs auf {AEROBIC_HR} bpm umgerechnet (Pace × Ø-Puls / {AEROBIC_HR}). Niedriger heißt fitter.
+          </>} title={`Aerobe Fitness: Pace bei ${AEROBIC_HR} bpm`}>
           <p className="text-xl font-bold tabular-nums">{aerobic.at(-1) ? formatPace(aerobic.at(-1)!.pace!) : "–"}</p>
           <LineChart
             ariaLabel={`Geschätzte Pace bei ${AEROBIC_HR} bpm pro Lauf`}
@@ -155,11 +167,12 @@ export function RunningTab({ today, weeks: count }: { today: string; weeks: numb
             height={110}
             format={(value) => formatPace(value)}
           />
-          <Note>
-            {aerobicTrend ? (aerobicTrend.slope < 0 ? "Wird schneller: gut. " : "Noch kein Fortschritt im Zeitraum. ") : ""}Pace jedes Laufs auf {AEROBIC_HR} bpm umgerechnet (Pace × Ø-Puls / {AEROBIC_HR}). Niedriger heißt fitter.
-          </Note>
         </Panel>
-        <Panel title="VO2max">
+        <Panel info={<>
+            {vo2.perMonth != null
+              ? `Trend der letzten 6 Monate ${vo2.perMonth >= 0 ? "+" : ""}${vo1(vo2.perMonth)} pro Monat${vo2.perMonth < 0 ? " (wenig gelaufen seit dem Sommer)" : ""}. Mit dem Plan (Annahme +0,25 pro Monat) bis zum Halbmarathon am ${formatDate(raceDay)} etwa ${vo1(vo2.withPlan!)}, ohne Training eher ${vo1(vo2.projected!)}.`
+              : "Für einen Trend braucht es mehr Messungen."}
+          </>} title="VO2max">
           <p className="flex items-baseline gap-2">
             <span className="text-xl font-bold tabular-nums">{vo2.latest ? vo1(vo2.latest.value) : "–"}</span>
             {vo2.latest && <span className="text-xs text-muted-foreground">Garmin, {formatDate(vo2.latest.day)}</span>}
@@ -172,15 +185,12 @@ export function RunningTab({ today, weeks: count }: { today: string; weeks: numb
             height={110}
             format={(value) => vo1(value)}
           />
-          <Note>
-            {vo2.perMonth != null
-              ? `Trend der letzten 6 Monate ${vo2.perMonth >= 0 ? "+" : ""}${vo1(vo2.perMonth)} pro Monat${vo2.perMonth < 0 ? " (wenig gelaufen seit dem Sommer)" : ""}. Mit dem Plan (Annahme +0,25 pro Monat) bis zum Halbmarathon am ${formatDate(raceDay)} etwa ${vo1(vo2.withPlan!)}, ohne Training eher ${vo1(vo2.projected!)}.`
-              : "Für einen Trend braucht es mehr Messungen."}
-          </Note>
         </Panel>
       </div>
 
-      <Panel title="Prognosen">
+      <Panel info={<>
+          Grobe Schätzungen: Die VO2max-Formel setzt Ausdauertraining voraus und ist für dich jetzt noch zu optimistisch, die Riegel-Formel aus einem lockeren Lauf zu vorsichtig. Genauer wird es mit dem 5-km-Test in Woche 13.
+        </>} title="Prognosen">
         <div className="grid gap-4 sm:grid-cols-3">
           <Forecast label="Halbmarathon aus VO2max" value={vo2.latest ? formatDuration(raceTimeFromVo2(vo2.latest.value, 21097.5)) : "–"} sub="nach Daniels' VDOT-Formeln, mit heutigem VO2max" />
           <Forecast
@@ -194,58 +204,53 @@ export function RunningTab({ today, weeks: count }: { today: string; weeks: numb
             sub={effort5 ? `${kmFormat.format(effort5.km!)} km am ${formatDate(effort5.day)} (Riegel), ohne Laufband` : "kein Lauf ≥ 4,5 km in 90 Tagen"}
           />
         </div>
-        <Note>
-          Grobe Schätzungen: Die VO2max-Formel setzt Ausdauertraining voraus und ist für dich jetzt noch zu optimistisch, die Riegel-Formel aus einem lockeren Lauf zu vorsichtig. Genauer wird es mit dem 5-km-Test in Woche 13.
-        </Note>
+        
       </Panel>
 
       <Panel title="Alle Läufe im Zeitraum">
         {list.length === 0 ? (
           <p className="text-sm text-muted-foreground">Keine Läufe im Zeitraum.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm tabular-nums">
-              <thead>
-                <tr className="text-left text-xs text-muted-foreground">
-                  <th scope="col" className="py-1.5 pr-2 font-medium">Datum</th>
-                  <th scope="col" className="px-2 py-1.5 font-medium">Art</th>
-                  <th scope="col" className="px-2 py-1.5 font-medium">km</th>
-                  <th scope="col" className="px-2 py-1.5 font-medium">Zeit</th>
-                  <th scope="col" className="px-2 py-1.5 font-medium">Pace</th>
-                  <th scope="col" className="px-2 py-1.5 font-medium">Ø / max Puls</th>
-                  <th scope="col" className="w-[22%] py-1.5 pl-2 font-medium">Zone 1</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(showAll ? list : list.slice(0, 10)).map((run) => {
-                  const share = easyShare(run);
-                  const pace = paceOf(run);
-                  return (
-                    <tr key={run.id} className="border-t">
-                      <td className="py-2 pr-2">{formatDayDate(run.day)}</td>
-                      <td className="px-2 py-2">{runKind(run.type)}</td>
-                      <td className="px-2 py-2">{run.km != null ? kmFormat.format(run.km) : "–"}</td>
-                      <td className="px-2 py-2">{run.durationS ? formatDuration(run.durationS) : "–"}</td>
-                      <td className="px-2 py-2">{pace ? formatPace(pace) : "–"}</td>
-                      <td className="px-2 py-2">{run.avgHr ? `${run.avgHr} / ${run.maxHr ?? "–"}` : "–"}</td>
-                      <td className="py-2 pl-2">
-                        {share == null ? (
-                          <span className="text-muted-foreground">kein Puls</span>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <div className="h-2 flex-1 overflow-hidden rounded-full bg-bad">
-                              <div className="h-full bg-brand" style={{ width: `${share * 100}%` }} />
-                            </div>
-                            <span className="w-9 text-right text-xs text-muted-foreground">{formatNumber(share * 100)} %</span>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <ul className="divide-y">
+            {(showAll ? list : list.slice(0, 10)).map((run) => {
+              const share = easyShare(run);
+              const pace = paceOf(run);
+              return (
+                <li key={run.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-3">
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate font-semibold">
+                      {formatDayDate(run.day)} · {runKind(run.type)}
+                    </span>
+                    <span className="text-sm text-muted-foreground tabular-nums">
+                      {[
+                        run.km != null ? `${kmFormat.format(run.km)} km` : null,
+                        run.durationS ? formatDuration(run.durationS) : null,
+                        pace ? formatPace(pace) : null,
+                        run.avgHr ? `Ø ${run.avgHr} bpm` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </span>
+                  {share == null ? (
+                    <span className="text-xs text-muted-foreground">kein Puls</span>
+                  ) : (
+                    <span className="flex w-full items-center gap-2 sm:w-44">
+                      <span
+                        className="flex h-2 flex-1 overflow-hidden rounded-full"
+                        role="img"
+                        aria-label={`${formatNumber(share * 100)} Prozent in Zone 1`}
+                      >
+                        <span className="bg-brand" style={{ width: `${share * 100}%` }} />
+                        <span className="flex-1 bg-debt" />
+                      </span>
+                      <span className="w-10 text-right text-xs font-semibold tabular-nums">{formatNumber(share * 100)} %</span>
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         )}
         {list.length > 10 && (
           <Button variant="ghost" size="sm" onClick={() => setShowAll(!showAll)}>
@@ -265,16 +270,6 @@ function Forecast({ label, value, sub }: { label: string; value: string; sub: st
       <span className="text-sm text-muted-foreground">{label}</span>
       <p className="text-2xl font-bold tabular-nums">{value}</p>
       <span className="text-xs text-muted-foreground">{sub}</span>
-    </div>
-  );
-}
-
-export function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="flex min-w-0 flex-col rounded-xl border bg-card px-4 py-3">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-2xl font-bold tabular-nums">{value}</span>
-      {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
     </div>
   );
 }

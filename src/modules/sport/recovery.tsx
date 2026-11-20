@@ -4,7 +4,7 @@ import { formatClock, sleepRegularity, sleepStats } from "./analytics";
 import { addDays, average, formatDate, formatNumber, formatSleep, hrvStatusLabel, lastWeeks, latest, rolling, series } from "./calc";
 import { Legend, LineChart, StackedBars } from "./charts";
 import { useSportData } from "./store";
-import { Note, Panel } from "./ui";
+import { Panel, SmallRing, TabHero } from "./ui";
 
 const hours = (value: number) => new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(value);
 
@@ -36,7 +36,29 @@ export function RecoveryTab({ today, weeks: count }: { today: string; weeks: num
 
   return (
     <div className="space-y-4">
-      <Panel
+      <TabHero
+        ring={
+          <SmallRing value={(week.average ?? 0) / settings.sleepGoalH} size={132} label={`Schlaf im Schnitt der letzten 7 Nächte: ${week.average != null ? formatSleep(week.average * 3600) : "keine Daten"}`}>
+            <span className="flex flex-col items-center leading-tight">
+              <span className="text-2xl font-extrabold tabular-nums">{week.average != null ? formatSleep(week.average * 3600) : "–"}</span>
+              <span className="text-xs font-semibold text-muted-foreground">Ø 7 Nächte</span>
+            </span>
+          </SmallRing>
+        }
+        figures={[
+          {
+            label: "Schlaf 28 Nächte",
+            value: month.average != null ? formatSleep(month.average * 3600) : "–",
+            sub: month.average == null ? undefined : month.average >= settings.sleepGoalH ? "Ziel erreicht" : `${formatNumber((settings.sleepGoalH - month.average) * 60)} min unter Ziel`,
+            tone: month.average == null ? undefined : month.average >= settings.sleepGoalH ? "good" : "bad",
+          },
+          { label: "Im Bereich", value: `${month.inRange} / ${month.nights}`, sub: `Nächte, ${month.below} zu kurz` },
+          { label: "HRV", value: lastHrv ? `${lastHrv.value} ms` : "–", sub: hrvStatusLabel(lastHrv?.entry.hrvStatus ?? null) },
+          { label: "Ruhepuls", value: lastRhr ? `${lastRhr.value} bpm` : "–", sub: rhr30 ? `Ø 30 Tage ${formatNumber(rhr30)}` : undefined },
+        ]}
+      />
+
+      <Panel info={<>Grünes Band: dein Bereich · gestrichelt: Ziel {hours(settings.sleepGoalH)} h im Schnitt. Ändern in den Einstellungen.</>}
         title="Schlaf"
         aside={
           <Legend
@@ -49,17 +71,6 @@ export function RecoveryTab({ today, weeks: count }: { today: string; weeks: num
           />
         }
       >
-        <div className="grid grid-cols-3 gap-3">
-          <SleepFigure label="Schnitt 7 Nächte" value={week.average} goal={settings.sleepGoalH} />
-          <SleepFigure label="Schnitt 28 Nächte" value={month.average} goal={settings.sleepGoalH} />
-          <div className="flex flex-col">
-            <span className="text-xs text-muted-foreground">Im Bereich</span>
-            <span className="text-2xl font-bold tabular-nums">
-              {month.inRange}/{month.nights}
-            </span>
-            <span className="text-xs text-muted-foreground">Nächte, {month.below} zu kurz</span>
-          </div>
-        </div>
         <SleepBars
           days={nights.map((point) => byDay.get(point.day) ?? null)}
           keys={nights.map((point) => point.day)}
@@ -71,11 +82,10 @@ export function RecoveryTab({ today, weeks: count }: { today: string; weeks: num
           <span>{formatDate(sleepFrom)}</span>
           <span>letzte Nacht</span>
         </div>
-        <Note>Grünes Band: dein Bereich · gestrichelt: Ziel {hours(settings.sleepGoalH)} h im Schnitt. Ändern in den Einstellungen.</Note>
       </Panel>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Panel title="Regelmäßigkeit, letzte 28 Nächte">
+        <Panel info={<>Jeder Balken eine Nacht, von Einschlafen bis Aufwachen. Je gleichmäßiger, desto besser für Erholung und HRV; unter ± 30 min gilt als regelmäßig.</>} title="Regelmäßigkeit, letzte 28 Nächte">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <span className="text-xs text-muted-foreground">Einschlafen im Schnitt</span>
@@ -89,9 +99,6 @@ export function RecoveryTab({ today, weeks: count }: { today: string; weeks: num
             </div>
           </div>
           <SleepWindows nights={regularity.nights} />
-          <Note>
-            Jeder Balken eine Nacht, von Einschlafen bis Aufwachen. Je gleichmäßiger, desto besser für Erholung und HRV; unter ± 30 min gilt als regelmäßig.
-          </Note>
         </Panel>
 
         {count > 4 ? (
@@ -115,7 +122,7 @@ export function RecoveryTab({ today, weeks: count }: { today: string; weeks: num
         )}
       </div>
 
-      <Panel title="HRV pro Nacht" aside={<span className="text-xs text-muted-foreground">Fläche: dein Normalbereich laut Garmin · dunkel: 7-Tage-Schnitt</span>}>
+      <Panel title="HRV pro Nacht" info={<>Fläche: dein Normalbereich laut Garmin · dunkle Linie: 7-Tage-Schnitt.</>}>
         <LineChart
           ariaLabel={`HRV der letzten ${count} Wochen`}
           values={hrv.map((point) => point.value)}
@@ -140,7 +147,7 @@ export function RecoveryTab({ today, weeks: count }: { today: string; weeks: num
       </Panel>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Panel title="Ruhepuls" aside={<span className="text-xl font-bold tabular-nums">{lastRhr ? `${lastRhr.value} bpm` : "–"}</span>}>
+        <Panel info={<>Schnitt 7 Tage {rhr7 ? `${formatNumber(rhr7)} bpm` : "–"}, 30 Tage {rhr30 ? `${formatNumber(rhr30)} bpm` : "–"}. Liegt er mehrere Tage deutlich höher als sonst, lieber locker trainieren.</>} title="Ruhepuls" aside={<span className="text-xl font-bold tabular-nums">{lastRhr ? `${lastRhr.value} bpm` : "–"}</span>}>
           <LineChart
             ariaLabel={`Ruhepuls der letzten ${count} Wochen`}
             values={rhr.map((point) => point.value)}
@@ -150,12 +157,9 @@ export function RecoveryTab({ today, weeks: count }: { today: string; weeks: num
             startLabel={formatDate(from)}
             endLabel="heute"
           />
-          <Note>
-            Schnitt 7 Tage {rhr7 ? `${formatNumber(rhr7)} bpm` : "–"}, 30 Tage {rhr30 ? `${formatNumber(rhr30)} bpm` : "–"}. Liegt er mehrere Tage deutlich höher als sonst, lieber locker trainieren.
-          </Note>
         </Panel>
 
-        <Panel
+        <Panel info={<>Aus der Gewicht-Challenge (deine Person dort). {data.weight.at(-1)?.bodyFat ? `Zuletzt ${String(data.weight.at(-1)!.bodyFat).replace(".", ",")} % Körperfett.` : ""}</>}
           title="Gewicht"
           aside={<span className="text-xl font-bold tabular-nums">{data.weight.at(-1) ? `${String(data.weight.at(-1)!.kg).replace(".", ",")} kg` : "–"}</span>}
         >
@@ -173,9 +177,6 @@ export function RecoveryTab({ today, weeks: count }: { today: string; weeks: num
           ) : (
             <p className="text-sm text-muted-foreground">Zu wenige Messungen im Zeitraum.</p>
           )}
-          <Note>
-            Aus der Gewicht-Challenge (deine Person dort). {data.weight.at(-1)?.bodyFat ? `Zuletzt ${String(data.weight.at(-1)!.bodyFat).replace(".", ",")} % Körperfett.` : ""}
-          </Note>
         </Panel>
       </div>
 
@@ -184,18 +185,6 @@ export function RecoveryTab({ today, weeks: count }: { today: string; weeks: num
           <StepsChart steps={steps} goal={stepsGoal} avg={stepsAvg} from={from} />
         </Panel>
       )}
-    </div>
-  );
-}
-
-function SleepFigure({ label, value, goal }: { label: string; value: number | null; goal: number }) {
-  return (
-    <div className="flex flex-col">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-2xl font-bold tabular-nums">{value != null ? formatSleep(value * 3600) : "–"}</span>
-      <span className={value != null && value >= goal ? "text-xs text-good-foreground" : "text-xs text-muted-foreground"}>
-        {value == null ? "" : value >= goal ? "Ziel erreicht" : `${formatNumber((goal - value) * 60)} min unter dem Ziel`}
-      </span>
     </div>
   );
 }

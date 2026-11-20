@@ -3,16 +3,52 @@ import { ViewLink as Link } from "@/lib/query/view-link";
 import { cn } from "@/lib/utils";
 import type { SessionBlock } from "./calc";
 
-export function Panel({ title, aside, children, className }: { title?: string; aside?: React.ReactNode; children: React.ReactNode; className?: string }) {
+export function Panel({ title, aside, children, className, info, id }: { title?: string; aside?: React.ReactNode; children: React.ReactNode; className?: string; info?: React.ReactNode; id?: string }) {
   return (
-    <section className={cn("min-w-0 space-y-3 rounded-2xl border bg-card p-4 sm:p-5", className)}>
+    <section id={id} className={cn("min-w-0 scroll-mt-20 space-y-3 rounded-2xl border bg-card p-4 sm:p-5", className)}>
       {(title || aside) && (
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          {title && <h2 className="text-base font-semibold">{title}</h2>}
+          {title && <h2 className="text-base font-bold">{title}</h2>}
           {aside}
         </div>
       )}
       {children}
+      {info && <Info>{info}</Info>}
+    </section>
+  );
+}
+
+// Explanations stay folded so the panels show the numbers first.
+export function Info({ children, label = "So wird gerechnet" }: { children: React.ReactNode; label?: string }) {
+  return (
+    <details className="group text-xs text-muted-foreground">
+      <summary className="flex min-h-8 w-fit cursor-pointer list-none items-center gap-1 font-semibold [&::-webkit-details-marker]:hidden">
+        <ChevronRightIcon className="size-3.5 transition-transform group-open:rotate-90" aria-hidden="true" />
+        {label}
+      </summary>
+      <div className="space-y-1 pt-1 pl-[18px]">{children}</div>
+    </details>
+  );
+}
+
+// Head of a tab: a ring on the left, key figures on the right.
+export function TabHero({ ring, figures }: { ring: React.ReactNode; figures: { label: string; value: string; sub?: string; tone?: "good" | "bad" }[] }) {
+  return (
+    <section className="flex flex-col items-center gap-4 rounded-3xl border bg-card p-5 sm:flex-row sm:gap-6">
+      {ring}
+      <dl className="grid w-full flex-1 grid-cols-2 gap-x-4 gap-y-3 lg:grid-cols-4">
+        {figures.map((figure) => (
+          <div key={figure.label} className="min-w-0">
+            <dt className="text-xs font-semibold text-muted-foreground">{figure.label}</dt>
+            <dd className="text-xl font-bold tabular-nums sm:text-2xl">{figure.value}</dd>
+            {figure.sub && (
+              <dd className={cn("truncate text-xs", figure.tone === "good" ? "font-semibold text-good-foreground" : figure.tone === "bad" ? "font-semibold text-bad-foreground" : "text-muted-foreground")}>
+                {figure.sub}
+              </dd>
+            )}
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }

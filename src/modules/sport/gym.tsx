@@ -7,7 +7,7 @@ import { records, routineCheck, sessionE1rm, setsPerMuscle } from "./analytics";
 import { addDays, exerciseSummaries, formatDate, formatDayDate, formatMinutes, formatSet, formatTonnes, gymWeeks, lastWeeks } from "./calc";
 import { LineChart, StackedBars } from "./charts";
 import { useSportData } from "./store";
-import { Note, Panel } from "./ui";
+import { Note, Panel, SmallRing, TabHero } from "./ui";
 
 const kg = (value: number) => `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 }).format(value)} kg`;
 
@@ -35,9 +35,30 @@ export function GymTab({ today, weeks: count }: { today: string; weeks: number }
   const weekCount = Math.max(1, count);
   const recent = records(data.exercises).filter((record) => record.day >= addDays(today, -90)).slice(0, 10);
 
+  const totalSessions = perWeek.reduce((sum, week) => sum + week.sessions, 0);
+  const totalVolume = perWeek.reduce((sum, week) => sum + week.volumeKg, 0);
+  const perWeekAvg = totalSessions / Math.max(1, count);
+
   return (
     <div className="space-y-4">
-      <Panel title="Volumen pro Woche" aside={<span className="text-xs text-muted-foreground">kg × Wiederholungen, Arbeitssätze · Zahl: Einheiten</span>}>
+      <TabHero
+        ring={
+          <SmallRing value={perWeekAvg / data.settings.gymPerWeek} size={132} label={`Im Schnitt ${perWeekAvg.toFixed(1)} von ${data.settings.gymPerWeek} Einheiten pro Woche`}>
+            <span className="flex flex-col items-center leading-tight">
+              <span className="text-3xl font-extrabold tabular-nums">{String(Math.round(perWeekAvg * 10) / 10).replace(".", ",")}</span>
+              <span className="text-xs font-semibold text-muted-foreground">pro Woche</span>
+            </span>
+          </SmallRing>
+        }
+        figures={[
+          { label: "Einheiten", value: String(totalSessions), sub: `Ziel ${data.settings.gymPerWeek} pro Woche`, tone: perWeekAvg >= data.settings.gymPerWeek ? "good" : undefined },
+          { label: "Volumen", value: formatTonnes(totalVolume / count), sub: "Ø pro Woche" },
+          { label: "Bestwerte", value: String(recent.length), sub: "letzte 90 Tage" },
+          { label: "Übungen", value: String(summaries.length), sub: "im Zeitraum" },
+        ]}
+      />
+
+      <Panel info={<>kg × Wiederholungen der Arbeitssätze, die Zahl über dem Balken: Einheiten. Unterstützte Übungen (z. B. Klimmzüge mit Hilfe) zählen nicht zum Volumen, weil Hevy dort die Hilfe als Gewicht speichert.</>} title="Volumen pro Woche">
         <StackedBars
           ariaLabel={`Gym-Volumen pro Woche der letzten ${count} Wochen`}
           height={180}
@@ -50,15 +71,13 @@ export function GymTab({ today, weeks: count }: { today: string; weeks: number }
           startLabel={formatDate(from)}
           endLabel="diese Woche"
         />
-        <Note>Unterstützte Übungen (z. B. Klimmzüge mit Hilfe) zählen nicht zum Volumen, weil Hevy dort die Hilfe als Gewicht speichert.</Note>
       </Panel>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Panel title="Sätze pro Muskelgruppe" aside={<span className="text-xs text-muted-foreground">letzte 7 Tage · Ø pro Woche im Zeitraum</span>}>
+        <Panel info={<>Hauptmuskel zählt 1 Satz, Hilfsmuskeln ½ (Muskelgruppen aus Hevy). Grün hinterlegt: 10–20 Sätze pro Woche, ein üblicher Bereich für Muskelaufbau.</>} title="Sätze pro Muskelgruppe" aside={<span className="text-xs text-muted-foreground">letzte 7 Tage · Ø pro Woche im Zeitraum</span>}>
           <MuscleBars week={muscles7} range={musclesRange} weeks={weekCount} />
-          <Note>Hauptmuskel zählt 1 Satz, Hilfsmuskeln ½ (Muskelgruppen aus Hevy). Grün hinterlegt: 10–20 Sätze pro Woche, ein üblicher Bereich für Muskelaufbau.</Note>
         </Panel>
-        <Panel title="Bestwerte, letzte 90 Tage">
+        <Panel info={<>Hevy gibt Bestwerte nicht über die API heraus; sie sind hier aus deinen Sätzen berechnet.</>} title="Bestwerte, letzte 90 Tage">
           {recent.length === 0 ? (
             <p className="text-sm text-muted-foreground">Keine neuen Bestwerte in den letzten 90 Tagen.</p>
           ) : (
@@ -77,7 +96,6 @@ export function GymTab({ today, weeks: count }: { today: string; weeks: number }
               ))}
             </ul>
           )}
-          <Note>Hevy gibt Bestwerte nicht über die API heraus; sie sind hier aus deinen Sätzen berechnet.</Note>
         </Panel>
       </div>
 

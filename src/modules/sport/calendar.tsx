@@ -9,7 +9,7 @@ import { activityLabel, addDays, formatDuration, formatKm, formatMinutes, format
 import { planFromSettings, planWeekOf, plannedDay } from "./plan";
 import { useSportData } from "./store";
 import type { HealthDay } from "./types";
-import { kindColor, Note, Panel } from "./ui";
+import { Info, kindColor, Panel } from "./ui";
 
 const monthName = new Intl.DateTimeFormat("de-DE", { month: "long", year: "numeric", timeZone: "UTC" });
 const shortMonth = new Intl.DateTimeFormat("de-DE", { month: "short", timeZone: "UTC" });
@@ -56,14 +56,14 @@ export function CalendarTab({ today }: { today: string }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div role="group" aria-label="Ansicht" className="flex gap-1 rounded-lg bg-muted p-1">
+        <div role="group" aria-label="Ansicht" className="flex gap-1 rounded-xl bg-muted p-1">
           {(["month", "year"] as const).map((id) => (
             <button
               key={id}
               type="button"
               aria-pressed={view === id}
               onClick={() => setView(id)}
-              className={cn("h-9 cursor-pointer rounded-md px-3 text-sm", view === id ? "bg-background font-medium shadow-sm" : "text-muted-foreground")}
+              className={cn("h-9 cursor-pointer rounded-lg px-4 text-sm", view === id ? "bg-background font-semibold shadow-sm" : "text-muted-foreground")}
             >
               {id === "month" ? "Monat" : "Jahr"}
             </button>
@@ -107,9 +107,9 @@ export function CalendarTab({ today }: { today: string }) {
                     aria-pressed={selected === day}
                     aria-label={`${longDay.format(toDate(day))}${done ? `: ${done.labels.join(", ")}` : ""}`}
                     className={cn(
-                      "flex min-h-16 cursor-pointer flex-col gap-1 rounded-lg border p-1 text-left transition-colors sm:min-h-24 sm:p-1.5",
+                      "flex min-h-16 cursor-pointer flex-col gap-1 rounded-xl border p-1 text-left transition-colors sm:min-h-24 sm:p-2",
                       inMonth ? "bg-card" : "bg-muted/40 text-muted-foreground",
-                      day === today && "border-brand",
+                      day === today && "border-2 border-brand bg-good",
                       selected === day && "ring-2 ring-brand",
                     )}
                   >
@@ -124,7 +124,7 @@ export function CalendarTab({ today }: { today: string }) {
                         <span
                           key={label}
                           className={cn(
-                            "rounded px-1 text-[10px] leading-4 text-white",
+                            "rounded-md px-1 text-[10px] leading-4 font-semibold text-white",
                             label === "Lauf" ? kindColor.run : label === "Gym" ? kindColor.gym : kindColor.other,
                           )}
                         >
@@ -148,7 +148,7 @@ export function CalendarTab({ today }: { today: string }) {
                 );
               })}
           </div>
-          <Note>Farbige Felder: erledigte Einheiten · Kreis: geplante Einheit · Balken: Schlaf (grün im Bereich, orange außerhalb). Tippe einen Tag an für Details.</Note>
+          <Info label="Legende">Farbige Felder: erledigte Einheiten · Kreis: geplante Einheit · Balken: Schlaf (grün im Bereich, orange außerhalb). Tippe einen Tag an für Details.</Info>
         </Panel>
       ) : (
         <Panel aside={<MetricPicker metric={metric} setMetric={setMetric} />} title="Jahresübersicht">

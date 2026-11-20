@@ -71,7 +71,7 @@ export function HevyUpload() {
             </DialogDescription>
           </DialogHeader>
 
-          {error && <p className="rounded-md bg-bad px-3 py-2 text-sm text-bad-foreground">{error}</p>}
+          {error && <p className="rounded-xl bg-bad px-3 py-2 text-sm text-bad-foreground">{error}</p>}
           {!shown && busy && (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
@@ -80,17 +80,25 @@ export function HevyUpload() {
           )}
 
           {shown && (
-            <div className="space-y-3">
+            <div className="max-h-[55vh] space-y-2 overflow-y-auto">
               {shown.map((routine) => (
-                <section key={routine.title} className="rounded-lg border p-3">
+                <section key={routine.title} className="rounded-2xl border p-3.5">
                   <h3 className="flex items-baseline justify-between gap-2 text-sm font-semibold">
                     {routine.title}
-                    <span className="text-xs font-normal text-muted-foreground">
+                    <span
+                      className={
+                        routine.error
+                          ? "rounded-full bg-bad px-2 py-0.5 text-xs font-semibold text-bad-foreground"
+                          : done || routine.action !== "update"
+                            ? "rounded-full bg-good px-2 py-0.5 text-xs font-semibold text-good-foreground"
+                            : "rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground"
+                      }
+                    >
                       {done ? (routine.error ? "fehlgeschlagen" : routine.action === "update" ? "ersetzt" : "angelegt") : routine.action === "update" ? "wird ersetzt" : "neu"}
                     </span>
                   </h3>
                   {routine.error && <p className="mt-1 text-xs text-bad-foreground">{routine.error}</p>}
-                  <ul className="mt-1.5 space-y-0.5 text-xs">
+                  <ul className="mt-2 space-y-1 text-xs">
                     {routine.exercises.map((exercise) => (
                       <li key={exercise.name} className="flex justify-between gap-2">
                         <span className="min-w-0">{exercise.name}</span>
