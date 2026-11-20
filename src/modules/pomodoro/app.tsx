@@ -45,6 +45,11 @@ import {
 const LEAD_IN_MS = 5_000;
 const LOOK_AWAY_MS = 20_000;
 const DRINK_BANNER_MS = 12_000;
+// The music gets quieter this long before a reminder or the end of a phase,
+// stays down while the sound plays, and comes back after.
+const DUCK_BEFORE_MS = 2_500;
+const DUCK_AFTER_MS = 3_500;
+const DUCK_LEVEL = 0.2;
 const RING = 2 * Math.PI * 140;
 
 // The phase colors on the dark timer card.
@@ -95,6 +100,7 @@ export function PomodoroApp() {
   const [look, setLook] = useState<Look | null>(null);
   const [drinkUntil, setDrinkUntil] = useState<number | null>(null);
   const [musicOn, setMusicOn] = useState(false);
+  const [duckUntil, setDuckUntil] = useState(0);
   const popout = usePopout();
 
   const latest = useRef({ elapsed, look, drinkUntil, popoutOpen: false, lastTick: 0 });
@@ -116,6 +122,7 @@ export function PomodoroApp() {
       const settings = settingsStore.read();
       let timer = timerStore.read();
       const state = latest.current;
+      const duck = () => setDuckUntil(t + DUCK_AFTER_MS);
       const tell = (title: string, body: string) => {
         if (settings.notify && document.visibilityState === "hidden" && !state.popoutOpen) void notify(title, body);
       };
@@ -125,6 +132,7 @@ export function PomodoroApp() {
         timer = nextTimer(timer, settings, t, settings.autoStart);
         timerStore.write(timer);
         playBell(settings.timerVolume);
+        duck();
         const title = ended === "focus" ? "Fokuszeit vorbei" : "Pause vorbei";
         const body = ended === "focus" ? `Zeit für die ${phaseNames[timer.phase]}.` : "Weiter geht's mit dem Fokus.";
         tell(title, body);
@@ -157,6 +165,7 @@ export function PomodoroApp() {
         else if (next.drink >= due) {
           next.drink = 0;
           playDrink(settings.drink.volume);
+          duck();
           state.drinkUntil = t + DRINK_BANNER_MS;
           setDrinkUntil(state.drinkUntil);
           tell("Trinken", "Zeit für einen Schluck Wasser.");
@@ -183,6 +192,7 @@ export function PomodoroApp() {
           state.look = null;
           setLook(null);
           playEyesDone(settings.eyes.volume);
+          duck();
         }
       }
       if (state.drinkUntil !== null && t >= state.drinkUntil) {
@@ -262,18 +272,31 @@ export function PomodoroApp() {
     };
   }, [title, miniWin]);
 
+  const endsAt = timer.running && timer.endsAt !== null ? timer.endsAt : null;
+
   // Music plays while switched on, but not in breaks if so set.
   const music = settings.music;
   const video = stationVideo(music.station, music.custom);
   const musicHeld = music.pauseInBreaks && timer.phase !== "focus";
   const musicPlaying = musicOn && !musicHeld && video !== null;
+  // Quieter shortly before a reminder or the end of the phase, during the
+  // 20-20-20 break and right after a sound, so the sounds are heard.
+  const counting = !settings.remindersWithTimer || timer.running;
+  const soon = (reminder: Reminder, elapsedMs: number) => reminder.on && counting && reminder.every * 60_000 - elapsedMs <= DUCK_BEFORE_MS;
+  const ducked =
+    now !== null &&
+    (now < duckUntil ||
+      look !== null ||
+      (endsAt !== null && endsAt - now <= DUCK_BEFORE_MS) ||
+      soon(settings.drink, elapsed.drink) ||
+      (look === null && soon(settings.eyes, elapsed.eyes)));
+  const musicVolume = ducked ? Math.round(music.volume * DUCK_LEVEL) : music.volume;
 
   const openMini = async () => {
     unlockSound();
     if (!(await popout.open())) toast.error("Das Mini-Fenster wurde blockiert. Erlaube Pop-ups für diese Seite.");
   };
 
-  const endsAt = timer.running && timer.endsAt !== null ? timer.endsAt : null;
   const nextLong = Math.ceil((timer.round + (timer.phase === "focus" ? 1 : 0)) / settings.longEvery) * settings.longEvery;
   const timerProps = { timer, settings, left, progress, endsAt, onToggle: toggle, onSkip: skip, onAdjust: adjust };
 
@@ -308,7 +331,7 @@ export function PomodoroApp() {
         <TimerCard {...timerProps} onSwitchPhase={switchPhase} onReset={reset} />
 
         <div className="flex min-w-0 flex-[1_1_340px] flex-col gap-4">
-          <MusicCard music={music} on={musicOn} playing={musicPlaying} held={musicOn && musicHeld} video={video} onToggle={() => setMusicOn((on) => !on)} />
+          <MusicCard music={music} volume={musicVolume} on={musicOn} playing={musicPlaying} held={musicOn && musicHeld} video={video} onToggle={() => setMusicOn((on) => !on)} />
           <RemindersCard settings={settings} timer={timer} elapsed={elapsed} looking={look !== null} />
           <TimesCard settings={settings} />
         </div>
@@ -602,7 +625,7 @@ function Panel({ title, action, children, className }: { title: string; action?:
   );
 }
 
-function MusicCard({ music, on, playing, held, video, onToggle }: { music: Music; on: boolean; playing: boolean; held: boolean; video: string | null; onToggle: () => void }) {
+function MusicCard({ music, volume, on, playing, held, video, onToggle }: { music: Music; volume: number; on: boolean; playing: boolean; held: boolean; video: string | null; onToggle: () => void }) {
   const status = !on ? "aus" : video === null ? "kein gültiger YouTube-Link" : held ? "pausiert bis zum nächsten Fokus" : `läuft · ${stationName(music.station)}`;
   return (
     <Panel
@@ -650,7 +673,7 @@ function MusicCard({ music, on, playing, held, video, onToggle }: { music: Music
       )}
       <VolumeSlider label="Lautstärke Musik" value={music.volume} onChange={(volume) => setMusic({ volume })} />
       <SwitchRow label="In den Pausen anhalten" checked={music.pauseInBreaks} onChange={(pauseInBreaks) => setMusic({ pauseInBreaks })} />
-      {playing && video && <YoutubePlayer video={video} volume={music.volume} className="aspect-video w-full rounded-xl border-0 bg-black" />}
+      {playing && video && <YoutubePlayer video={video} volume={volume} className="aspect-video w-full rounded-xl border-0 bg-black" />}
     </Panel>
   );
 }
