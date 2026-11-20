@@ -83,7 +83,7 @@ export function GymTab({ today, weeks: count }: { today: string; weeks: number }
         </div>
         <details className="rounded-lg border p-2.5">
           <summary className="cursor-pointer text-sm font-semibold">
-            Aufwärmen <span className="font-normal text-muted-foreground">· 10–12 min, vor jedem Tag</span>
+            Aufwärmen <span className="font-normal text-muted-foreground">· ca. 7 min, vor jedem Tag</span>
           </summary>
           <ul className="mt-2 space-y-1.5">
             {warmup.map((item) => (

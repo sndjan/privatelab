@@ -166,7 +166,7 @@ export const routine: RoutineDay[] = [
   },
 ];
 
-// Warm-up before every gym day (10–12 min), as on the routine page. Items with
+// Warm-up before every gym day (about 7 min), as on the routine page without the rowing. Items with
 // a Hevy template become their own exercises in the Hevy routines (as warm-up
 // sets, so they don't count as working sets); the rest go into the note of
 // Hevy's "Warm Up" exercise.
@@ -178,7 +178,6 @@ export type WarmupItem = {
 };
 
 export const warmup: WarmupItem[] = [
-  { name: "Rudergerät locker", amount: "5 min", note: "Puls leicht hoch, Gespräch möglich", hevy: { templateId: "0222DB42", durationS: 300 } },
   { name: "Mobilisation (Arme, Schultern, Hüfte, Beinschwingen)", amount: "2 min", note: "wie bisher" },
   { name: "Short Foot (Fußgewölbe aktiv anheben)", amount: "2 × 30 s je Fuß", note: "Knick-Senkfuß; Wirkung erst nach über 6 Wochen messbar" },
   { name: "Soleus Lunge", amount: "1 × 12 je Seite", note: "Knie über die Zehen schieben, Ferse bleibt unten", hevy: { templateId: "fe1d93a8-165e-48dd-b4c9-3c2203bafe5d", reps: 12 } },

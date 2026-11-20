@@ -51,12 +51,11 @@ const set = (patch: Partial<RoutineUploadSet>): RoutineUploadSet => ({
   ...patch,
 });
 
-// The warm-up block: items with a Hevy template as their own exercises, the
-// rest listed in the note of Hevy's "Warm Up".
+// The warm-up block: Hevy's "Warm Up" with the items that have no template of
+// their own in its note, then those that have one as their own exercises.
 function warmupExercises(): RoutineUploadExercise[] {
   const own = warmup.filter((item) => item.hevy);
   const rest = warmup.filter((item) => !item.hevy && !item.name.startsWith("Aufwärmsätze"));
-  const [first, ...others] = own;
   const asExercise = (item: (typeof own)[number]): RoutineUploadExercise => ({
     name: item.name,
     templateId: item.hevy!.templateId,
@@ -65,7 +64,6 @@ function warmupExercises(): RoutineUploadExercise[] {
     sets: [set({ type: "warmup", reps: item.hevy!.reps ?? null, durationS: item.hevy!.durationS ?? null })],
   });
   return [
-    ...(first ? [asExercise(first)] : []),
     {
       name: "Aufwärmen",
       templateId: WARMUP_TEMPLATE,
@@ -73,7 +71,7 @@ function warmupExercises(): RoutineUploadExercise[] {
       notes: rest.map((item) => `${item.name}: ${item.amount} (${item.note})`).join("\n"),
       sets: [set({ type: "warmup", durationS: 300 })],
     },
-    ...others.map(asExercise),
+    ...own.map(asExercise),
   ];
 }
 
@@ -86,7 +84,7 @@ export function routineUploads(exercises: ExerciseSession[]): RoutineUpload[] {
     null;
   return routine.map((day) => ({
     title: routineTitle(day.id),
-    notes: `${day.weekday} · aus dem Sport-Dashboard (Privatlab). Erst Aufwärmen (10–12 min), dann doppelte Progression: Wiederholungen bis zur Obergrenze, dann +2,5–5 %.`,
+    notes: `${day.weekday} · aus dem Sport-Dashboard (Privatlab). Erst Aufwärmen (ca. 7 min), dann doppelte Progression: Wiederholungen bis zur Obergrenze, dann +2,5–5 %.`,
     exercises: [
       ...warmupExercises(),
       ...day.exercises.map((exercise, index) => {
