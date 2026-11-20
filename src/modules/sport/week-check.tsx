@@ -3,13 +3,13 @@
 import { RotateCcwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { planProgress, routineCheck } from "./analytics";
-import { addDays, average, daysBetween, easyPercent, formatDate, formatMinutes, formatNumber, mondayOf, runWeeks, trainingDays } from "./calc";
+import { planProgress } from "./analytics";
+import { addDays, average, daysBetween, easyPercent, formatDate, formatMinutes, formatNumber, mondayOf, runWeeks, sessionBlocks, sessionMinutes, trainingDays, WEEKDAYS, weekday } from "./calc";
 import { StackedBars } from "./charts";
 import { BASE_WEEKS, planFromSettings, planWeekOf, type PlanWeek } from "./plan";
 import { useSaveSettings, useSportData } from "./store";
 import type { PlanChange } from "./types";
-import { Note, Panel } from "./ui";
+import { Note, Panel, SessionBar, SmallRing } from "./ui";
 
 type Actual = { runs: number; longestMinutes: number; easy: number | null; gym: number; restingHr: number | null; hrv: number | null };
 
@@ -52,35 +52,90 @@ export function PlanTab({ today }: { today: string }) {
   const change = (next: PlanChange[], message: string) => save({ planChanges: next }, message);
   const canChange = (week: PlanWeek) => !week.repeat && week.start >= mondayOf(today);
 
-  // This week's gym sessions against the routine.
-  const weekStart = mondayOf(today);
-  const gymChecks = data.workouts
-    .filter((workout) => workout.day >= weekStart && workout.day <= addDays(weekStart, 6))
-    .map((workout) => routineCheck(workout, data.exercises))
-    .filter((check) => check != null);
+  const phases = phaseGroups(plan);
+  const phase = focus ? phases.find((entry) => focus.number >= entry.from && focus.number <= entry.to) ?? null : null;
+  const phaseInfo = phase && focus ? { ...phase, done: focus.number - phase.from + 1 } : null;
+  const nextGoal = focus ? plan.filter((week) => week.number >= focus.number && week.note && !week.repeat).map((week) => ({ week, note: week.note! }))[0] ?? null : null;
 
   return (
     <div className="space-y-4">
       {focus ? (
-        <section className="space-y-4 rounded-2xl bg-hero p-5 text-hero-foreground">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-lg font-semibold">
-              Woche {focus.number}
-              {focus.repeat ? ` (Wiederholung von ${focus.base})` : ""} · ab {formatDate(focus.start)} · {focus.phase}
-            </h2>
-            <span className="text-sm text-hero-muted">
-              {started ? (daysLeft > 0 ? `noch ${daysLeft} ${daysLeft === 1 ? "Tag" : "Tage"}` : "letzter Tag") : `startet in ${daysBetween(today, focus.start)} Tagen`}
-            </span>
-          </div>
-          <ul className="space-y-1 text-sm">
-            {focus.sessions.map((session, index) => (
-              <li key={index} className="flex gap-2">
-                <span className="w-6 flex-none font-semibold text-hero-bar">{["Mo", "Fr", "So"][index]}</span>
-                <span>{session}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <>
+          <Panel>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground">Halbmarathon · {formatDate(addDays(plan.at(-1)!.start, 6))}</p>
+                <h2 className="text-2xl font-extrabold tracking-tight">
+                  Woche {focus.number} von {plan.length}
+                  {focus.repeat && <span className="text-base font-semibold text-muted-foreground"> · Wiederholung von {focus.base}</span>}
+                </h2>
+              </div>
+              <span className="text-sm text-muted-foreground">
+                {started ? (daysLeft > 0 ? `noch ${daysLeft} ${daysLeft === 1 ? "Tag" : "Tage"}` : "letzter Tag") : `startet in ${daysBetween(today, focus.start)} Tagen`}
+              </span>
+            </div>
+            <PhaseBar plan={plan} current={focus.number} />
+            {phaseInfo && (
+              <div className="flex items-center gap-3 rounded-2xl bg-good p-3 text-good-foreground">
+                <SmallRing value={phaseInfo.done / phaseInfo.count} label={`Woche ${phaseInfo.done} von ${phaseInfo.count} der Phase`} className="text-brand" size={56}>
+                  <span className="text-sm tabular-nums">
+                    {phaseInfo.done}/{phaseInfo.count}
+                  </span>
+                </SmallRing>
+                <div className="min-w-0">
+                  <p className="font-bold">
+                    Phase {phaseInfo.index + 1} · {phaseInfo.name}
+                  </p>
+                  <p className="text-sm">{nextGoal ? `${nextGoal.week.number === focus.number ? "Diese Woche" : `Woche ${nextGoal.week.number}`}: ${nextGoal.note}` : `Woche ${phaseInfo.from}–${phaseInfo.to}`}</p>
+                </div>
+              </div>
+            )}
+          </Panel>
+
+          <section className="space-y-2" aria-labelledby="plan-week">
+            <div className="flex items-baseline justify-between gap-2 px-1">
+              <h2 id="plan-week" className="text-base font-bold">
+                {focus.start === mondayOf(today) ? "Diese Woche" : "Erste Woche"} · {formatDate(focus.start)}–{formatDate(addDays(focus.start, 6))}
+              </h2>
+              <span className="text-sm text-muted-foreground tabular-nums">
+                {actual?.runs ?? 0} / {focus.runs} Läufe
+              </span>
+            </div>
+            <div className="grid gap-2 lg:grid-cols-3">
+              {focus.sessions.map((session, index) => {
+                const day = addDays(focus.start, [0, 4, 6][index]);
+                const runs = data.runs.filter((run) => run.day === day);
+                const minutes = runs.reduce((sum, run) => sum + (run.durationS ?? 0) / 60, 0);
+                const blocks = sessionBlocks(session);
+                const planned = sessionMinutes(blocks);
+                const isToday = day === today;
+                const status = runs.length ? "done" : isToday ? "today" : day < today ? "missed" : "open";
+                return (
+                  <article key={index} className={cn("space-y-2.5 rounded-2xl border bg-card p-4", isToday && "border-2 border-brand")}>
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className={cn("font-bold tracking-wider uppercase", isToday ? "text-brand" : "text-muted-foreground")}>
+                        {WEEKDAYS[weekday(day)]} {formatDate(day)}
+                        {isToday && " · heute"}
+                      </span>
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 font-semibold tabular-nums",
+                          status === "done" ? "bg-good text-good-foreground" : status === "missed" ? "bg-bad text-bad-foreground" : "text-muted-foreground",
+                        )}
+                      >
+                        {status === "done" ? `✓ ${formatMinutes(minutes)}` : status === "missed" ? "ausgelassen" : planned ? `${planned} min` : "offen"}
+                      </span>
+                    </div>
+                    <p className="font-bold text-balance">{session}</p>
+                    {blocks && <SessionBar blocks={blocks} className="h-2" />}
+                  </article>
+                );
+              })}
+            </div>
+            <p className="px-1 text-sm text-muted-foreground">Locker heißt unter 145 bpm. Gym {focus.gym === 3 ? "Di (A), Do (B) und Sa (C)" : "nur 1×, leicht"}.</p>
+          </section>
+
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Goal label="Läufe" value={`${actual?.runs ?? 0} von ${focus.runs}`} ratio={(actual?.runs ?? 0) / focus.runs} />
             <Goal
               label="Längste Einheit"
@@ -89,17 +144,17 @@ export function PlanTab({ today }: { today: string }) {
               ratio={(actual?.longestMinutes ?? 0) / focus.longestMinutes}
             />
             <Goal label="Zone 1" value={actual?.easy != null ? `${formatNumber(actual.easy)} %` : "–"} sub={`Ziel ${data.settings.zone1GoalPct} %`} ratio={(actual?.easy ?? 0) / 100} />
-            <Goal label="Gym" value={`${actual?.gym ?? 0} von ${focus.gym}`} sub={focus.gym === 3 ? "Di A · Do B · Sa C" : "nur 1×, leicht"} ratio={(actual?.gym ?? 0) / focus.gym} />
+            <Goal label="Gym" value={`${actual?.gym ?? 0} von ${focus.gym}`} ratio={(actual?.gym ?? 0) / focus.gym} />
           </div>
           {today < plan[0].start && data.runs.some((run) => run.day >= mondayOf(today)) && (
-            <p className="rounded-lg bg-hero-track px-3 py-2 text-sm">
+            <p className="rounded-2xl bg-good px-4 py-3 text-sm text-good-foreground">
               Du bist diese Woche schon gelaufen, obwohl der Plan erst am {formatDate(plan[0].start)} startet.{" "}
-              <button type="button" className="cursor-pointer font-semibold text-hero-bar underline" onClick={() => save({ planStart: mondayOf(today) }, `Plan beginnt jetzt am ${formatDate(mondayOf(today))}`)}>
+              <button type="button" className="cursor-pointer font-semibold underline" onClick={() => save({ planStart: mondayOf(today) }, `Plan beginnt jetzt am ${formatDate(mondayOf(today))}`)}>
                 Plan schon diese Woche starten
               </button>
             </p>
           )}
-        </section>
+        </>
       ) : (
         <Panel title="Plan beendet">
           <p className="text-sm">Der Laufplan bis zum Halbmarathon ist vorbei.</p>
@@ -155,25 +210,6 @@ export function PlanTab({ today }: { today: string }) {
           <Note>Der Plan steigert höchstens 10 % pro Woche; wer vorne liegt, sollte trotzdem nicht schneller steigern.</Note>
         </Panel>
       </div>
-
-      {gymChecks.length > 0 && (
-        <Panel title="Gym diese Woche gegen die Routine">
-          <ul className="divide-y">
-            {gymChecks.map((check) => (
-              <li key={check.workout.id} className="space-y-0.5 py-2.5">
-                <p>
-                  <strong className="font-semibold">{check.workout.title}</strong>{" "}
-                  <span className="text-sm text-muted-foreground">
-                    {formatDate(check.workout.day)} · passt zu Tag {check.day.id}: {check.done.length} von {check.day.exercises.length} Übungen
-                  </span>
-                </p>
-                {check.missing.length > 0 && <p className="text-sm text-bad-foreground">Fehlt: {check.missing.join(", ")}</p>}
-                {check.extra.length > 0 && <p className="text-sm text-muted-foreground">Zusätzlich: {check.extra.join(", ")}</p>}
-              </li>
-            ))}
-          </ul>
-        </Panel>
-      )}
 
       <Panel
         title="Alle Wochen"
@@ -266,13 +302,66 @@ export function PlanTab({ today }: { today: string }) {
 
 function Goal({ label, value, sub, ratio }: { label: string; value: string; sub?: string; ratio: number }) {
   return (
-    <div className="space-y-1.5">
-      <span className="text-sm text-hero-muted">{label}</span>
+    <div className="space-y-1.5 rounded-2xl border bg-card p-4">
+      <span className="text-xs font-semibold text-muted-foreground">{label}</span>
       <p className="text-xl font-bold tabular-nums">{value}</p>
-      <div className="h-1.5 overflow-hidden rounded-full bg-hero-track">
-        <div className="h-full bg-hero-bar" style={{ width: `${Math.min(1, Math.max(0, ratio)) * 100}%` }} />
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-brand" style={{ width: `${Math.min(1, Math.max(0, ratio)) * 100}%` }} />
       </div>
-      {sub && <span className="text-xs text-hero-muted">{sub}</span>}
+      {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
+    </div>
+  );
+}
+
+const SHORT_PHASE: Record<string, string> = {
+  Wiedereinstieg: "Einstieg",
+  "10-km-Block": "10 km",
+  Grundlage: "Grundlage",
+  Aufbau: "Aufbau",
+  "Halbmarathon-spezifisch": "HM",
+  Tapering: "Taper",
+};
+
+function phaseGroups(plan: PlanWeek[]) {
+  const groups: { name: string; from: number; to: number; count: number; index: number }[] = [];
+  for (const week of plan) {
+    const last = groups.at(-1);
+    if (last && last.name === week.phase) {
+      last.to = week.number;
+      last.count += 1;
+    } else groups.push({ name: week.phase, from: week.number, to: week.number, count: 1, index: groups.length });
+  }
+  return groups;
+}
+
+// The whole plan as one bar split into its phases, with a mark at the current week.
+function PhaseBar({ plan, current }: { plan: PlanWeek[]; current: number }) {
+  const groups = phaseGroups(plan);
+  return (
+    <div className="space-y-1.5">
+      <div className="relative" role="img" aria-label={`Plan in ${groups.length} Phasen, du bist in Woche ${current} von ${plan.length}`}>
+        <div className="flex h-3.5 gap-[3px]">
+          {groups.map((group) => (
+            <span
+              key={group.from}
+              className={cn("rounded-[4px]", group.to < current ? "bg-brand" : group.from <= current ? "bg-chart-2" : "bg-chart-3")}
+              style={{ flexGrow: group.count, flexBasis: 0 }}
+            />
+          ))}
+        </div>
+        <span
+          className="absolute -top-1.5 h-6.5 w-1 -translate-x-1/2 rounded-full bg-foreground"
+          style={{ left: `${((current - 0.5) / plan.length) * 100}%` }}
+          aria-hidden="true"
+        />
+      </div>
+      <div className="flex gap-[3px] text-[11px] text-muted-foreground">
+        {groups.map((group) => (
+          <span key={group.from} className="min-w-0 truncate" style={{ flexGrow: group.count, flexBasis: 0 }}>
+            {SHORT_PHASE[group.name] ?? group.name}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

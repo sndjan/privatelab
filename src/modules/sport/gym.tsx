@@ -1,15 +1,13 @@
 "use client";
 
-import { ArrowDownIcon, ArrowRightIcon, ArrowUpIcon, TrophyIcon } from "lucide-react";
+import { TrophyIcon } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { progressionHint, records, routineCheck, sessionE1rm, setsPerMuscle } from "./analytics";
-import { addDays, weekday, exerciseSummaries, formatDate, formatDayDate, formatMinutes, formatSet, formatTonnes, gymWeeks, lastWeeks } from "./calc";
+import { records, routineCheck, sessionE1rm, setsPerMuscle } from "./analytics";
+import { addDays, exerciseSummaries, formatDate, formatDayDate, formatMinutes, formatSet, formatTonnes, gymWeeks, lastWeeks } from "./calc";
 import { LineChart, StackedBars } from "./charts";
-import { HevyUpload } from "./hevy-upload";
-import { routine, sameExercise, warmup } from "./plan";
 import { useSportData } from "./store";
-import { Note, Panel } from "./ui";
+import { Note, Panel, SmallRing, TabHero } from "./ui";
 
 const kg = (value: number) => `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 }).format(value)} kg`;
 
@@ -21,9 +19,6 @@ export function GymTab({ today, weeks: count }: { today: string; weeks: number }
   const summaries = exerciseSummaries(data.exercises, from, today);
   const [picked, setPicked] = useState<string | null>(null);
   const [metric, setMetric] = useState<"top" | "e1rm">("top");
-  // Phones show one routine day: the next one by weekday (Di A, Do B, Sa C).
-  const dayIndex = weekday(today);
-  const [routineDay, setRoutineDay] = useState<"A" | "B" | "C">(dayIndex <= 1 ? "A" : dayIndex <= 3 ? "B" : dayIndex <= 5 ? "C" : "A");
   const selected = summaries.find((summary) => summary.name === picked) ?? summaries[0];
   const sessions = selected?.sessions.filter((session) => session.day >= from) ?? [];
   const bestE1rm = selected ? Math.max(0, ...selected.sessions.map((session) => sessionE1rm(session) ?? 0)) : 0;
@@ -39,11 +34,31 @@ export function GymTab({ today, weeks: count }: { today: string; weeks: number }
   const musclesRange = setsPerMuscle(data.exercises, data.templates, from, today);
   const weekCount = Math.max(1, count);
   const recent = records(data.exercises).filter((record) => record.day >= addDays(today, -90)).slice(0, 10);
-  const lastByName = (name: string) => [...data.exercises].reverse().find((session) => sameExercise(name, session.exercise)) ?? null;
+
+  const totalSessions = perWeek.reduce((sum, week) => sum + week.sessions, 0);
+  const totalVolume = perWeek.reduce((sum, week) => sum + week.volumeKg, 0);
+  const perWeekAvg = totalSessions / Math.max(1, count);
 
   return (
     <div className="space-y-4">
-      <Panel title="Volumen pro Woche" aside={<span className="text-xs text-muted-foreground">kg × Wiederholungen, Arbeitssätze · Zahl: Einheiten</span>}>
+      <TabHero
+        ring={
+          <SmallRing value={perWeekAvg / data.settings.gymPerWeek} size={132} label={`Im Schnitt ${perWeekAvg.toFixed(1)} von ${data.settings.gymPerWeek} Einheiten pro Woche`}>
+            <span className="flex flex-col items-center leading-tight">
+              <span className="text-3xl font-extrabold tabular-nums">{String(Math.round(perWeekAvg * 10) / 10).replace(".", ",")}</span>
+              <span className="text-xs font-semibold text-muted-foreground">pro Woche</span>
+            </span>
+          </SmallRing>
+        }
+        figures={[
+          { label: "Einheiten", value: String(totalSessions), sub: `Ziel ${data.settings.gymPerWeek} pro Woche`, tone: perWeekAvg >= data.settings.gymPerWeek ? "good" : undefined },
+          { label: "Volumen", value: formatTonnes(totalVolume / count), sub: "Ø pro Woche" },
+          { label: "Bestwerte", value: String(recent.length), sub: "letzte 90 Tage" },
+          { label: "Übungen", value: String(summaries.length), sub: "im Zeitraum" },
+        ]}
+      />
+
+      <Panel info={<>kg × Wiederholungen der Arbeitssätze, die Zahl über dem Balken: Einheiten. Unterstützte Übungen (z. B. Klimmzüge mit Hilfe) zählen nicht zum Volumen, weil Hevy dort die Hilfe als Gewicht speichert.</>} title="Volumen pro Woche">
         <StackedBars
           ariaLabel={`Gym-Volumen pro Woche der letzten ${count} Wochen`}
           height={180}
@@ -56,96 +71,13 @@ export function GymTab({ today, weeks: count }: { today: string; weeks: number }
           startLabel={formatDate(from)}
           endLabel="diese Woche"
         />
-        <Note>Unterstützte Übungen (z. B. Klimmzüge mit Hilfe) zählen nicht zum Volumen, weil Hevy dort die Hilfe als Gewicht speichert.</Note>
-      </Panel>
-
-      <Panel
-        title="Nächstes Mal"
-        aside={
-          <span className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">doppelte Progression aus deiner Routine</span>
-            <HevyUpload />
-          </span>
-        }
-      >
-        <div role="group" aria-label="Trainingstag" className="flex w-fit gap-1 rounded-lg bg-muted p-1 lg:hidden">
-          {routine.map((day) => (
-            <button
-              key={day.id}
-              type="button"
-              aria-pressed={routineDay === day.id}
-              onClick={() => setRoutineDay(day.id)}
-              className={cn("h-9 cursor-pointer rounded-md px-4 text-sm", routineDay === day.id ? "bg-background font-medium shadow-sm" : "text-muted-foreground")}
-            >
-              Tag {day.id}
-            </button>
-          ))}
-        </div>
-        <details className="rounded-lg border p-2.5">
-          <summary className="cursor-pointer text-sm font-semibold">
-            Aufwärmen <span className="font-normal text-muted-foreground">· ca. 7 min, vor jedem Tag</span>
-          </summary>
-          <ul className="mt-2 space-y-1.5">
-            {warmup.map((item) => (
-              <li key={item.name} className="text-sm">
-                <p className="flex items-baseline justify-between gap-2">
-                  <span className="min-w-0">{item.name}</span>
-                  <span className="flex-none text-xs text-muted-foreground tabular-nums">{item.amount}</span>
-                </p>
-                <p className="text-xs text-muted-foreground">{item.note}</p>
-              </li>
-            ))}
-          </ul>
-        </details>
-        <div className="grid gap-4 lg:grid-cols-3">
-          {routine.map((day) => (
-            <div key={day.id} className={cn("min-w-0 space-y-2", routineDay !== day.id && "hidden lg:block")}>
-              <h3 className="text-sm font-semibold">
-                Tag {day.id} <span className="font-normal text-muted-foreground">· {day.weekday}</span>
-              </h3>
-              <ul className="space-y-2">
-                {day.exercises.map((exercise) => {
-                  const last = lastByName(exercise.name);
-                  const hint = last ? progressionHint(last) : null;
-                  const Icon = hint?.tone === "up" ? ArrowUpIcon : hint?.tone === "down" ? ArrowDownIcon : ArrowRightIcon;
-                  return (
-                    <li key={exercise.name} className="rounded-lg border p-2.5">
-                      <p className="flex items-baseline justify-between gap-2 text-sm">
-                        <span className="min-w-0 font-medium">{exercise.name}</span>
-                        <span className="flex-none text-xs text-muted-foreground tabular-nums">
-                          {exercise.sets} × {exercise.repsMin}–{exercise.repsMax}
-                        </span>
-                      </p>
-                      {last ? (
-                        <>
-                          <p className="text-xs text-muted-foreground tabular-nums">
-                            Zuletzt {formatDate(last.day)}: {last.setList.map(([w, r]) => `${w ?? "–"} × ${r ?? "–"}`).join(", ")}
-                          </p>
-                          {hint && (
-                            <p className={cn("mt-1 flex gap-1.5 text-sm", hint.tone === "up" ? "text-good-foreground" : hint.tone === "down" ? "text-bad-foreground" : "")}>
-                              <Icon className="mt-0.5 size-4 flex-none" aria-hidden="true" />
-                              {hint.text}
-                            </p>
-                          )}
-                        </>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">Noch nicht in Hevy. Startgewicht aus der Routine nehmen.</p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </div>
       </Panel>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Panel title="Sätze pro Muskelgruppe" aside={<span className="text-xs text-muted-foreground">letzte 7 Tage · Ø pro Woche im Zeitraum</span>}>
+        <Panel info={<>Hauptmuskel zählt 1 Satz, Hilfsmuskeln ½ (Muskelgruppen aus Hevy). Grün hinterlegt: 10–20 Sätze pro Woche, ein üblicher Bereich für Muskelaufbau.</>} title="Sätze pro Muskelgruppe" aside={<span className="text-xs text-muted-foreground">letzte 7 Tage · Ø pro Woche im Zeitraum</span>}>
           <MuscleBars week={muscles7} range={musclesRange} weeks={weekCount} />
-          <Note>Hauptmuskel zählt 1 Satz, Hilfsmuskeln ½ (Muskelgruppen aus Hevy). Grün hinterlegt: 10–20 Sätze pro Woche, ein üblicher Bereich für Muskelaufbau.</Note>
         </Panel>
-        <Panel title="Bestwerte, letzte 90 Tage">
+        <Panel info={<>Hevy gibt Bestwerte nicht über die API heraus; sie sind hier aus deinen Sätzen berechnet.</>} title="Bestwerte, letzte 90 Tage">
           {recent.length === 0 ? (
             <p className="text-sm text-muted-foreground">Keine neuen Bestwerte in den letzten 90 Tagen.</p>
           ) : (
@@ -164,7 +96,6 @@ export function GymTab({ today, weeks: count }: { today: string; weeks: number }
               ))}
             </ul>
           )}
-          <Note>Hevy gibt Bestwerte nicht über die API heraus; sie sind hier aus deinen Sätzen berechnet.</Note>
         </Panel>
       </div>
 
@@ -270,7 +201,7 @@ export function GymTab({ today, weeks: count }: { today: string; weeks: number }
   );
 }
 
-function MuscleBars({ week, range, weeks }: { week: { muscle: string; label: string; sets: number }[]; range: { muscle: string; label: string; sets: number }[]; weeks: number }) {
+export function MuscleBars({ week, range, weeks }: { week: { muscle: string; label: string; sets: number }[]; range: { muscle: string; label: string; sets: number }[]; weeks: number }) {
   const byMuscle = new Map(range.map((entry) => [entry.muscle, entry]));
   const rows = [...new Set([...week.map((entry) => entry.muscle), ...range.map((entry) => entry.muscle)])]
     .map((muscle) => ({
