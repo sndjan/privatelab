@@ -12,8 +12,8 @@ import type { SportData } from "@/modules/sport/types";
 // sport_sync_secret. Decides in Berlin time whether a reminder is due:
 // mornings the day's plan, Sunday evening a weekly review written by Claude
 // Haiku (a few hundred tokens). `?test=morning|weekly` sends one right away.
-
-export const dynamic = "force-dynamic";
+// POST route handlers are never cached, so no segment config is needed (and
+// `dynamic` is not allowed with cacheComponents).
 
 const WEEKLY_HOUR = 19;
 const MODEL = "claude-haiku-5-5";
