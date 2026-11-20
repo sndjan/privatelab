@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowDownIcon, ArrowRightIcon, ArrowUpIcon, CheckIcon, TrophyIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowRightIcon, ArrowUpIcon, CheckIcon, ChevronDownIcon, FlameIcon, TrophyIcon } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { progressionHint, records, routineCheck, setsPerMuscle, streaks } from "./analytics";
 import { addDays, formatDate, formatMinutes, formatTonnes, gymWeeks, lastWeeks, mondayOf, weekday } from "./calc";
 import { MuscleBars } from "./gym";
-import { planFromSettings, planWeekOf, routine, sameExercise, type RoutineDay } from "./plan";
+import { HevyUpload } from "./hevy-upload";
+import { planFromSettings, planWeekOf, routine, sameExercise, warmup, type RoutineDay } from "./plan";
 import { useSportData } from "./store";
 import { Note, Panel, SmallRing } from "./ui";
 
@@ -133,8 +134,9 @@ function RoutineDays({ today }: { today: string }) {
         <h2 id="routine-days" className="text-base font-bold">
           Trainingstage
         </h2>
-        <span className="text-xs text-muted-foreground">doppelte Progression aus deiner Routine</span>
+        <HevyUpload />
       </div>
+      <p className="-mt-1 px-1 text-xs text-muted-foreground">Doppelte Progression aus deiner Routine. „Nach Hevy übertragen“ legt Tag A–C mit Aufwärmen und Startgewichten als Routinen in Hevy an.</p>
       <div role="group" aria-label="Trainingstag" className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1">
         {routine.map((entry) => (
           <button
@@ -148,6 +150,32 @@ function RoutineDays({ today }: { today: string }) {
           </button>
         ))}
       </div>
+      <details className="group rounded-2xl border bg-card">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+          <span className="flex size-9 flex-none items-center justify-center rounded-xl bg-good text-good-foreground">
+            <FlameIcon className="size-[18px]" aria-hidden="true" />
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <strong className="font-bold">Aufwärmen</strong>
+            <span className="text-xs text-muted-foreground">ca. 7 min, vor jedem Tag · {warmup.length} Teile</span>
+          </span>
+          <ChevronDownIcon className="size-[18px] flex-none text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <ol className="space-y-2.5 border-t px-4 py-3">
+          {warmup.map((item, index) => (
+            <li key={item.name} className="flex gap-3 text-sm">
+              <span className="flex size-6 flex-none items-center justify-center rounded-full bg-muted text-xs font-bold tabular-nums">{index + 1}</span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className="min-w-0 font-medium">{item.name}</span>
+                  <span className="flex-none text-xs text-muted-foreground tabular-nums">{item.amount}</span>
+                </span>
+                <span className="block text-xs text-muted-foreground">{item.note}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      </details>
       <ul className="flex flex-wrap gap-1.5 text-xs font-semibold" aria-label="Zusammenfassung">
         <li className="rounded-full bg-muted px-2.5 py-1">{day.exercises.length} Übungen</li>
         <li className="rounded-full bg-muted px-2.5 py-1">{day.exercises.reduce((sum, exercise) => sum + exercise.sets, 0)} Sätze</li>
