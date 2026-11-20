@@ -89,6 +89,14 @@ export const moduleMeta: ModuleMeta[] = [
     status: "live",
   },
   {
+    id: "pomodoro",
+    name: "Pomodoro",
+    description: "Schlichter Pomodoro-Timer mit eigenen Zeiten, 20-20-20- und Trink-Erinnerung und Mini-Fenster.",
+    icon: "🍅",
+    category: "alltag",
+    status: "live",
+  },
+  {
     id: "kegeln",
     name: "Kegelkasse",
     description: "Spielbericht und Wurfschein abfotografieren: Fehler, Zweier, Goldene und Maß werden zur Tabelle, wer was in die Kasse zahlt.",
