@@ -264,8 +264,14 @@ export function SheetSvg({
           const cy = L.gridY + L.gridH + 6 + i * 10;
           return (
             <g key={i}>
-              <Heart cx={cx} cy={cy} size={9.4} theme={sheet.theme} />
-              <Label x={cx - 0.15} y={cy + 0.15} size={4.4} fill={sheet.theme === "hunde" ? "#4a3418" : "#ffffff"}>
+              {/* Bones (Hunde) are wide and low: drawn bigger, the number smaller. */}
+              <Heart cx={cx} cy={cy} size={sheet.theme === "hunde" ? 12.5 : 9.4} theme={sheet.theme} />
+              <Label
+                x={cx - 0.15}
+                y={sheet.theme === "hunde" ? cy + 0.45 : cy + 0.15}
+                size={sheet.theme === "hunde" ? 3.4 : 4.4}
+                fill={sheet.theme === "hunde" ? "#4a3418" : "#ffffff"}
+              >
                 {i + 1}
               </Label>
             </g>

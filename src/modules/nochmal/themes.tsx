@@ -180,7 +180,8 @@ export function ThemedStar({
   return (
     <Placed {...place}>
       <g fill="none" stroke={edge} strokeWidth={solid ? 7.5 : 7} strokeLinejoin="round" strokeLinecap="round">
-        {starDrawing(theme)}
+        {/* Paws and tennis balls a little turned, so they look less stiff. */}
+        <g transform={theme === "hunde" || theme === "tennis" ? "rotate(-25 50 50)" : undefined}>{starDrawing(theme)}</g>
       </g>
     </Placed>
   );
@@ -190,11 +191,11 @@ export function ThemedStar({
 
 const BONE_PARTS = (
   <>
-    <rect x={24} y={40} width={52} height={22} />
-    <circle cx={22} cy={40} r={12} />
-    <circle cx={22} cy={62} r={12} />
-    <circle cx={78} cy={40} r={12} />
-    <circle cx={78} cy={62} r={12} />
+    <rect x={22} y={38} width={56} height={26} />
+    <circle cx={20} cy={38} r={12} />
+    <circle cx={20} cy={64} r={12} />
+    <circle cx={80} cy={38} r={12} />
+    <circle cx={80} cy={64} r={12} />
   </>
 );
 
