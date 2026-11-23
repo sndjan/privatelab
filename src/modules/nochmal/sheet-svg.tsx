@@ -10,6 +10,7 @@ import { blocksOf, colors, EMPTY, letter, rowLetter, type RowBonus, type Sheet }
 // diamonds, a pass bar and X-chips; Kids framed enclosures with animals.
 // Own pictures (sheet.art) replace the star, golden die and diamond, and can
 // fill the card's background. Boxes without a colour yet are drawn dashed.
+// The rows of boxes under the columns are set per sheet (sheet.lanes).
 // Units: one box is 10. Fixed colours (it is a picture).
 
 const U = 10;
@@ -58,12 +59,10 @@ export function sheetLayout(sheet: Sheet) {
   const panelW = 40;
   const width = panelX + panelW + pad;
 
-  // Below the grid: points rows (and the heart row), jokers, special dice, pass bar.
-  const firstY = gridY + gridH + 1.4;
-  const laterY = firstY + 9;
-  let y = laterY + 9;
-  const heartRowY = so ? y : null;
-  if (so) y += 9;
+  // Below the grid: the rows of boxes (points, hearts, empty boxes), jokers,
+  // special dice, pass bar.
+  const lanesY = gridY + gridH + 1.4;
+  let y = lanesY + sheet.lanes.length * 9;
   const jokerY = sheet.jokers > 0 ? y + 2 : null;
   if (jokerY !== null) y = jokerY + 10;
   const specialsY = sheet.specials > 0 ? y + 2 : null;
@@ -79,7 +78,7 @@ export function sheetLayout(sheet: Sheet) {
   const leftBottom = so ? gridY + gridH + 1.4 + sheet.hearts * 10 : 0;
 
   const height = Math.max(y, panelBottom, leftBottom) + pad;
-  return { pad, gridX, gridY, gridW, gridH, panelX, panelW, firstY, laterY, heartRowY, jokerY, specialsY, passY, bonusY, scoreY, width, height, scoreRows, so };
+  return { pad, gridX, gridY, gridW, gridH, panelX, panelW, lanesY, jokerY, specialsY, passY, bonusY, scoreY, width, height, scoreRows, so };
 }
 
 export function SheetSvg({
@@ -89,6 +88,7 @@ export function SheetSvg({
   highlight,
   onCellDown,
   onHeaderDown,
+  onLaneDown,
   ...props
 }: {
   sheet: Sheet;
@@ -98,6 +98,9 @@ export function SheetSvg({
   highlight?: Set<number>;
   onCellDown?: (cell: number, event: PointerEvent) => void;
   onHeaderDown?: (col: number, event: PointerEvent) => void;
+  // Editing: tapping a place in a row of boxes adds or removes its box (left
+  // out boxes are shown dashed then).
+  onLaneDown?: (lane: number, col: number, event: PointerEvent) => void;
 } & SVGProps<SVGSVGElement>) {
   const theme = themes[sheet.variant];
   const L = sheetLayout(sheet);
@@ -237,25 +240,57 @@ export function SheetSvg({
           );
         })}
 
-      {/* Points for completed columns: first / later (and the heart row). */}
-      {sheet.points.map(([first, later], col) => (
-        <g key={col}>
-          <Tile x={at(col)} y={L.firstY} w={T} h={8} fill={theme.tile} />
-          <Label x={at(col) + T / 2} y={L.firstY + 4} size={5.6} fill={col === sheet.start ? red : theme.ink}>
-            {first}
-          </Label>
-          <Tile x={at(col)} y={L.laterY} w={T} h={8} fill={theme.tile} />
-          <Label x={at(col) + T / 2} y={L.laterY + 4} size={5.6} fill={col === sheet.start ? red : theme.ink}>
-            {later}
-          </Label>
-          {L.heartRowY !== null && (
-            <>
-              <Tile x={at(col)} y={L.heartRowY} w={T} h={8} fill={theme.tile} />
-              <Heart cx={at(col) + T / 2} cy={L.heartRowY + 4} size={6} fill="#f7b9bd" />
-            </>
-          )}
-        </g>
-      ))}
+      {/* Rows of boxes under the columns: points for completed columns
+          (first / later), the heart row, empty boxes. */}
+      {sheet.lanes.map((lane, i) => {
+        const y = L.lanesY + i * 9;
+        const skip = new Set(lane.skip);
+        return (
+          <g key={i}>
+            {Array.from({ length: sheet.cols }, (_, col) => {
+              const down = onLaneDown && ((event: PointerEvent) => onLaneDown(i, col, event));
+              if (skip.has(col)) {
+                if (!onLaneDown) return null;
+                return (
+                  <rect
+                    key={col}
+                    x={at(col) + 0.25}
+                    y={y + 0.25}
+                    width={T - 0.5}
+                    height={7.5}
+                    rx={1.5}
+                    fill={theme.tile}
+                    fillOpacity={0.08}
+                    stroke={theme.label}
+                    strokeOpacity={0.45}
+                    strokeWidth={0.4}
+                    strokeDasharray="1.1 0.9"
+                    className="cursor-pointer"
+                    onPointerDown={down}
+                  />
+                );
+              }
+              const ink = col === sheet.start ? red : theme.ink;
+              return (
+                <g key={col} onPointerDown={down} className={onLaneDown ? "cursor-pointer" : undefined}>
+                  <Tile x={at(col)} y={y} w={T} h={8} fill={theme.tile} />
+                  {lane.kind === "first" && (
+                    <Label x={at(col) + T / 2} y={y + 4} size={5.6} fill={ink}>
+                      {sheet.points[col][0]}
+                    </Label>
+                  )}
+                  {lane.kind === "later" && (
+                    <Label x={at(col) + T / 2} y={y + 4} size={5.6} fill={ink}>
+                      {sheet.points[col][1]}
+                    </Label>
+                  )}
+                  {lane.kind === "heart" && <Heart cx={at(col) + T / 2} cy={y + 4} size={6} fill="#f7b9bd" />}
+                </g>
+              );
+            })}
+          </g>
+        );
+      })}
 
       {/* Jokers: ? / ✖ = ! ! ! … */}
       {L.jokerY !== null && <Jokers x={at(0)} y={L.jokerY} count={sheet.jokers} ink={theme.ink} />}

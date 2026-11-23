@@ -1,10 +1,25 @@
 "use client";
 
-import { Redo2Icon, Undo2Icon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, PlusIcon, Redo2Icon, Trash2Icon, Undo2Icon } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { cn } from "@/lib/utils";
 import { ArtPanel } from "./art";
-import { blocksOf, checks, colors, columnPoints, EMPTY, letter, limits, maxScore, type ArtSlot, type Sheet } from "./data";
+import {
+  blocksOf,
+  checks,
+  colors,
+  columnPoints,
+  EMPTY,
+  laneKinds,
+  letter,
+  limits,
+  MAX_LANES,
+  maxScore,
+  type ArtSlot,
+  type Lane,
+  type LaneKind,
+  type Sheet,
+} from "./data";
 import { SheetSvg } from "./sheet-svg";
 import { display, Heading, Panel, Stepper } from "./ui";
 
@@ -121,6 +136,23 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
     }
   }
 
+  // A box in a row under the columns: tap adds or removes it.
+  function toggleLaneBox(lane: number, col: number, event: PointerEvent) {
+    if (event.button !== 0) return;
+    const current = latest.current;
+    commit({
+      ...current,
+      lanes: current.lanes.map((entry, i) =>
+        i !== lane
+          ? entry
+          : {
+              ...entry,
+              skip: entry.skip.includes(col) ? entry.skip.filter((value) => value !== col) : [...entry.skip, col].sort((a, b) => a - b),
+            },
+      ),
+    });
+  }
+
   function setStart(col: number) {
     if (col === sheet.start) return;
     commit({ ...sheet, start: col, points: columnPoints(sheet.cols, col) });
@@ -190,6 +222,7 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
             style={{ minWidth: `${sheet.cols * 2.6}rem` }}
             onCellDown={onCellDown}
             onHeaderDown={(col) => setStart(col)}
+            onLaneDown={toggleLaneBox}
             onPointerMove={onMove}
             onPointerUp={onUp}
             onPointerCancel={onUp}
@@ -201,7 +234,8 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
             : typeof tool === "number"
               ? "Farbe wählen und über Kästchen wischen."
               : marks.find((mark) => mark.id === tool)!.hint} Ein Buchstabe oben
-          macht die Spalte zur Startspalte (Punkte passen sich an). Zu große Blöcke sind rot umrandet.
+          macht die Spalte zur Startspalte (Punkte passen sich an). Ein Kästchen in den Leisten unten antippen nimmt es weg oder fügt es
+          wieder ein (gestrichelt = fehlt). Zu große Blöcke sind rot umrandet.
         </p>
       </div>
 
@@ -260,6 +294,8 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
           )}
         </Panel>
 
+        <LanesPanel sheet={sheet} onChange={(lanes) => set({ lanes })} />
+
         <ArtPanel sheet={sheet} slots={artSlots} onChange={(next) => commit(next)} />
       </aside>
     </div>
@@ -286,5 +322,89 @@ function MarkIcon({ mark }: { mark: Mark }) {
     <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 2.6l2.8 5.9 6.4.8-4.7 4.4 1.2 6.3L12 17l-5.7 3 1.2-6.3-4.7-4.4 6.4-.8z" fill="#ffffff" />
     </svg>
+  );
+}
+
+// The rows of boxes under the columns: add one (e.g. empty boxes to write
+// in), change its kind, move it, remove it, or fill it in every column or
+// only under the start column. Single boxes are tapped on the sheet.
+function LanesPanel({ sheet, onChange }: { sheet: Sheet; onChange: (lanes: Lane[]) => void }) {
+  const lanes = sheet.lanes;
+  const update = (i: number, patch: Partial<Lane>) => onChange(lanes.map((lane, j) => (j === i ? { ...lane, ...patch } : lane)));
+  const move = (i: number, by: number) => {
+    const next = [...lanes];
+    [next[i], next[i + by]] = [next[i + by], next[i]];
+    onChange(next);
+  };
+  const allCols = Array.from({ length: sheet.cols }, (_, col) => col);
+  const small =
+    "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-(--nm-line-strong) bg-(--nm-field) text-(--nm-text-soft) hover:bg-(--nm-hover) disabled:cursor-default disabled:opacity-35 [&_svg]:size-4";
+  const chip =
+    "cursor-pointer rounded-full border border-(--nm-line-strong) bg-(--nm-field) px-3 py-1.5 text-xs font-extrabold text-(--nm-text-soft) hover:bg-(--nm-hover)";
+
+  return (
+    <Panel>
+      <Heading className="mb-1">Leisten unten</Heading>
+      <p className="mb-3 text-sm font-semibold text-(--nm-muted)">Kästchenreihen unter den Spalten. Einzelne Kästchen tippst du im Blatt an.</p>
+      <ul className="flex flex-col gap-2.5">
+        {lanes.map((lane, i) => (
+          <li key={i} className="flex flex-col gap-2 rounded-xl bg-(--nm-field) p-2.5">
+            <div className="flex items-center gap-1.5">
+              <select
+                aria-label={`Leiste ${i + 1}`}
+                value={lane.kind}
+                onChange={(event) => update(i, { kind: event.target.value as LaneKind })}
+                className="h-9 min-w-0 flex-1 cursor-pointer rounded-lg border border-(--nm-line-strong) bg-(--nm-panel) px-2 text-sm font-extrabold text-(--nm-text)"
+              >
+                {laneKinds.map((kind) => (
+                  <option key={kind.id} value={kind.id}>
+                    {kind.name}
+                  </option>
+                ))}
+              </select>
+              <button type="button" aria-label="Nach oben" className={small} disabled={i === 0} onClick={() => move(i, -1)}>
+                <ArrowUpIcon />
+              </button>
+              <button type="button" aria-label="Nach unten" className={small} disabled={i === lanes.length - 1} onClick={() => move(i, 1)}>
+                <ArrowDownIcon />
+              </button>
+              <button
+                type="button"
+                aria-label="Leiste entfernen"
+                className={cn(small, "text-(--nm-danger)")}
+                onClick={() => onChange(lanes.filter((_, j) => j !== i))}
+              >
+                <Trash2Icon />
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-bold text-(--nm-muted)">
+                {sheet.cols - lane.skip.length} von {sheet.cols} Kästchen
+              </span>
+              <button type="button" className={chip} onClick={() => update(i, { skip: [] })}>
+                Alle
+              </button>
+              <button type="button" className={chip} onClick={() => update(i, { skip: allCols.filter((col) => col !== sheet.start) })}>
+                Nur Startspalte {letter(sheet.start)}
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {lanes.length < MAX_LANES && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {laneKinds.map((kind) => (
+            <button
+              key={kind.id}
+              type="button"
+              className={cn(chip, "inline-flex items-center gap-1 [&_svg]:size-3.5")}
+              onClick={() => onChange([...lanes, { kind: kind.id, skip: [] }])}
+            >
+              <PlusIcon /> {kind.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </Panel>
   );
 }

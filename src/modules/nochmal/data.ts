@@ -56,10 +56,34 @@ export type Sheet = {
   outlines: boolean;
   // The boxes for the final score at the bottom.
   scoring: boolean;
+  // The rows of boxes under the columns, top to bottom (points first and
+  // later, the heart row, empty boxes to write in); each can leave out
+  // single columns.
+  lanes: Lane[];
   // Own pictures instead of the drawn star, golden die and diamond, and a
   // background for the card: public URLs in the nochmal-images bucket.
   art: Art;
 };
+
+// first / later: the column's points; heart: a heart to cross; blank: an
+// empty box. skip: columns that have no box in this row.
+export type LaneKind = "first" | "later" | "heart" | "blank";
+export type Lane = { kind: LaneKind; skip: number[] };
+export const laneKinds: { id: LaneKind; name: string }[] = [
+  { id: "first", name: "Punkte zuerst" },
+  { id: "later", name: "Punkte später" },
+  { id: "heart", name: "Herzen" },
+  { id: "blank", name: "Leere Kästchen" },
+];
+export const MAX_LANES = 6;
+
+// The rows of the original sheets: the two points rows, and the heart row on
+// "Noch mal so gut!".
+export const defaultLanes = (hearts: boolean): Lane[] => [
+  { kind: "first", skip: [] },
+  { kind: "later", skip: [] },
+  ...(hearts ? [{ kind: "heart" as const, skip: [] }] : []),
+];
 
 export type ArtSlot = "star" | "gold" | "diamond" | "background";
 export type Art = Partial<Record<ArtSlot, string>>;
@@ -547,6 +571,7 @@ function variantParts(variant: Variant, rows: number) {
     chips: variant.chips,
     outlines: variant.kids,
     scoring: variant.scoring,
+    lanes: defaultLanes(variant.rows),
     art: {},
   };
 }
@@ -601,6 +626,7 @@ export function emptySheet(cols: number, rows: number): Sheet {
     icons: [],
     outlines: false,
     scoring: true,
+    lanes: defaultLanes(false),
     art: {},
   };
 }
@@ -770,8 +796,24 @@ export function cleanSheet(input: unknown): Sheet {
     icons,
     outlines: raw.outlines === true,
     scoring: raw.scoring !== false,
+    lanes: cleanLanes(raw.lanes, cols, rawRows.length > 0),
     art: cleanArt(raw.art),
   };
+}
+
+// Sheets saved before lanes existed get the rows they used to show.
+function cleanLanes(value: unknown, cols: number, hearts: boolean): Lane[] {
+  if (!Array.isArray(value)) return defaultLanes(hearts);
+  return value
+    .slice(0, MAX_LANES)
+    .map((lane) => (lane && typeof lane === "object" ? (lane as Record<string, unknown>) : {}))
+    .filter((lane) => laneKinds.some((kind) => kind.id === lane.kind))
+    .map((lane) => ({
+      kind: lane.kind as LaneKind,
+      skip: [...new Set((Array.isArray(lane.skip) ? lane.skip : []).map((col) => int(col, -1, cols - 1, -1)))]
+        .filter((col) => col >= 0)
+        .sort((a, b) => a - b),
+    }));
 }
 
 // Changing the size keeps what still fits and fills new boxes with a pattern.
@@ -802,5 +844,6 @@ export function resize(sheet: Sheet, cols: number, rows: number): Sheet {
     icons,
     points: columnPoints(cols, start),
     rowBonuses: sheet.rowBonuses.length > 0 ? rowBonuses(rows) : [],
+    lanes: sheet.lanes.map((lane) => ({ ...lane, skip: lane.skip.filter((col) => col < cols) })),
   };
 }
