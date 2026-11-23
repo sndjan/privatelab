@@ -488,7 +488,7 @@ function ScoreLabel({ line, x, cy, theme, art }: { line: ScoreLine; x: number; c
           <Heart cx={iconX} cy={cy} size={6} />
         </>
       )}
-      {line.icon === "joker" && <JokerMark cx={iconX} cy={cy} size={6.6} />}
+      {line.icon === "joker" && <JokerMark cx={iconX} cy={cy} size={6.8} ink={theme.label} />}
       {line.icon === "die" &&
         (art.gold ? (
           <>
@@ -562,7 +562,7 @@ function Jokers({ x, y, count, ink }: { x: number; y: number; count: number; ink
         =
       </Label>
       {Array.from({ length: count }, (_, i) => (
-        <JokerMark key={i} cx={x + 31 + i * 9} cy={y + 5} size={7} />
+        <JokerMark key={i} cx={x + 31 + i * 9} cy={y + 5} size={8} />
       ))}
     </g>
   );

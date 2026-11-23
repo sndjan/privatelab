@@ -147,13 +147,15 @@ export function JokerTile({ kind, ...place }: Place & { kind: "number" | "color"
   );
 }
 
-// A circled "!": a joker to strike off.
-export function JokerMark(place: Place) {
+// A joker to strike off, like the original: a thin ring with nothing
+// inside, a slanted "!" wedge (wide at the top) and its dot a little to
+// the left. ink: dark on the light joker bar, light on a dark card.
+export function JokerMark({ ink = "#2c2e3a", ...place }: Place & { ink?: string }) {
   return (
     <Placed {...place}>
-      <circle cx={50} cy={50} r={45} fill="#f6f6f6" stroke="#2a2a2a" strokeWidth={6} />
-      <path d="M42 18 L58 18 L54 62 L46 62 Z" fill="#303030" stroke="#303030" strokeWidth={3} strokeLinejoin="round" />
-      <circle cx={50} cy={76} r={6.5} fill="#303030" />
+      <circle cx={50} cy={50} r={44} fill="none" stroke={ink} strokeWidth={5} />
+      <path d="M37 19 L66 19 Q69 19 68 22 L54.5 58.5 Q53.8 61 51.3 61 L44.5 61 Q42 61 41.7 58.6 L34.4 22 Q34 19 37 19 Z" fill={ink} />
+      <circle cx={46.5} cy={76.5} r={8.3} fill={ink} />
     </Placed>
   );
 }
