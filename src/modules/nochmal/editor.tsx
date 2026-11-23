@@ -21,6 +21,7 @@ import {
   type Sheet,
 } from "./data";
 import { SheetSvg } from "./sheet-svg";
+import { CartoonDiamond, GoldenDie, StarOutline } from "./symbols";
 import { display, Heading, Panel, Stepper } from "./ui";
 
 type Mark = "stars" | "gold" | "diamonds";
@@ -307,21 +308,15 @@ const historyButton =
   "flex size-[46px] cursor-pointer items-center justify-center rounded-xl border border-(--nm-line-strong) bg-(--nm-field) text-(--nm-text-soft) hover:bg-(--nm-hover) disabled:cursor-default disabled:text-(--nm-faint) [&_svg]:size-5";
 
 function MarkIcon({ mark }: { mark: Mark }) {
-  if (mark === "gold")
-    return (
-      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="3" y="3" width="18" height="18" rx="5" fill="#e3a640" stroke="#9a6418" strokeWidth="1.4" />
-      </svg>
-    );
-  if (mark === "diamonds")
-    return (
-      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 2l8 8-8 12-8-12z" fill="#ffffff" />
-      </svg>
-    );
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 2.6l2.8 5.9 6.4.8-4.7 4.4 1.2 6.3L12 17l-5.7 3 1.2-6.3-4.7-4.4 6.4-.8z" fill="#ffffff" />
+    <svg width="22" height="22" viewBox="0 0 100 100" aria-hidden="true">
+      {mark === "gold" ? (
+        <GoldenDie cx={50} cy={50} size={100} />
+      ) : mark === "diamonds" ? (
+        <CartoonDiamond cx={50} cy={50} size={100} />
+      ) : (
+        <StarOutline cx={50} cy={50} size={92} />
+      )}
     </svg>
   );
 }
