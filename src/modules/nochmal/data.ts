@@ -92,18 +92,23 @@ export function defaultLanes(sogut: boolean, start: number): Lane[] {
   ];
 }
 
-export type ThemeId = "original" | "hunde" | "tennis" | "yoga" | "whisky";
+export type ThemeId = "original" | "hunde" | "tennis" | "yoga" | "whisky" | "eigenes";
 export const themes: { id: ThemeId; name: string }[] = [
   { id: "original", name: "Original" },
   { id: "hunde", name: "Hunde" },
   { id: "tennis", name: "Tennis" },
   { id: "yoga", name: "Yoga" },
   { id: "whisky", name: "Whisky" },
+  // Own pictures (art) for the box, star, heart, bomb and diamond; slots
+  // without a picture show the original symbol.
+  { id: "eigenes", name: "Eigenes" },
 ];
 
-export type ArtSlot = "star" | "gold" | "diamond" | "background";
+export type ArtSlot = "star" | "gold" | "heart" | "bomb" | "diamond" | "background";
 export type Art = Partial<Record<ArtSlot, string>>;
-export const artSlots: ArtSlot[] = ["star", "gold", "diamond", "background"];
+export const artSlots: ArtSlot[] = ["star", "gold", "heart", "bomb", "diamond", "background"];
+// The slots that belong to the "eigenes" theme (the background works with any theme).
+export const symbolSlots: ArtSlot[] = ["gold", "star", "heart", "bomb", "diamond"];
 export const EMPTY = -1;
 
 export const IMAGE_BUCKET = "nochmal-images";
@@ -825,9 +830,18 @@ export function cleanSheet(input: unknown): Sheet {
     outlines: raw.outlines === true,
     scoring: raw.scoring !== false,
     lanes: cleanLanes(raw.lanes, cols, rawRows.length > 0, start),
-    theme: themes.find((theme) => theme.id === raw.theme)?.id ?? "original",
+    theme: cleanTheme(raw),
     art: cleanArt(raw.art),
   };
+}
+
+// Sheets saved before themes existed but with own symbol pictures keep them
+// as the "eigenes" theme.
+function cleanTheme(raw: Record<string, unknown>): ThemeId {
+  const known = themes.find((theme) => theme.id === raw.theme);
+  if (known) return known.id;
+  const art = cleanArt(raw.art);
+  return symbolSlots.some((slot) => art[slot]) ? "eigenes" : "original";
 }
 
 // Sheets saved before lanes existed get the rows they used to show.

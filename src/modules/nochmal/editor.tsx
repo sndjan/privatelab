@@ -176,11 +176,13 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
       active ? "border-[#ff9a2e] bg-(--nm-chosen)" : "border-(--nm-line) bg-(--nm-field) hover:border-(--nm-line-hover)",
     );
   const set = (patch: Partial<Sheet>) => commit({ ...sheet, ...patch });
-  const artSlots: ArtSlot[] = [
+  // The own theme's slots: the box, heart and bomb only where the game has them.
+  const sogut = sheet.variant === "sogut";
+  const ownSlots: ArtSlot[] = [
+    ...(marks[1].show(sheet) || sheet.art.gold ? (["gold"] as const) : []),
     "star",
-    ...(marks[1].show(sheet) ? (["gold"] as const) : []),
-    ...(marks[2].show(sheet) ? (["diamond"] as const) : []),
-    "background",
+    ...(sogut || sheet.art.heart ? (["heart", "bomb"] as const) : []),
+    ...(marks[2].show(sheet) || sheet.art.diamond ? (["diamond"] as const) : []),
   ];
 
   return (
@@ -299,11 +301,27 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
           )}
         </Panel>
 
-        <ThemePanel value={sheet.theme} onChange={(theme) => set({ theme })} />
+        <ThemePanel value={sheet.theme} art={sheet.art} onChange={(theme) => set({ theme })} />
+
+        {sheet.theme === "eigenes" && (
+          <ArtPanel
+            sheet={sheet}
+            slots={ownSlots}
+            title="Eigenes Theme"
+            hint="Für jedes Symbol ein Foto hochladen und zuschneiden oder selbst zeichnen. Ohne Bild bleibt das Original-Symbol."
+            onChange={(next) => commit(next)}
+          />
+        )}
 
         <LanesPanel sheet={sheet} onChange={(lanes) => set({ lanes })} />
 
-        <ArtPanel sheet={sheet} slots={artSlots} onChange={(next) => commit(next)} />
+        <ArtPanel
+          sheet={sheet}
+          slots={["background"]}
+          title="Hintergrund"
+          hint="Ein eigenes Bild hinter den Kästchen, passt zu jedem Theme."
+          onChange={(next) => commit(next)}
+        />
       </aside>
     </div>
   );
@@ -327,7 +345,9 @@ function MarkIcon({ mark, theme }: { mark: Mark; theme: ThemeId }) {
 }
 
 // Themes swap the box, star, heart and bomb of the whole sheet (themes.tsx).
-function ThemePanel({ value, onChange }: { value: ThemeId; onChange: (theme: ThemeId) => void }) {
+function ThemePanel({ value, art, onChange }: { value: ThemeId; art: Sheet["art"]; onChange: (theme: ThemeId) => void }) {
+  // "Eigenes" previews the uploaded pictures (an empty dashed square for a slot without one).
+  const own = (["gold", "star", "heart", "bomb"] as const).map((slot, i) => ({ slot, url: art[slot], x: 50 + i * 100 }));
   return (
     <Panel>
       <Heading className="mb-3">Theme</Heading>
@@ -335,11 +355,23 @@ function ThemePanel({ value, onChange }: { value: ThemeId; onChange: (theme: The
         {themes.map((theme) => (
           <Choice key={theme.id} active={value === theme.id} onClick={() => onChange(theme.id)} className="items-center gap-1.5">
             <svg viewBox="0 0 400 100" className="h-8 w-32 rounded-md bg-[#cfd3d7]" aria-hidden="true">
-              <ThemedBox theme={theme.id} cx={50} cy={50} size={80} />
-              <rect x={115} y={12} width={76} height={76} rx={12} fill="#ef3f80" stroke="#16191c" strokeWidth={3} />
-              <ThemedStar theme={theme.id} cx={153} cy={50} size={62} />
-              <ThemedHeart theme={theme.id} cx={250} cy={52} size={80} />
-              <ThemedBomb theme={theme.id} cx={350} cy={50} size={84} />
+              {theme.id === "eigenes" ? (
+                own.map(({ slot, url, x }) =>
+                  url ? (
+                    <image key={slot} href={url} x={x - 40} y={10} width={80} height={80} preserveAspectRatio="xMidYMid meet" />
+                  ) : (
+                    <rect key={slot} x={x - 32} y={18} width={64} height={64} rx={12} fill="none" stroke="#7d848b" strokeWidth={5} strokeDasharray="10 8" />
+                  ),
+                )
+              ) : (
+                <>
+                  <ThemedBox theme={theme.id} cx={50} cy={50} size={80} />
+                  <rect x={115} y={12} width={76} height={76} rx={12} fill="#ef3f80" stroke="#16191c" strokeWidth={3} />
+                  <ThemedStar theme={theme.id} cx={153} cy={50} size={62} />
+                  <ThemedHeart theme={theme.id} cx={250} cy={52} size={80} />
+                  <ThemedBomb theme={theme.id} cx={350} cy={50} size={84} />
+                </>
+              )}
             </svg>
             <span className="text-sm font-extrabold">{theme.name}</span>
           </Choice>

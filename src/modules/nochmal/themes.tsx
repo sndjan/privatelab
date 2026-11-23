@@ -109,7 +109,7 @@ function boxDrawing(theme: ThemeId, id: string): ReactNode {
 // the special die that is free at the start.
 export function ThemedBox({ theme, ringed, ...place }: Place & { theme: ThemeId; ringed?: boolean }) {
   const id = useId();
-  if (theme === "original") return <GoldenDie {...place} ringed={ringed} />;
+  if (theme === "original" || theme === "eigenes") return <GoldenDie {...place} ringed={ringed} />;
   const drawing = boxDrawing(theme, id);
   return (
     <Placed {...place}>
@@ -174,7 +174,7 @@ export function ThemedStar({
   solid,
   ...place
 }: Place & { theme: ThemeId; edge?: string; solid?: boolean }) {
-  if (theme === "original") return solid ? <StarSolid {...place} edge={edge} /> : <StarOutline {...place} edge={edge} />;
+  if (theme === "original" || theme === "eigenes") return solid ? <StarSolid {...place} edge={edge} /> : <StarOutline {...place} edge={edge} />;
   return (
     <Placed {...place}>
       <g fill="none" stroke={edge} strokeWidth={solid ? 7.5 : 7} strokeLinejoin="round" strokeLinecap="round">
@@ -245,7 +245,7 @@ function ColouredHeart({ id, fill, shade, ink, pale, strings }: { id: string; fi
 
 export function ThemedHeart({ theme, pale, ...place }: Place & { theme: ThemeId; pale?: boolean }) {
   const id = useId();
-  if (theme === "original") return <CartoonHeart {...place} pale={pale} />;
+  if (theme === "original" || theme === "eigenes") return <CartoonHeart {...place} pale={pale} />;
   let drawing: ReactNode = null;
   if (theme === "hunde") {
     drawing = pale ? (
@@ -285,7 +285,7 @@ export function ThemedHeart({ theme, pale, ...place }: Place & { theme: ThemeId;
 
 export function ThemedBomb({ theme, ...place }: Place & { theme: ThemeId }) {
   const id = useId();
-  if (theme === "original") return <CartoonBomb {...place} />;
+  if (theme === "original" || theme === "eigenes") return <CartoonBomb {...place} />;
   let drawing: ReactNode = null;
   if (theme === "hunde")
     drawing = (
