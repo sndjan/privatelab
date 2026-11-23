@@ -52,7 +52,9 @@ export function NochmalApp() {
 // --- Start page ----------------------------------------------------------------
 
 function Home() {
-  const { data: sheets } = useSuspenseQuery(dataQuery("nochmal", "list"));
+  const { data: all } = useSuspenseQuery(dataQuery("nochmal", "list"));
+  const sheets = all.filter((entry) => entry.mine);
+  const others = all.filter((entry) => !entry.mine);
 
   return (
     <Table>
@@ -69,6 +71,11 @@ function Home() {
             <a href="#meine" className="rounded-full bg-(--nm-chip) px-4 py-2.5 font-bold text-(--nm-text-soft) hover:bg-(--nm-hover)">
               Meine Blätter
             </a>
+            {others.length > 0 && (
+              <a href="#andere" className="rounded-full bg-(--nm-chip) px-4 py-2.5 font-bold text-(--nm-text-soft) hover:bg-(--nm-hover)">
+                Von anderen
+              </a>
+            )}
             <a href="#regeln" className="rounded-full bg-(--nm-chip) px-4 py-2.5 font-bold text-(--nm-text-soft) hover:bg-(--nm-hover)">
               Kurzregeln
             </a>
@@ -99,6 +106,22 @@ function Home() {
           )}
         </section>
 
+        {others.length > 0 && (
+          <section id="andere" className="mt-12 scroll-mt-6">
+            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+              <Heading className="text-3xl">Von anderen</Heading>
+              <Muted>Ansehen, drucken oder als Kopie zu deinen Blättern holen</Muted>
+            </div>
+            <ul className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+              {others.map((entry) => (
+                <li key={entry.id}>
+                  <SheetCard entry={entry} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <Rules />
       </div>
     </Table>
@@ -119,6 +142,7 @@ function SheetCard({ entry }: { entry: SheetEntry }) {
         <div className="min-w-0">
           <p className={cn(display, "truncate text-lg")}>{entry.name}</p>
           <p className="text-[13px] font-bold text-(--nm-muted)">
+            {!entry.mine && entry.author && `${entry.author} · `}
             {entry.sheet.cols} × {entry.sheet.rows} · {new Date(entry.updatedAt).toLocaleDateString("de-DE")}
           </p>
         </div>
@@ -351,7 +375,7 @@ function SheetView({ id }: { id: string }) {
       </Table>
     );
   }
-  return <SheetScreen id={id} initialName={entry.name} initialSheet={entry.sheet} />;
+  return <SheetScreen id={id} initialName={entry.name} initialSheet={entry.sheet} mine={entry.mine} author={entry.author} />;
 }
 
 function BackLink() {
@@ -362,12 +386,26 @@ function BackLink() {
   );
 }
 
-function SheetScreen({ id, initialName, initialSheet }: { id: string; initialName: string; initialSheet: Sheet }) {
+// Someone else's sheet (mine false) is only shown and printed; "Kopie für
+// mich" makes an own one to change.
+function SheetScreen({
+  id,
+  initialName,
+  initialSheet,
+  mine,
+  author,
+}: {
+  id: string;
+  initialName: string;
+  initialSheet: Sheet;
+  mine: boolean;
+  author: string;
+}) {
   const queryClient = useQueryClient();
   const navigate = useViewNavigate();
   const [sheet, setSheet] = useState(initialSheet);
   const [name, setName] = useState(initialName);
-  const [tab, setTab] = useState<Tab>("edit");
+  const [tab, setTab] = useState<Tab>(mine ? "edit" : "print");
   const [perPage, setPerPage] = useState<PerPage>("2");
   const [copies, setCopies] = useState(6);
   const [status, setStatus] = useState<"saved" | "pending" | "saving" | "error">("saved");
@@ -441,18 +479,24 @@ function SheetScreen({ id, initialName, initialSheet }: { id: string; initialNam
         <div className="mx-auto flex max-w-[1320px] flex-col gap-5">
           <div className="flex flex-wrap items-center gap-2.5">
             <BackLink />
-            <span className="ml-auto flex items-center gap-1.5 text-[13px] font-extrabold" aria-live="polite">
-              <span className={cn("size-2 rounded-full", status === "saved" ? "bg-[#8cc63f]" : status === "error" ? "bg-[#ff4d4d]" : "bg-[#ffcf2e]")} />
-              <span className={status === "saved" ? "text-(--nm-ok)" : status === "error" ? "text-(--nm-danger)" : "text-(--nm-warn)"}>
-                {status === "saved" ? "Gespeichert" : status === "error" ? "Speichern fehlgeschlagen, versuche es weiter …" : "Speichert …"}
+            {mine ? (
+              <span className="ml-auto flex items-center gap-1.5 text-[13px] font-extrabold" aria-live="polite">
+                <span className={cn("size-2 rounded-full", status === "saved" ? "bg-[#8cc63f]" : status === "error" ? "bg-[#ff4d4d]" : "bg-[#ffcf2e]")} />
+                <span className={status === "saved" ? "text-(--nm-ok)" : status === "error" ? "text-(--nm-danger)" : "text-(--nm-warn)"}>
+                  {status === "saved" ? "Gespeichert" : status === "error" ? "Speichern fehlgeschlagen, versuche es weiter …" : "Speichert …"}
+                </span>
               </span>
-            </span>
+            ) : (
+              <span className="ml-auto text-[13px] font-extrabold text-(--nm-muted)">{author ? `Von ${author} · ` : ""}nur ansehen</span>
+            )}
             <SmallButton onClick={duplicate}>
-              <CopyIcon /> Kopie
+              <CopyIcon /> {mine ? "Kopie" : "Kopie für mich"}
             </SmallButton>
-            <SmallButton onClick={remove} className="text-(--nm-danger)">
-              <Trash2Icon /> Löschen
-            </SmallButton>
+            {mine && (
+              <SmallButton onClick={remove} className="text-(--nm-danger)">
+                <Trash2Icon /> Löschen
+              </SmallButton>
+            )}
             <BigButton className="h-11 px-5 text-base" onClick={() => setTab("print")}>
               <PrinterIcon /> Drucken
             </BigButton>
@@ -463,6 +507,7 @@ function SheetScreen({ id, initialName, initialSheet }: { id: string; initialNam
               aria-label="Name"
               value={name}
               maxLength={80}
+              readOnly={!mine}
               onChange={(event) => {
                 dirty.current = true;
                 setName(event.target.value);
@@ -477,7 +522,7 @@ function SheetScreen({ id, initialName, initialSheet }: { id: string; initialNam
             </span>
           </div>
 
-          <div role="tablist" className="flex max-w-lg gap-1 rounded-xl bg-(--nm-panel) p-1">
+          <div role="tablist" className={cn("flex max-w-lg gap-1 rounded-xl bg-(--nm-panel) p-1", !mine && "hidden")}>
             {tabs.map((entry) => (
               <button
                 key={entry.id}
@@ -495,8 +540,8 @@ function SheetScreen({ id, initialName, initialSheet }: { id: string; initialNam
             ))}
           </div>
 
-          {tab === "edit" && <SheetEditor sheet={sheet} onChange={change} />}
-          {tab === "generate" && (
+          {mine && tab === "edit" && <SheetEditor sheet={sheet} onChange={change} />}
+          {mine && tab === "generate" && (
             <Regenerate
               sheet={sheet}
               onApply={(next) => {

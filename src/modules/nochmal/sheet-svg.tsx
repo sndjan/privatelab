@@ -1,5 +1,8 @@
 import { useId, type PointerEvent, type ReactNode, type Ref, type SVGProps } from "react";
 import { blocksOf, colors, EMPTY, letter, rowLetter, type RowBonus, type Sheet } from "./data";
+import { CartoonDiamond, JokerMark, JokerTile } from "./symbols";
+import { ThemedBomb, ThemedBox, ThemedHeart, ThemedStar } from "./themes";
+import type { ThemeId } from "./data";
 
 // The score sheet as SVG, in the look of the game's own sheets: a card with
 // white letter tiles (the start column's letter red and the column framed),
@@ -10,6 +13,7 @@ import { blocksOf, colors, EMPTY, letter, rowLetter, type RowBonus, type Sheet }
 // diamonds, a pass bar and X-chips; Kids framed enclosures with animals.
 // Own pictures (sheet.art) replace the star, golden die and diamond, and can
 // fill the card's background. Boxes without a colour yet are drawn dashed.
+// The rows of boxes under the columns are set per sheet (sheet.lanes).
 // Units: one box is 10. Fixed colours (it is a picture).
 
 const U = 10;
@@ -20,29 +24,37 @@ const red = "#e5333b";
 // Outline colour of marks on a box without a colour.
 const blank = { edge: "#6f7881" };
 
-type Theme = { card: string; tile: string; ink: string; label: string; line: string };
+type Theme = { card: string; tile: string; ink: string; label: string; line: string; starEdge: string };
 
 const themes: Record<Sheet["variant"], Theme> = {
-  klassisch: { card: "#1d2125", tile: "#ffffff", ink: "#1d2125", label: "#ffffff", line: "rgba(255,255,255,0.5)" },
-  sogut: { card: "#cfd3d7", tile: "#ffffff", ink: "#22262a", label: "#4b5157", line: "rgba(34,38,42,0.45)" },
-  xmal: { card: "#262b4a", tile: "#ffffff", ink: "#1f2340", label: "#ffffff", line: "rgba(255,255,255,0.5)" },
-  kids: { card: "#fff4d6", tile: "#ffffff", ink: "#3a2a12", label: "#3a2a12", line: "rgba(58,42,18,0.4)" },
+  klassisch: { card: "#1d2125", tile: "#ffffff", ink: "#1d2125", label: "#ffffff", line: "rgba(255,255,255,0.5)", starEdge: "#ffffff" },
+  sogut: { card: "#cfd3d7", tile: "#ffffff", ink: "#22262a", label: "#4b5157", line: "rgba(34,38,42,0.45)", starEdge: "#ffffff" },
+  xmal: { card: "#262b4a", tile: "#ffffff", ink: "#1f2340", label: "#ffffff", line: "rgba(255,255,255,0.5)", starEdge: "#ffffff" },
+  kids: { card: "#fff4d6", tile: "#ffffff", ink: "#3a2a12", label: "#3a2a12", line: "rgba(58,42,18,0.4)", starEdge: "#3a2a12" },
 };
 
-type ScoreLine = { label: string; sign: string; tone: "plain" | "plus" | "minus" };
+// A line of the final score: a label, or a symbol like on the original
+// sheet (heart in a box, circled joker and special die, star) with the points
+// per piece.
+type ScoreLine = {
+  label: string;
+  icon?: "bonus" | "heart" | "joker" | "die" | "star" | "diamond";
+  sign: string;
+  tone: "plain" | "plus" | "minus";
+};
 
 function scoreLines(sheet: Sheet): ScoreLine[] {
   const lines: ScoreLine[] = [
-    { label: "BONUS", sign: "=", tone: "plain" },
+    { label: "BONUS", icon: "bonus", sign: "=", tone: "plain" },
     { label: `${letter(0)}–${letter(sheet.cols - 1)}`, sign: "+", tone: "plus" },
   ];
   if (sheet.rowBonuses.length > 0)
     lines.push({ label: `${rowLetter(sheet, 0)}–${rowLetter(sheet, sheet.rows - 1)}`, sign: "+", tone: "plus" });
-  if (sheet.hearts > 0) lines.push({ label: "♥", sign: "+", tone: "plus" });
-  if (sheet.jokers > 0) lines.push({ label: "! (+1)", sign: "+", tone: "plus" });
-  if (sheet.specials > 0) lines.push({ label: "Würfel (+2)", sign: "+", tone: "plus" });
-  if (sheet.diamonds.length > 0) lines.push({ label: "◆", sign: "+", tone: "plus" });
-  if (sheet.stars.length > 0) lines.push({ label: `★ (−${sheet.starPenalty})`, sign: "−", tone: "minus" });
+  if (sheet.hearts > 0) lines.push({ label: "", icon: "heart", sign: "+", tone: "plus" });
+  if (sheet.jokers > 0) lines.push({ label: "(+1)", icon: "joker", sign: "+", tone: "plus" });
+  if (sheet.specials > 0) lines.push({ label: "(+2)", icon: "die", sign: "+", tone: "plus" });
+  if (sheet.diamonds.length > 0) lines.push({ label: "", icon: "diamond", sign: "+", tone: "plus" });
+  if (sheet.stars.length > 0) lines.push({ label: `(−${sheet.starPenalty})`, icon: "star", sign: "−", tone: "minus" });
   return lines;
 }
 
@@ -58,12 +70,10 @@ export function sheetLayout(sheet: Sheet) {
   const panelW = 40;
   const width = panelX + panelW + pad;
 
-  // Below the grid: points rows (and the heart row), jokers, special dice, pass bar.
-  const firstY = gridY + gridH + 1.4;
-  const laterY = firstY + 9;
-  let y = laterY + 9;
-  const heartRowY = so ? y : null;
-  if (so) y += 9;
+  // Below the grid: the rows of boxes (points, hearts, empty boxes), jokers,
+  // special dice, pass bar.
+  const lanesY = gridY + gridH + 1.4;
+  let y = lanesY + sheet.lanes.length * 9;
   const jokerY = sheet.jokers > 0 ? y + 2 : null;
   if (jokerY !== null) y = jokerY + 10;
   const specialsY = sheet.specials > 0 ? y + 2 : null;
@@ -79,7 +89,7 @@ export function sheetLayout(sheet: Sheet) {
   const leftBottom = so ? gridY + gridH + 1.4 + sheet.hearts * 10 : 0;
 
   const height = Math.max(y, panelBottom, leftBottom) + pad;
-  return { pad, gridX, gridY, gridW, gridH, panelX, panelW, firstY, laterY, heartRowY, jokerY, specialsY, passY, bonusY, scoreY, width, height, scoreRows, so };
+  return { pad, gridX, gridY, gridW, gridH, panelX, panelW, lanesY, jokerY, specialsY, passY, bonusY, scoreY, width, height, scoreRows, so };
 }
 
 export function SheetSvg({
@@ -89,6 +99,7 @@ export function SheetSvg({
   highlight,
   onCellDown,
   onHeaderDown,
+  onLaneDown,
   ...props
 }: {
   sheet: Sheet;
@@ -98,6 +109,9 @@ export function SheetSvg({
   highlight?: Set<number>;
   onCellDown?: (cell: number, event: PointerEvent) => void;
   onHeaderDown?: (col: number, event: PointerEvent) => void;
+  // Editing: tapping a place in a row of boxes adds or removes its box (left
+  // out boxes are shown dashed then).
+  onLaneDown?: (lane: number, col: number, event: PointerEvent) => void;
 } & SVGProps<SVGSVGElement>) {
   const theme = themes[sheet.variant];
   const L = sheetLayout(sheet);
@@ -144,6 +158,10 @@ export function SheetSvg({
         </g>
       ))}
 
+      {/* Black behind the grid, so the corners where four boxes meet are
+          black too (the boxes' own frames draw the lines). */}
+      <rect x={L.gridX} y={L.gridY} width={L.gridW} height={L.gridH} rx={2.1} fill="#16191c" />
+
       {/* The boxes. */}
       {sheet.cells.map((value, cell) => {
         const col = cell % sheet.cols;
@@ -169,13 +187,26 @@ export function SheetSvg({
               />
             ) : (
               <>
-                <rect x={x} y={y} width={T} height={T} rx={1.7} fill={colors[value].fill} />
+                {/* Every box has its own black frame, like the original: neighbours'
+                    frames lie on top of each other, so every line is equally
+                    thick, and where four boxes meet the round corners leave a
+                    small notch. */}
+                <rect
+                  x={L.gridX + col * U}
+                  y={L.gridY + row * U}
+                  width={U}
+                  height={U}
+                  rx={2.1}
+                  fill={colors[value].fill}
+                  stroke="#16191c"
+                  strokeWidth={0.8}
+                />
                 <circle cx={x + T / 2} cy={y + T / 2} r={T * 0.3} fill="#ffffff" fillOpacity={0.22} />
               </>
             )}
-            {stars.has(cell) && !icon && <Star cx={x + T / 2} cy={y + T / 2 + 0.2} r={3.6} edge={color.edge} image={art.star} />}
-            {stars.has(cell) && icon && <Star cx={x + T - 2.2} cy={y + 2.2} r={1.9} edge={color.edge} image={art.star} />}
-            {gold.has(cell) && <GoldDie x={x + T / 2} y={y + T / 2} size={6.2} image={art.gold} />}
+            {stars.has(cell) && !icon && <Star cx={x + T / 2} cy={y + T / 2 + 0.2} r={3.6} edge={value === EMPTY ? color.edge : "#ffffff"} image={art.star} theme={sheet.theme} />}
+            {stars.has(cell) && icon && <Star cx={x + T - 2.2} cy={y + 2.2} r={1.9} edge={value === EMPTY ? color.edge : "#ffffff"} image={art.star} theme={sheet.theme} />}
+            {gold.has(cell) && <GoldDie x={x + T / 2} y={y + T / 2} size={6.2} image={art.gold} theme={sheet.theme} />}
             {diamonds.has(cell) && <Diamond cx={x + T / 2} cy={y + T / 2} r={3.4} edge={color.edge} image={art.diamond} />}
             {icon && (
               <text x={x + T / 2} y={y + T / 2 + 0.4} fontSize={5.6} textAnchor="middle" dominantBaseline="middle" fontFamily="system-ui">
@@ -191,18 +222,22 @@ export function SheetSvg({
 
       {sheet.outlines && <Outlines sheet={sheet} x={L.gridX} y={L.gridY} />}
 
-      {/* The start column framed in white. */}
-      <rect
-        x={startX + 0.15}
-        y={L.gridY + 0.15}
-        width={U - 0.3}
-        height={L.gridH - 0.3}
-        rx={2}
-        fill="none"
-        stroke="#ffffff"
-        strokeWidth={0.9}
-        pointerEvents="none"
-      />
+      {/* The start column: its boxes' own frames are white instead of
+          black (drawn over the neighbours' frames, which share the line). */}
+      {Array.from({ length: sheet.rows }, (_, row) => (
+        <rect
+          key={row}
+          x={startX}
+          y={L.gridY + row * U}
+          width={U}
+          height={U}
+          rx={2.1}
+          fill="none"
+          stroke="#ffffff"
+          strokeWidth={0.8}
+          pointerEvents="none"
+        />
+      ))}
 
       {/* Rows P–V with their bonuses, and the heart column (Noch mal so gut!). */}
       {L.so &&
@@ -215,7 +250,7 @@ export function SheetSvg({
                 {sheet.rowScore}
               </Label>
               <Tile x={L.pad + 8.6} y={y} w={T} h={T} fill={theme.tile} />
-              <RowBonusIcon kind={bonus} cx={L.pad + 8.6 + T / 2} cy={y + T / 2} gold={art.gold} />
+              <RowBonusIcon kind={bonus} cx={L.pad + 8.6 + T / 2} cy={y + T / 2} gold={art.gold} theme={sheet.theme} />
               <Tile x={L.gridX + L.gridW + 1} y={y} w={7.8} h={T} fill={theme.tile} />
               <Label x={L.gridX + L.gridW + 4.9} y={y + T / 2} size={5.4} fill={theme.ink}>
                 {rowLetter(sheet, row)}
@@ -229,46 +264,110 @@ export function SheetSvg({
           const cy = L.gridY + L.gridH + 6 + i * 10;
           return (
             <g key={i}>
-              <Heart cx={cx} cy={cy} size={9.4} fill={red} stroke="#ffffff" />
-              <Label x={cx} y={cy - 0.4} size={4.4} fill="#ffffff">
+              <Heart cx={cx} cy={cy} size={9.4} theme={sheet.theme} />
+              {/* On bones (Hunde) the dark number gets a thin edge in the bone's
+                  colour, so it keeps a little distance from the outline. */}
+              <text
+                x={cx - 0.15}
+                y={cy + 0.15 + 4.4 * 0.06}
+                fontSize={4.4}
+                fill={sheet.theme === "hunde" ? "#4a3418" : "#ffffff"}
+                stroke={sheet.theme === "hunde" ? "#f3e6c8" : "none"}
+                strokeWidth={0.9}
+                strokeLinejoin="round"
+                paintOrder="stroke"
+                textAnchor="middle"
+                dominantBaseline="middle"
+              >
                 {i + 1}
-              </Label>
+              </text>
             </g>
           );
         })}
 
-      {/* Points for completed columns: first / later (and the heart row). */}
-      {sheet.points.map(([first, later], col) => (
-        <g key={col}>
-          <Tile x={at(col)} y={L.firstY} w={T} h={8} fill={theme.tile} />
-          <Label x={at(col) + T / 2} y={L.firstY + 4} size={5.6} fill={col === sheet.start ? red : theme.ink}>
-            {first}
-          </Label>
-          <Tile x={at(col)} y={L.laterY} w={T} h={8} fill={theme.tile} />
-          <Label x={at(col) + T / 2} y={L.laterY + 4} size={5.6} fill={col === sheet.start ? red : theme.ink}>
-            {later}
-          </Label>
-          {L.heartRowY !== null && (
-            <>
-              <Tile x={at(col)} y={L.heartRowY} w={T} h={8} fill={theme.tile} />
-              <Heart cx={at(col) + T / 2} cy={L.heartRowY + 4} size={6} fill="#f7b9bd" />
-            </>
-          )}
-        </g>
-      ))}
+      {/* Rows of boxes under the columns: points for completed columns
+          (first / later), the heart row, empty boxes. */}
+      {sheet.lanes.map((lane, i) => {
+        const y = L.lanesY + i * 9;
+        const skip = new Set(lane.skip);
+        return (
+          <g key={i}>
+            {Array.from({ length: sheet.cols }, (_, col) => {
+              const down = onLaneDown && ((event: PointerEvent) => onLaneDown(i, col, event));
+              if (skip.has(col)) {
+                if (!onLaneDown) return null;
+                return (
+                  <rect
+                    key={col}
+                    x={at(col) + 0.25}
+                    y={y + 0.25}
+                    width={T - 0.5}
+                    height={7.5}
+                    rx={1.5}
+                    fill={theme.tile}
+                    fillOpacity={0.08}
+                    stroke={theme.label}
+                    strokeOpacity={0.45}
+                    strokeWidth={0.4}
+                    strokeDasharray="1.1 0.9"
+                    className="cursor-pointer"
+                    onPointerDown={down}
+                  />
+                );
+              }
+              const golden = lane.gold.includes(col);
+              const ink = col === sheet.start || golden ? red : theme.ink;
+              return (
+                <g key={col} onPointerDown={down} className={onLaneDown ? "cursor-pointer" : undefined}>
+                  <Tile x={at(col)} y={y} w={T} h={8} fill={theme.tile} />
+                  {golden && <GoldDie x={at(col) + T / 2} y={y + 4} size={6.4} image={art.gold} theme={sheet.theme} />}
+                  {golden && (lane.kind === "first" || lane.kind === "later") && (
+                    <text
+                      x={at(col) + T / 2}
+                      y={y + 4.35}
+                      fontSize={5.6}
+                      fill={red}
+                      stroke="#ffffff"
+                      strokeWidth={0.7}
+                      strokeLinejoin="round"
+                      paintOrder="stroke"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      pointerEvents="none"
+                    >
+                      {sheet.points[col][lane.kind === "first" ? 0 : 1]}
+                    </text>
+                  )}
+                  {!golden && lane.kind === "first" && (
+                    <Label x={at(col) + T / 2} y={y + 4} size={5.6} fill={ink}>
+                      {sheet.points[col][0]}
+                    </Label>
+                  )}
+                  {!golden && lane.kind === "later" && (
+                    <Label x={at(col) + T / 2} y={y + 4} size={5.6} fill={ink}>
+                      {sheet.points[col][1]}
+                    </Label>
+                  )}
+                  {lane.kind === "heart" && !golden && <Heart cx={at(col) + T / 2} cy={y + 4} size={6} pale theme={sheet.theme} />}
+                </g>
+              );
+            })}
+          </g>
+        );
+      })}
 
-      {/* Jokers: ? / ✖ = ! ! ! … */}
+      {/* Jokers: ? / X = ! ! ! … */}
       {L.jokerY !== null && <Jokers x={at(0)} y={L.jokerY} count={sheet.jokers} ink={theme.ink} />}
 
       {/* Special dice (Noch mal so gut!): the first is circled at the start. */}
       {L.specialsY !== null &&
         Array.from({ length: sheet.specials }, (_, i) => {
-          const cx = at(0) + 4.6 + i * 10.4;
-          const cy = L.specialsY! + 4.6;
+          const cx = at(0) + 5.4 + i * 10.4 + (i > 0 ? 1.4 : 0);
+          const cy = L.specialsY! + 5;
           return (
             <g key={i}>
-              {i === 0 && <circle cx={cx} cy={cy} r={4.9} fill="none" stroke={theme.ink} strokeWidth={0.7} />}
-              <GoldDie x={cx} y={cy} size={6.6} image={art.gold} />
+              {i === 0 && <circle cx={cx} cy={cy} r={5.4} fill="none" stroke="#7d7d7d" strokeWidth={0.55} />}
+              <GoldDie x={cx} y={cy} size={6.6} image={art.gold} theme={sheet.theme} />
             </g>
           );
         })}
@@ -298,11 +397,11 @@ export function SheetSvg({
         return (
           <g key={c}>
             <Tile x={x} y={y} w={7.8} h={7.8} fill={color.fill} />
-            <Label x={x + 3.9} y={y + 3.9} size={5.4} fill={color.ink}>
+            <Label x={x + 3.9} y={y + 3.9} size={5.4} fill={color.edge}>
               {sheet.bonus[0]}
             </Label>
-            <Tile x={x + 8.6} y={y} w={7.8} h={7.8} fill={color.soft} />
-            <Label x={x + 12.5} y={y + 3.9} size={5.4} fill={color.ink}>
+            <Tile x={x + 8.6} y={y} w={7.8} h={7.8} fill={color.fill} />
+            <Label x={x + 12.5} y={y + 3.9} size={5.4} fill={color.edge}>
               {sheet.bonus[1]}
             </Label>
           </g>
@@ -316,9 +415,7 @@ export function SheetSvg({
             const y = L.scoreY + i * 9.4;
             return (
               <g key={i}>
-                <text x={panelRight - 21.5} y={y + 4.2} fontSize={3.9} fill={theme.label} textAnchor="end" dominantBaseline="middle">
-                  {line.label}
-                </text>
+                <ScoreLabel line={line} x={panelRight - 21.5} cy={y + 4} theme={theme} art={art} symbols={sheet.theme} />
                 <Tile x={panelRight - 20} y={y} w={20} h={8} fill={theme.tile} />
                 <text
                   x={panelRight - 18.2}
@@ -381,6 +478,65 @@ export function SheetSvg({
   );
 }
 
+function ScoreLabel({
+  line,
+  x,
+  cy,
+  theme,
+  art,
+  symbols,
+}: {
+  line: ScoreLine;
+  x: number;
+  cy: number;
+  theme: Theme;
+  art: Sheet["art"];
+  symbols: ThemeId;
+}) {
+  if (line.icon === "bonus") {
+    // BONUS in the five colours, like the original.
+    return (
+      <text x={x} y={cy + 0.2} fontSize={4.6} textAnchor="end" dominantBaseline="middle" stroke="#ffffff" strokeWidth={0.5} paintOrder="stroke">
+        {"BONUS".split("").map((char, i) => (
+          <tspan key={i} fill={colors[i % colors.length].edge}>
+            {char}
+          </tspan>
+        ))}
+      </text>
+    );
+  }
+  // Symbol right-aligned, the points per piece left of the box.
+  const textX = x;
+  const iconX = line.label ? x - 13 : x - 3.8;
+  return (
+    <g>
+      {line.label && (
+        <text x={textX} y={cy + 0.2} fontSize={3.9} fill={theme.label} textAnchor="end" dominantBaseline="middle">
+          {line.label}
+        </text>
+      )}
+      {line.icon === "heart" && (
+        <>
+          <Tile x={iconX - 3.8} y={cy - 3.6} w={7.6} h={7.2} fill={theme.tile} />
+          <Heart cx={iconX} cy={cy} size={6} theme={symbols} />
+        </>
+      )}
+      {line.icon === "joker" && <JokerMark cx={iconX} cy={cy} size={6.8} ink={theme.label} />}
+      {line.icon === "die" &&
+        (art.gold ? (
+          <>
+            <circle cx={iconX} cy={cy} r={4} fill={theme.tile} stroke={theme.ink} strokeWidth={0.6} />
+            <GoldDie x={iconX} y={cy} size={5} image={art.gold} theme={symbols} />
+          </>
+        ) : (
+          <ThemedBox theme={symbols} cx={iconX} cy={cy} size={8.4} ringed />
+        ))}
+      {line.icon === "star" && <Star cx={iconX} cy={cy} r={3.4} edge={theme.starEdge} image={art.star} solid theme={symbols} />}
+      {line.icon === "diamond" && <Diamond cx={iconX} cy={cy} r={3.2} edge={theme.ink} image={art.diamond} />}
+    </g>
+  );
+}
+
 function Tile({ x, y, w, h, fill }: { x: number; y: number; w: number; h: number; fill: string }) {
   return <rect x={x} y={y} width={w} height={h} rx={1.6} fill={fill} />;
 }
@@ -398,94 +554,64 @@ function Picture({ href, cx, cy, size }: { href: string; cx: number; cy: number;
   return <image href={href} x={cx - size / 2} y={cy - size / 2} width={size} height={size} preserveAspectRatio="xMidYMid meet" pointerEvents="none" />;
 }
 
-function Star({ cx, cy, r, edge, image }: { cx: number; cy: number; r: number; edge: string; image?: string }) {
+// The marks, as the cartoon symbols (symbols.tsx) or the sheet's own pictures.
+function Star({
+  cx,
+  cy,
+  r,
+  edge,
+  image,
+  solid,
+  theme,
+}: {
+  cx: number;
+  cy: number;
+  r: number;
+  edge: string;
+  image?: string;
+  solid?: boolean;
+  theme: ThemeId;
+}) {
   if (image) return <Picture href={image} cx={cx} cy={cy - 0.2} size={r * 2.1} />;
-  const points: string[] = [];
-  for (let i = 0; i < 10; i++) {
-    const radius = i % 2 === 0 ? r : r * 0.47;
-    const angle = -Math.PI / 2 + (i * Math.PI) / 5;
-    points.push(`${(cx + radius * Math.cos(angle)).toFixed(2)},${(cy + radius * Math.sin(angle)).toFixed(2)}`);
-  }
-  return <path d={`M${points.join("L")}Z`} fill="#ffffff" stroke={edge} strokeWidth={0.45} strokeLinejoin="round" />;
+  return <ThemedStar theme={theme} cx={cx} cy={cy} size={r * 2.25} edge={edge} solid={solid} />;
 }
 
-function Diamond({ cx, cy, r, edge, image }: { cx: number; cy: number; r: number; edge: string; image?: string }) {
+function Diamond({ cx, cy, r, image }: { cx: number; cy: number; r: number; edge?: string; image?: string }) {
   if (image) return <Picture href={image} cx={cx} cy={cy} size={r * 2.1} />;
-  return (
-    <path
-      d={`M${cx} ${cy - r}L${cx + r * 0.85} ${cy - r * 0.2}L${cx} ${cy + r}L${cx - r * 0.85} ${cy - r * 0.2}Z`}
-      fill="#ffffff"
-      stroke={edge}
-      strokeWidth={0.45}
-      strokeLinejoin="round"
-    />
-  );
+  return <CartoonDiamond cx={cx} cy={cy} size={r * 2.3} />;
 }
 
-function Heart({ cx, cy, size, fill, stroke }: { cx: number; cy: number; size: number; fill: string; stroke?: string }) {
-  const s = size / 24;
-  return (
-    <path
-      transform={`translate(${cx - 12 * s} ${cy - 13 * s}) scale(${s})`}
-      d="M12 21s-9.5-5.6-9.5-12A5 5 0 0112 6.1a5 5 0 019.5 2.9C21.5 15.4 12 21 12 21z"
-      fill={fill}
-      stroke={stroke}
-      strokeWidth={stroke ? 1.6 : 0}
-    />
-  );
+function Heart({ cx, cy, size, pale, theme }: { cx: number; cy: number; size: number; pale?: boolean; theme: ThemeId }) {
+  return <ThemedHeart theme={theme} cx={cx} cy={cy + size * 0.04} size={size * 1.12} pale={pale} />;
 }
 
-function GoldDie({ x, y, size, image }: { x: number; y: number; size: number; image?: string }) {
+function GoldDie({ x, y, size, image, ringed, theme }: { x: number; y: number; size: number; image?: string; ringed?: boolean; theme: ThemeId }) {
   if (image) return <Picture href={image} cx={x} cy={y} size={size * 1.15} />;
-  const h = size / 2;
-  return (
-    <g>
-      <rect x={x - h} y={y - h} width={size} height={size} rx={size * 0.26} fill="#e3a640" stroke="#9a6418" strokeWidth={0.4} />
-      <line x1={x - h + 0.4} y1={y - h * 0.4} x2={x + h - 0.4} y2={y - h * 0.4} stroke="#f6cf86" strokeWidth={0.6} />
-    </g>
-  );
+  return <ThemedBox theme={theme} cx={x} cy={y} size={ringed ? size : size * 1.25} ringed={ringed} />;
 }
 
-function Bomb({ cx, cy }: { cx: number; cy: number }) {
-  return (
-    <g>
-      <circle cx={cx - 0.4} cy={cy + 0.7} r={2.9} fill="#22262a" />
-      <path d={`M${cx + 1.4} ${cy - 1.3}l1.2-1.2q0.8-0.6 1.3 0.2`} stroke="#22262a" strokeWidth={0.7} fill="none" strokeLinecap="round" />
-      <circle cx={cx - 1.4} cy={cy - 0.3} r={0.7} fill="#ffffff" fillOpacity={0.6} />
-    </g>
-  );
+function RowBonusIcon({ kind, cx, cy, gold, theme }: { kind: RowBonus; cx: number; cy: number; gold?: string; theme: ThemeId }) {
+  if (kind === "bombe") return <ThemedBomb theme={theme} cx={cx} cy={cy} size={8} />;
+  if (kind === "herz") return <Heart cx={cx} cy={cy} size={7} theme={theme} />;
+  return <GoldDie x={cx} y={cy} size={6} image={gold} theme={theme} />;
 }
 
-function RowBonusIcon({ kind, cx, cy, gold }: { kind: RowBonus; cx: number; cy: number; gold?: string }) {
-  if (kind === "bombe") return <Bomb cx={cx} cy={cy} />;
-  if (kind === "herz") return <Heart cx={cx} cy={cy} size={7} fill={red} />;
-  return <GoldDie x={cx} y={cy} size={6} image={gold} />;
-}
-
+// ? / X = and a circled "!" per joker, on a white bar.
 function Jokers({ x, y, count, ink }: { x: number; y: number; count: number; ink: string }) {
-  const width = 25 + count * 7.6;
+  const width = 27.5 + count * 9;
   return (
     <g>
       <rect x={x} y={y} width={width} height={10} rx={2.6} fill="#ffffff" />
-      <rect x={x + 1.6} y={y + 1.6} width={6.8} height={6.8} rx={1.6} fill={ink} />
-      <Label x={x + 5} y={y + 5} size={5.2} fill="#ffffff">
-        ?
-      </Label>
-      <Label x={x + 10.6} y={y + 5} size={5.6} fill={ink}>
+      <JokerTile kind="number" cx={x + 5.4} cy={y + 5} size={7.6} />
+      <Label x={x + 11.3} y={y + 5} size={5.6} fill={ink}>
         /
       </Label>
-      <rect x={x + 12.8} y={y + 1.9} width={6.2} height={6.2} rx={1.4} fill="none" stroke={ink} strokeWidth={0.7} />
-      <path d={`M${x + 14.4} ${y + 3.5}l3 3m0 -3l-3 3`} stroke={ink} strokeWidth={0.9} strokeLinecap="round" />
-      <Label x={x + 21.6} y={y + 5} size={5.4} fill={ink}>
+      <JokerTile kind="color" cx={x + 17.2} cy={y + 5} size={7.6} />
+      <Label x={x + 23.4} y={y + 5} size={5.4} fill={ink}>
         =
       </Label>
       {Array.from({ length: count }, (_, i) => (
-        <g key={i}>
-          <circle cx={x + 28 + i * 7.6} cy={y + 5} r={3.3} fill="none" stroke={ink} strokeWidth={0.7} />
-          <Label x={x + 28 + i * 7.6} y={y + 5} size={4.6} fill={ink}>
-            !
-          </Label>
-        </g>
+        <JokerMark key={i} cx={x + 31 + i * 9} cy={y + 5} size={8} />
       ))}
     </g>
   );
