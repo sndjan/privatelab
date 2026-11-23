@@ -90,11 +90,8 @@ function boxDrawing(theme: ThemeId, id: string): ReactNode {
           <g clipPath={`url(#${id})`}>
             <rect x={0} y={0} width={100} height={100} fill="#b5743d" />
             <rect x={62} y={0} width={30} height={100} fill="#925a2a" />
-            <path d="M38 12 Q34 50 38 88 M50 10 L50 90 M62 12 Q66 50 62 88" fill="none" stroke="#7a4a20" strokeWidth={2} />
-            <rect x={0} y={24} width={100} height={8} fill="#4b4f55" />
-            <rect x={0} y={68} width={100} height={8} fill="#4b4f55" />
-            <rect x={62} y={24} width={30} height={8} fill="#383b40" />
-            <rect x={62} y={68} width={30} height={8} fill="#383b40" />
+            <rect x={0} y={25} width={100} height={9} fill="#4b4f55" />
+            <rect x={0} y={66} width={100} height={9} fill="#4b4f55" />
           </g>
           <path d="M27 12 Q18 50 27 88 L73 88 Q82 50 73 12 Z" fill="none" stroke="#4a2a12" strokeWidth={5} strokeLinejoin="round" />
           <circle cx={50} cy={50} r={4} fill="#3b2410" stroke="#4a2a12" strokeWidth={2} />
