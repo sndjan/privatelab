@@ -156,6 +156,10 @@ export function SheetSvg({
         </g>
       ))}
 
+      {/* Black behind the grid, so the corners where four boxes meet are
+          black too (the boxes' own frames draw the lines). */}
+      <rect x={L.gridX} y={L.gridY} width={L.gridW} height={L.gridH} rx={2.1} fill="#16191c" />
+
       {/* The boxes. */}
       {sheet.cells.map((value, cell) => {
         const col = cell % sheet.cols;
