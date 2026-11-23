@@ -156,10 +156,6 @@ export function SheetSvg({
         </g>
       ))}
 
-      {/* A thin black frame around every box, like the original: the grid
-          sits on black, which shows in the gaps between the boxes. */}
-      <rect x={L.gridX - 0.1} y={L.gridY - 0.1} width={L.gridW + 0.2} height={L.gridH + 0.2} rx={2.2} fill="#16191c" />
-
       {/* The boxes. */}
       {sheet.cells.map((value, cell) => {
         const col = cell % sheet.cols;
@@ -185,7 +181,20 @@ export function SheetSvg({
               />
             ) : (
               <>
-                <rect x={x - 0.25} y={y - 0.25} width={T + 0.5} height={T + 0.5} rx={1.7} fill={colors[value].fill} />
+                {/* Every box has its own black frame, like the original: neighbours'
+                    frames lie on top of each other, so every line is equally
+                    thick, and where four boxes meet the round corners leave a
+                    small notch. */}
+                <rect
+                  x={L.gridX + col * U}
+                  y={L.gridY + row * U}
+                  width={U}
+                  height={U}
+                  rx={2.1}
+                  fill={colors[value].fill}
+                  stroke="#16191c"
+                  strokeWidth={0.8}
+                />
                 <circle cx={x + T / 2} cy={y + T / 2} r={T * 0.3} fill="#ffffff" fillOpacity={0.22} />
               </>
             )}
