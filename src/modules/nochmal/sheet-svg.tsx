@@ -1,6 +1,6 @@
 import { useId, type PointerEvent, type ReactNode, type Ref, type SVGProps } from "react";
 import { blocksOf, colors, EMPTY, letter, rowLetter, type RowBonus, type Sheet } from "./data";
-import { CartoonBomb, CartoonDiamond, CartoonHeart, Coin, GoldenDie, JokerMark, JokerTile, StarOutline, StarSolid } from "./symbols";
+import { CartoonBomb, CartoonDiamond, CartoonHeart, GoldenDie, JokerMark, JokerTile, StarOutline, StarSolid } from "./symbols";
 
 // The score sheet as SVG, in the look of the game's own sheets: a card with
 // white letter tiles (the start column's letter red and the column framed),
@@ -156,6 +156,10 @@ export function SheetSvg({
         </g>
       ))}
 
+      {/* A thin black frame around every box, like the original: the grid
+          sits on black, which shows in the gaps between the boxes. */}
+      <rect x={L.gridX - 0.1} y={L.gridY - 0.1} width={L.gridW + 0.2} height={L.gridH + 0.2} rx={2.2} fill="#16191c" />
+
       {/* The boxes. */}
       {sheet.cells.map((value, cell) => {
         const col = cell % sheet.cols;
@@ -181,7 +185,7 @@ export function SheetSvg({
               />
             ) : (
               <>
-                <rect x={x} y={y} width={T} height={T} rx={1.7} fill={colors[value].fill} />
+                <rect x={x - 0.25} y={y - 0.25} width={T + 0.5} height={T + 0.5} rx={1.7} fill={colors[value].fill} />
                 <circle cx={x + T / 2} cy={y + T / 2} r={T * 0.3} fill="#ffffff" fillOpacity={0.22} />
               </>
             )}
@@ -242,7 +246,7 @@ export function SheetSvg({
           return (
             <g key={i}>
               <Heart cx={cx} cy={cy} size={9.4} />
-              <Label x={cx} y={cy - 0.6} size={4.4} fill="#ffffff">
+              <Label x={cx - 0.15} y={cy + 0.15} size={4.4} fill="#ffffff">
                 {i + 1}
               </Label>
             </g>
@@ -284,13 +288,23 @@ export function SheetSvg({
               return (
                 <g key={col} onPointerDown={down} className={onLaneDown ? "cursor-pointer" : undefined}>
                   <Tile x={at(col)} y={y} w={T} h={8} fill={theme.tile} />
-                  {golden && (
-                    <Coin
-                      cx={at(col) + T / 2}
-                      cy={y + 4}
-                      size={7.4}
-                      value={lane.kind === "first" ? sheet.points[col][0] : lane.kind === "later" ? sheet.points[col][1] : undefined}
-                    />
+                  {golden && <GoldDie x={at(col) + T / 2} y={y + 4} size={6.4} image={art.gold} />}
+                  {golden && (lane.kind === "first" || lane.kind === "later") && (
+                    <text
+                      x={at(col) + T / 2}
+                      y={y + 4.35}
+                      fontSize={5.6}
+                      fill={red}
+                      stroke="#ffffff"
+                      strokeWidth={0.7}
+                      strokeLinejoin="round"
+                      paintOrder="stroke"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      pointerEvents="none"
+                    >
+                      {sheet.points[col][lane.kind === "first" ? 0 : 1]}
+                    </text>
                   )}
                   {!golden && lane.kind === "first" && (
                     <Label x={at(col) + T / 2} y={y + 4} size={5.6} fill={ink}>
@@ -316,12 +330,12 @@ export function SheetSvg({
       {/* Special dice (Noch mal so gut!): the first is circled at the start. */}
       {L.specialsY !== null &&
         Array.from({ length: sheet.specials }, (_, i) => {
-          const cx = at(0) + 4.6 + i * 10.4;
-          const cy = L.specialsY! + 4.6;
+          const cx = at(0) + 5.4 + i * 10.4 + (i > 0 ? 1.4 : 0);
+          const cy = L.specialsY! + 5;
           return (
             <g key={i}>
-              {i === 0 && art.gold && <circle cx={cx} cy={cy} r={4.9} fill="none" stroke="#7d7d7d" strokeWidth={0.5} />}
-              <GoldDie x={cx} y={cy} size={i === 0 && !art.gold ? 9.8 : 6.6} image={art.gold} ringed={i === 0} />
+              {i === 0 && <circle cx={cx} cy={cy} r={5.4} fill="none" stroke="#7d7d7d" strokeWidth={0.55} />}
+              <GoldDie x={cx} y={cy} size={6.6} image={art.gold} />
             </g>
           );
         })}
@@ -351,11 +365,11 @@ export function SheetSvg({
         return (
           <g key={c}>
             <Tile x={x} y={y} w={7.8} h={7.8} fill={color.fill} />
-            <Label x={x + 3.9} y={y + 3.9} size={5.4} fill={color.ink}>
+            <Label x={x + 3.9} y={y + 3.9} size={5.4} fill={color.edge}>
               {sheet.bonus[0]}
             </Label>
-            <Tile x={x + 8.6} y={y} w={7.8} h={7.8} fill={color.soft} />
-            <Label x={x + 12.5} y={y + 3.9} size={5.4} fill={color.ink}>
+            <Tile x={x + 8.6} y={y} w={7.8} h={7.8} fill={color.fill} />
+            <Label x={x + 12.5} y={y + 3.9} size={5.4} fill={color.edge}>
               {sheet.bonus[1]}
             </Label>
           </g>
@@ -522,20 +536,20 @@ function RowBonusIcon({ kind, cx, cy, gold }: { kind: RowBonus; cx: number; cy: 
 
 // ? / X = and a circled "!" per joker, on a white bar.
 function Jokers({ x, y, count, ink }: { x: number; y: number; count: number; ink: string }) {
-  const width = 25 + count * 7.6;
+  const width = 27.5 + count * 9;
   return (
     <g>
       <rect x={x} y={y} width={width} height={10} rx={2.6} fill="#ffffff" />
-      <JokerTile kind="number" cx={x + 5.1} cy={y + 5} size={7.6} />
-      <Label x={x + 10.6} y={y + 5} size={5.6} fill={ink}>
+      <JokerTile kind="number" cx={x + 5.4} cy={y + 5} size={7.6} />
+      <Label x={x + 11.3} y={y + 5} size={5.6} fill={ink}>
         /
       </Label>
-      <JokerTile kind="color" cx={x + 16} cy={y + 5} size={7.6} />
-      <Label x={x + 21.6} y={y + 5} size={5.4} fill={ink}>
+      <JokerTile kind="color" cx={x + 17.2} cy={y + 5} size={7.6} />
+      <Label x={x + 23.4} y={y + 5} size={5.4} fill={ink}>
         =
       </Label>
       {Array.from({ length: count }, (_, i) => (
-        <JokerMark key={i} cx={x + 28 + i * 7.6} cy={y + 5} size={7} />
+        <JokerMark key={i} cx={x + 31 + i * 9} cy={y + 5} size={7} />
       ))}
     </g>
   );

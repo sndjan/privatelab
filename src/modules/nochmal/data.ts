@@ -175,7 +175,7 @@ export const variants: Variant[] = [
     rows: true,
     hearts: 5,
     gold: 8,
-    specials: 10,
+    specials: 9,
     diamonds: 0,
     passes: 0,
     chips: 0,
