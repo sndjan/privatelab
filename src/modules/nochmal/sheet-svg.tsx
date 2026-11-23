@@ -220,18 +220,22 @@ export function SheetSvg({
 
       {sheet.outlines && <Outlines sheet={sheet} x={L.gridX} y={L.gridY} />}
 
-      {/* The start column framed in white. */}
-      <rect
-        x={startX + 0.15}
-        y={L.gridY + 0.15}
-        width={U - 0.3}
-        height={L.gridH - 0.3}
-        rx={2}
-        fill="none"
-        stroke="#ffffff"
-        strokeWidth={0.9}
-        pointerEvents="none"
-      />
+      {/* The start column: its boxes' own frames are white instead of
+          black (drawn over the neighbours' frames, which share the line). */}
+      {Array.from({ length: sheet.rows }, (_, row) => (
+        <rect
+          key={row}
+          x={startX}
+          y={L.gridY + row * U}
+          width={U}
+          height={U}
+          rx={2.1}
+          fill="none"
+          stroke="#ffffff"
+          strokeWidth={0.8}
+          pointerEvents="none"
+        />
+      ))}
 
       {/* Rows P–V with their bonuses, and the heart column (Noch mal so gut!). */}
       {L.so &&
