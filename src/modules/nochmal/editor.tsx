@@ -136,26 +136,27 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
     }
   }
 
-  // A box in a row under the columns: tap adds or removes it.
+  // A box in a row under the columns: tap adds or removes it; with the
+  // golden die chosen, tap puts a golden die behind it or takes it away.
   function toggleLaneBox(lane: number, col: number, event: PointerEvent) {
     if (event.button !== 0) return;
     const current = latest.current;
+    const toggle = (list: number[]) => (list.includes(col) ? list.filter((value) => value !== col) : [...list, col].sort((a, b) => a - b));
     commit({
       ...current,
       lanes: current.lanes.map((entry, i) =>
-        i !== lane
-          ? entry
-          : {
-              ...entry,
-              skip: entry.skip.includes(col) ? entry.skip.filter((value) => value !== col) : [...entry.skip, col].sort((a, b) => a - b),
-            },
+        i !== lane ? entry : tool === "gold" && !entry.skip.includes(col) ? { ...entry, gold: toggle(entry.gold) } : { ...entry, skip: toggle(entry.skip) },
       ),
     });
   }
 
   function setStart(col: number) {
     if (col === sheet.start) return;
-    commit({ ...sheet, start: col, points: columnPoints(sheet.cols, col) });
+    // Golden dice under the old start column move along.
+    const lanes = sheet.lanes.map((lane) =>
+      lane.gold.includes(sheet.start) ? { ...lane, gold: [...new Set(lane.gold.map((value) => (value === sheet.start ? col : value)))].sort((a, b) => a - b) } : lane,
+    );
+    commit({ ...sheet, start: col, points: columnPoints(sheet.cols, col, sheet.variant), lanes });
   }
 
   const results = useMemo(() => checks(sheet), [sheet]);
@@ -235,7 +236,7 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
               ? "Farbe wählen und über Kästchen wischen."
               : marks.find((mark) => mark.id === tool)!.hint} Ein Buchstabe oben
           macht die Spalte zur Startspalte (Punkte passen sich an). Ein Kästchen in den Leisten unten antippen nimmt es weg oder fügt es
-          wieder ein (gestrichelt = fehlt). Zu große Blöcke sind rot umrandet.
+          wieder ein (gestrichelt = fehlt), mit „Goldwürfel“ bekommt es einen goldenen Würfel. Zu große Blöcke sind rot umrandet.
         </p>
       </div>
 
@@ -398,7 +399,7 @@ function LanesPanel({ sheet, onChange }: { sheet: Sheet; onChange: (lanes: Lane[
               key={kind.id}
               type="button"
               className={cn(chip, "inline-flex items-center gap-1 [&_svg]:size-3.5")}
-              onClick={() => onChange([...lanes, { kind: kind.id, skip: [] }])}
+              onClick={() => onChange([...lanes, { kind: kind.id, skip: [], gold: [] }])}
             >
               <PlusIcon /> {kind.name}
             </button>

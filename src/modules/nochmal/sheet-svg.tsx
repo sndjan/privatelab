@@ -30,20 +30,28 @@ const themes: Record<Sheet["variant"], Theme> = {
   kids: { card: "#fff4d6", tile: "#ffffff", ink: "#3a2a12", label: "#3a2a12", line: "rgba(58,42,18,0.4)" },
 };
 
-type ScoreLine = { label: string; sign: string; tone: "plain" | "plus" | "minus" };
+// A line of the final score: a label, or a symbol like on the original
+// sheet (heart in a box, circled joker and special die, star) with the points
+// per piece.
+type ScoreLine = {
+  label: string;
+  icon?: "bonus" | "heart" | "joker" | "die" | "star" | "diamond";
+  sign: string;
+  tone: "plain" | "plus" | "minus";
+};
 
 function scoreLines(sheet: Sheet): ScoreLine[] {
   const lines: ScoreLine[] = [
-    { label: "BONUS", sign: "=", tone: "plain" },
+    { label: "BONUS", icon: "bonus", sign: "=", tone: "plain" },
     { label: `${letter(0)}–${letter(sheet.cols - 1)}`, sign: "+", tone: "plus" },
   ];
   if (sheet.rowBonuses.length > 0)
     lines.push({ label: `${rowLetter(sheet, 0)}–${rowLetter(sheet, sheet.rows - 1)}`, sign: "+", tone: "plus" });
-  if (sheet.hearts > 0) lines.push({ label: "♥", sign: "+", tone: "plus" });
-  if (sheet.jokers > 0) lines.push({ label: "! (+1)", sign: "+", tone: "plus" });
-  if (sheet.specials > 0) lines.push({ label: "Würfel (+2)", sign: "+", tone: "plus" });
-  if (sheet.diamonds.length > 0) lines.push({ label: "◆", sign: "+", tone: "plus" });
-  if (sheet.stars.length > 0) lines.push({ label: `★ (−${sheet.starPenalty})`, sign: "−", tone: "minus" });
+  if (sheet.hearts > 0) lines.push({ label: "", icon: "heart", sign: "+", tone: "plus" });
+  if (sheet.jokers > 0) lines.push({ label: "(+1)", icon: "joker", sign: "+", tone: "plus" });
+  if (sheet.specials > 0) lines.push({ label: "(+2)", icon: "die", sign: "+", tone: "plus" });
+  if (sheet.diamonds.length > 0) lines.push({ label: "", icon: "diamond", sign: "+", tone: "plus" });
+  if (sheet.stars.length > 0) lines.push({ label: `(−${sheet.starPenalty})`, icon: "star", sign: "−", tone: "minus" });
   return lines;
 }
 
@@ -270,10 +278,12 @@ export function SheetSvg({
                   />
                 );
               }
-              const ink = col === sheet.start ? red : theme.ink;
+              const golden = lane.gold.includes(col);
+              const ink = col === sheet.start || golden ? red : theme.ink;
               return (
                 <g key={col} onPointerDown={down} className={onLaneDown ? "cursor-pointer" : undefined}>
                   <Tile x={at(col)} y={y} w={T} h={8} fill={theme.tile} />
+                  {golden && <GoldDie x={at(col) + T / 2} y={y + 4} size={6.6} image={art.gold} />}
                   {lane.kind === "first" && (
                     <Label x={at(col) + T / 2} y={y + 4} size={5.6} fill={ink}>
                       {sheet.points[col][0]}
@@ -351,9 +361,7 @@ export function SheetSvg({
             const y = L.scoreY + i * 9.4;
             return (
               <g key={i}>
-                <text x={panelRight - 21.5} y={y + 4.2} fontSize={3.9} fill={theme.label} textAnchor="end" dominantBaseline="middle">
-                  {line.label}
-                </text>
+                <ScoreLabel line={line} x={panelRight - 21.5} cy={y + 4} theme={theme} art={art} />
                 <Tile x={panelRight - 20} y={y} w={20} h={8} fill={theme.tile} />
                 <text
                   x={panelRight - 18.2}
@@ -413,6 +421,55 @@ export function SheetSvg({
         </text>
       )}
     </svg>
+  );
+}
+
+function ScoreLabel({ line, x, cy, theme, art }: { line: ScoreLine; x: number; cy: number; theme: Theme; art: Sheet["art"] }) {
+  if (line.icon === "bonus") {
+    // BONUS in the five colours, like the original.
+    return (
+      <text x={x} y={cy + 0.2} fontSize={4.6} textAnchor="end" dominantBaseline="middle" stroke="#ffffff" strokeWidth={0.5} paintOrder="stroke">
+        {"BONUS".split("").map((char, i) => (
+          <tspan key={i} fill={colors[i % colors.length].edge}>
+            {char}
+          </tspan>
+        ))}
+      </text>
+    );
+  }
+  // Symbol right-aligned, the points per piece left of the box.
+  const textX = x;
+  const iconX = line.label ? x - 13 : x - 3.8;
+  return (
+    <g>
+      {line.label && (
+        <text x={textX} y={cy + 0.2} fontSize={3.9} fill={theme.label} textAnchor="end" dominantBaseline="middle">
+          {line.label}
+        </text>
+      )}
+      {line.icon === "heart" && (
+        <>
+          <Tile x={iconX - 3.8} y={cy - 3.6} w={7.6} h={7.2} fill={theme.tile} />
+          <Heart cx={iconX} cy={cy} size={6} fill={red} />
+        </>
+      )}
+      {line.icon === "joker" && (
+        <>
+          <circle cx={iconX} cy={cy} r={3.2} fill={theme.tile} stroke={theme.ink} strokeWidth={0.6} />
+          <Label x={iconX} y={cy} size={4.4} fill={theme.ink}>
+            !
+          </Label>
+        </>
+      )}
+      {line.icon === "die" && (
+        <>
+          <circle cx={iconX} cy={cy} r={4} fill={theme.tile} stroke={theme.ink} strokeWidth={0.6} />
+          <GoldDie x={iconX} y={cy} size={5} image={art.gold} />
+        </>
+      )}
+      {line.icon === "star" && <Star cx={iconX} cy={cy} r={3.4} edge={theme.ink} image={art.star} />}
+      {line.icon === "diamond" && <Diamond cx={iconX} cy={cy} r={3.2} edge={theme.ink} image={art.diamond} />}
+    </g>
   );
 }
 

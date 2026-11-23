@@ -66,9 +66,11 @@ export type Sheet = {
 };
 
 // first / later: the column's points; heart: a heart to cross; blank: an
-// empty box. skip: columns that have no box in this row.
+// empty box. skip: columns that have no box in this row; gold: columns whose
+// box has a golden die behind it (completing the column unlocks a special
+// die, like H on "Noch mal so gut!").
 export type LaneKind = "first" | "later" | "heart" | "blank";
-export type Lane = { kind: LaneKind; skip: number[] };
+export type Lane = { kind: LaneKind; skip: number[]; gold: number[] };
 export const laneKinds: { id: LaneKind; name: string }[] = [
   { id: "first", name: "Punkte zuerst" },
   { id: "later", name: "Punkte später" },
@@ -77,13 +79,16 @@ export const laneKinds: { id: LaneKind; name: string }[] = [
 ];
 export const MAX_LANES = 6;
 
-// The rows of the original sheets: the two points rows, and the heart row on
-// "Noch mal so gut!".
-export const defaultLanes = (hearts: boolean): Lane[] => [
-  { kind: "first", skip: [] },
-  { kind: "later", skip: [] },
-  ...(hearts ? [{ kind: "heart" as const, skip: [] }] : []),
-];
+// The rows of the original sheets: the two points rows, and on "Noch mal so
+// gut!" the start column's points on a golden die and the heart row.
+export function defaultLanes(sogut: boolean, start: number): Lane[] {
+  const gold = sogut ? [start] : [];
+  return [
+    { kind: "first", skip: [], gold },
+    { kind: "later", skip: [], gold },
+    ...(sogut ? [{ kind: "heart" as const, skip: [], gold: [] }] : []),
+  ];
+}
 
 export type ArtSlot = "star" | "gold" | "diamond" | "background";
 export type Art = Partial<Record<ArtSlot, string>>;
@@ -131,6 +136,8 @@ export type Variant = {
   name: string;
   hint: string;
   options: Partial<GeneratorOptions>;
+  // Points of the start column: first, later.
+  startPoints: [number, number];
   rows: boolean;
   hearts: number;
   gold: number;
@@ -148,6 +155,7 @@ export const variants: Variant[] = [
     name: "Noch mal!",
     hint: "Das Original: Spalten, Farben, Sterne, 8 Joker",
     options: { cols: 15, rows: 7, maxBlock: 6, starsPerColumn: 1, jokers: 8 },
+    startPoints: [1, 0],
     rows: false,
     hearts: 0,
     gold: 0,
@@ -163,6 +171,7 @@ export const variants: Variant[] = [
     name: "Noch mal so gut!",
     hint: "Zeilen P–V, Herzen, goldene Würfelfelder, Sonderwürfel, 6 Joker",
     options: { cols: 15, rows: 7, maxBlock: 6, starsPerColumn: 1, jokers: 6 },
+    startPoints: [2, 0],
     rows: true,
     hearts: 5,
     gold: 8,
@@ -178,6 +187,7 @@ export const variants: Variant[] = [
     name: "Noch X-Mal!",
     hint: "Mit Diamanten, Pass-Leiste und 10 X-Chips (Regeln nicht geprüft)",
     options: { cols: 15, rows: 7, maxBlock: 6, starsPerColumn: 1, jokers: 8 },
+    startPoints: [1, 0],
     rows: false,
     hearts: 0,
     gold: 0,
@@ -193,6 +203,7 @@ export const variants: Variant[] = [
     name: "Kids",
     hint: "Weniger, größere Kästchen, Gehege mit Tieren",
     options: { cols: 9, rows: 6, maxBlock: 4, starsPerColumn: 1, jokers: 4 },
+    startPoints: [1, 0],
     rows: false,
     hearts: 0,
     gold: 0,
@@ -236,14 +247,18 @@ export const index = (sheet: Pick<Sheet, "cols">, col: number, row: number) => r
 
 // --- Points ---------------------------------------------------------------------
 
-// Columns pay more the further they are from the start column: 1/0 for the
-// start column, 2/1 near it, 3/2 further out and 5/3 for the outermost ones
-// (on a 15-column sheet with H as start: A 5/3, B–D 3/2, E–G 2/1, H 1/0).
-export function columnPoints(cols: number, start: number): [number, number][] {
+// Columns pay more the further they are from the start column: the
+// variant's start points (1/0, 2/0 on "Noch mal so gut!") for the start
+// column, 2/1 near it, 3/2 further out and 5/3 for the outermost ones (on a
+// 15-column sheet with H as start: A 5/3, B–D 3/2, E–G 2/1, H 1/0).
+export function columnPoints(cols: number, start: number, variant: VariantId = "klassisch"): [number, number][] {
   const reach = Math.max(start, cols - 1 - start, 1);
   return Array.from({ length: cols }, (_, col) => {
     const distance = Math.abs(col - start);
-    if (distance === 0) return [1, 0];
+    if (distance === 0) {
+      const [first, later] = variantOf(variant).startPoints;
+      return [first, later];
+    }
     if (col === 0 || col === cols - 1) return [5, 3];
     return distance / reach <= 0.45 ? [2, 1] : [3, 2];
   });
@@ -530,14 +545,14 @@ export function generate(options: GeneratorOptions): Sheet {
     const stars = placeStars(cols, rows, cells, blockOf, starsPerColumn, rand);
     const variant = variantOf(options.variant);
     const sheet: Sheet = {
-      ...variantParts(variant, rows),
+      ...variantParts(variant, rows, start),
       version: 1,
       cols,
       rows,
       start,
       cells,
       stars,
-      points: columnPoints(cols, start),
+      points: columnPoints(cols, start, variant.id),
       bonus: [5, 3],
       jokers: clamp(Math.round(options.jokers), limits.jokers.min, limits.jokers.max),
       starPenalty: 2,
@@ -560,7 +575,7 @@ export function generate(options: GeneratorOptions): Sheet {
 }
 
 // What a variant adds to a sheet, without the parts placed on boxes.
-function variantParts(variant: Variant, rows: number) {
+function variantParts(variant: Variant, rows: number, start: number) {
   return {
     variant: variant.id,
     rowBonuses: variant.rows ? rowBonuses(rows) : [],
@@ -571,7 +586,7 @@ function variantParts(variant: Variant, rows: number) {
     chips: variant.chips,
     outlines: variant.kids,
     scoring: variant.scoring,
-    lanes: defaultLanes(variant.rows),
+    lanes: defaultLanes(variant.rows, start),
     art: {},
   };
 }
@@ -590,11 +605,11 @@ export function blankSheet(options: GeneratorOptions): Sheet {
     start,
     cells: new Array<number>(cols * rows).fill(EMPTY),
     stars: [],
-    points: columnPoints(cols, start),
+    points: columnPoints(cols, start, variantOf(options.variant).id),
     bonus: [5, 3],
     jokers: clamp(Math.round(options.jokers), limits.jokers.min, limits.jokers.max),
     starPenalty: 2,
-    ...variantParts(variantOf(options.variant), rows),
+    ...variantParts(variantOf(options.variant), rows, start),
     gold: [],
     diamonds: [],
     icons: [],
@@ -626,7 +641,7 @@ export function emptySheet(cols: number, rows: number): Sheet {
     icons: [],
     outlines: false,
     scoring: true,
-    lanes: defaultLanes(false),
+    lanes: defaultLanes(false, start),
     art: {},
   };
 }
@@ -752,13 +767,13 @@ export function cleanSheet(input: unknown): Sheet {
     .filter((cell) => cell >= 0)
     .sort((a, b) => a - b);
   const rawPoints = Array.isArray(raw.points) ? raw.points : [];
-  const defaults = columnPoints(cols, start);
+  const variant = variantOf(typeof raw.variant === "string" ? raw.variant : "klassisch");
+  const defaults = columnPoints(cols, start, variant.id);
   const points = defaults.map((fallback, col): [number, number] => {
     const pair = Array.isArray(rawPoints[col]) ? rawPoints[col] : fallback;
     return [int(pair[0], 0, 20, fallback[0]), int(pair[1], 0, 20, fallback[1])];
   });
   const rawBonus = Array.isArray(raw.bonus) ? raw.bonus : [];
-  const variant = variantOf(typeof raw.variant === "string" ? raw.variant : "klassisch");
   const rawRows = Array.isArray(raw.rowBonuses) ? raw.rowBonuses : [];
   const cellList = (value: unknown) =>
     [...new Set((Array.isArray(value) ? value : []).map((cell) => int(cell, -1, total - 1, -1)))]
@@ -796,23 +811,24 @@ export function cleanSheet(input: unknown): Sheet {
     icons,
     outlines: raw.outlines === true,
     scoring: raw.scoring !== false,
-    lanes: cleanLanes(raw.lanes, cols, rawRows.length > 0),
+    lanes: cleanLanes(raw.lanes, cols, rawRows.length > 0, start),
     art: cleanArt(raw.art),
   };
 }
 
 // Sheets saved before lanes existed get the rows they used to show.
-function cleanLanes(value: unknown, cols: number, hearts: boolean): Lane[] {
-  if (!Array.isArray(value)) return defaultLanes(hearts);
+function cleanLanes(value: unknown, cols: number, sogut: boolean, start: number): Lane[] {
+  if (!Array.isArray(value)) return defaultLanes(sogut, start);
+  const columns = (list: unknown) =>
+    [...new Set((Array.isArray(list) ? list : []).map((col) => int(col, -1, cols - 1, -1)))].filter((col) => col >= 0).sort((a, b) => a - b);
   return value
     .slice(0, MAX_LANES)
     .map((lane) => (lane && typeof lane === "object" ? (lane as Record<string, unknown>) : {}))
     .filter((lane) => laneKinds.some((kind) => kind.id === lane.kind))
     .map((lane) => ({
       kind: lane.kind as LaneKind,
-      skip: [...new Set((Array.isArray(lane.skip) ? lane.skip : []).map((col) => int(col, -1, cols - 1, -1)))]
-        .filter((col) => col >= 0)
-        .sort((a, b) => a - b),
+      skip: columns(lane.skip),
+      gold: columns(lane.gold),
     }));
 }
 
@@ -842,8 +858,8 @@ export function resize(sheet: Sheet, cols: number, rows: number): Sheet {
     diamonds,
     gold,
     icons,
-    points: columnPoints(cols, start),
+    points: columnPoints(cols, start, sheet.variant),
     rowBonuses: sheet.rowBonuses.length > 0 ? rowBonuses(rows) : [],
-    lanes: sheet.lanes.map((lane) => ({ ...lane, skip: lane.skip.filter((col) => col < cols) })),
+    lanes: sheet.lanes.map((lane) => ({ ...lane, skip: lane.skip.filter((col) => col < cols), gold: lane.gold.filter((col) => col < cols) })),
   };
 }
