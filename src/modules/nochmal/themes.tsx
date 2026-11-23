@@ -90,11 +90,8 @@ function boxDrawing(theme: ThemeId, id: string): ReactNode {
           <g clipPath={`url(#${id})`}>
             <rect x={0} y={0} width={100} height={100} fill="#b5743d" />
             <rect x={62} y={0} width={30} height={100} fill="#925a2a" />
-            <path d="M38 12 Q34 50 38 88 M50 10 L50 90 M62 12 Q66 50 62 88" fill="none" stroke="#7a4a20" strokeWidth={2} />
-            <rect x={0} y={24} width={100} height={8} fill="#4b4f55" />
-            <rect x={0} y={68} width={100} height={8} fill="#4b4f55" />
-            <rect x={62} y={24} width={30} height={8} fill="#383b40" />
-            <rect x={62} y={68} width={30} height={8} fill="#383b40" />
+            <rect x={0} y={25} width={100} height={9} fill="#4b4f55" />
+            <rect x={0} y={66} width={100} height={9} fill="#4b4f55" />
           </g>
           <path d="M27 12 Q18 50 27 88 L73 88 Q82 50 73 12 Z" fill="none" stroke="#4a2a12" strokeWidth={5} strokeLinejoin="round" />
           <circle cx={50} cy={50} r={4} fill="#3b2410" stroke="#4a2a12" strokeWidth={2} />
@@ -109,7 +106,7 @@ function boxDrawing(theme: ThemeId, id: string): ReactNode {
 // the special die that is free at the start.
 export function ThemedBox({ theme, ringed, ...place }: Place & { theme: ThemeId; ringed?: boolean }) {
   const id = useId();
-  if (theme === "original") return <GoldenDie {...place} ringed={ringed} />;
+  if (theme === "original" || theme === "eigenes") return <GoldenDie {...place} ringed={ringed} />;
   const drawing = boxDrawing(theme, id);
   return (
     <Placed {...place}>
@@ -157,10 +154,12 @@ function starDrawing(theme: ThemeId): ReactNode {
         </>
       );
     case "whisky":
+      // A nosing glass: closed at the rim, the whisky as a line, a solid stem and foot.
       return (
         <>
-          <path d="M18 36 L50 21 L82 34 L82 66 L52 81 L18 68 Z" />
-          <path d="M18 36 L52 47 L82 34 M52 47 L52 81" />
+          <path d="M37 12 Q40 22 35 31 Q23 49 28 63 Q33 74 50 74 Q67 74 72 63 Q77 49 65 31 Q60 22 63 12 Z" />
+          <path d="M28 60 Q50 66 72 60" />
+          <path d="M45 74 L55 74 L55 81 Q68 82 71 85 Q50 90 29 85 Q32 82 45 81 Z" fill="currentColor" strokeWidth={4} />
         </>
       );
     default:
@@ -174,10 +173,10 @@ export function ThemedStar({
   solid,
   ...place
 }: Place & { theme: ThemeId; edge?: string; solid?: boolean }) {
-  if (theme === "original") return solid ? <StarSolid {...place} edge={edge} /> : <StarOutline {...place} edge={edge} />;
+  if (theme === "original" || theme === "eigenes") return solid ? <StarSolid {...place} edge={edge} /> : <StarOutline {...place} edge={edge} />;
   return (
     <Placed {...place}>
-      <g fill="none" stroke={edge} strokeWidth={solid ? 7.5 : 7} strokeLinejoin="round" strokeLinecap="round">
+      <g fill="none" stroke={edge} color={edge} strokeWidth={solid ? 7.5 : 7} strokeLinejoin="round" strokeLinecap="round">
         {/* Paws and tennis balls a little turned, so they look less stiff. */}
         <g transform={theme === "hunde" || theme === "tennis" ? "rotate(-25 50 50)" : undefined}>{starDrawing(theme)}</g>
       </g>
@@ -245,7 +244,7 @@ function ColouredHeart({ id, fill, shade, ink, pale, strings }: { id: string; fi
 
 export function ThemedHeart({ theme, pale, ...place }: Place & { theme: ThemeId; pale?: boolean }) {
   const id = useId();
-  if (theme === "original") return <CartoonHeart {...place} pale={pale} />;
+  if (theme === "original" || theme === "eigenes") return <CartoonHeart {...place} pale={pale} />;
   let drawing: ReactNode = null;
   if (theme === "hunde") {
     drawing = pale ? (
@@ -285,7 +284,7 @@ export function ThemedHeart({ theme, pale, ...place }: Place & { theme: ThemeId;
 
 export function ThemedBomb({ theme, ...place }: Place & { theme: ThemeId }) {
   const id = useId();
-  if (theme === "original") return <CartoonBomb {...place} />;
+  if (theme === "original" || theme === "eigenes") return <CartoonBomb {...place} />;
   let drawing: ReactNode = null;
   if (theme === "hunde")
     drawing = (

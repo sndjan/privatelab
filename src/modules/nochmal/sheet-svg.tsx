@@ -115,7 +115,10 @@ export function SheetSvg({
 } & SVGProps<SVGSVGElement>) {
   const theme = themes[sheet.variant];
   const L = sheetLayout(sheet);
-  const art = sheet.art;
+  // Own symbol pictures count only with the "eigenes" theme (unset slots show
+  // the original symbols); the background works with every theme.
+  const art: Sheet["art"] = sheet.theme === "eigenes" ? sheet.art : { background: sheet.art.background };
+  const symbolTheme: ThemeId = sheet.theme === "eigenes" ? "original" : sheet.theme;
   const clipId = useId();
   const stars = new Set(sheet.stars);
   const gold = new Set(sheet.gold);
@@ -204,9 +207,9 @@ export function SheetSvg({
                 <circle cx={x + T / 2} cy={y + T / 2} r={T * 0.3} fill="#ffffff" fillOpacity={0.22} />
               </>
             )}
-            {stars.has(cell) && !icon && <Star cx={x + T / 2} cy={y + T / 2 + 0.2} r={3.6} edge={value === EMPTY ? color.edge : "#ffffff"} image={art.star} theme={sheet.theme} />}
-            {stars.has(cell) && icon && <Star cx={x + T - 2.2} cy={y + 2.2} r={1.9} edge={value === EMPTY ? color.edge : "#ffffff"} image={art.star} theme={sheet.theme} />}
-            {gold.has(cell) && <GoldDie x={x + T / 2} y={y + T / 2} size={6.2} image={art.gold} theme={sheet.theme} />}
+            {stars.has(cell) && !icon && <Star cx={x + T / 2} cy={y + T / 2 + 0.2} r={3.6} edge={value === EMPTY ? color.edge : "#ffffff"} image={art.star} theme={symbolTheme} />}
+            {stars.has(cell) && icon && <Star cx={x + T - 2.2} cy={y + 2.2} r={1.9} edge={value === EMPTY ? color.edge : "#ffffff"} image={art.star} theme={symbolTheme} />}
+            {gold.has(cell) && <GoldDie x={x + T / 2} y={y + T / 2} size={6.2} image={art.gold} theme={symbolTheme} />}
             {diamonds.has(cell) && <Diamond cx={x + T / 2} cy={y + T / 2} r={3.4} edge={color.edge} image={art.diamond} />}
             {icon && (
               <text x={x + T / 2} y={y + T / 2 + 0.4} fontSize={5.6} textAnchor="middle" dominantBaseline="middle" fontFamily="system-ui">
@@ -250,7 +253,7 @@ export function SheetSvg({
                 {sheet.rowScore}
               </Label>
               <Tile x={L.pad + 8.6} y={y} w={T} h={T} fill={theme.tile} />
-              <RowBonusIcon kind={bonus} cx={L.pad + 8.6 + T / 2} cy={y + T / 2} gold={art.gold} theme={sheet.theme} />
+              <RowBonusIcon kind={bonus} cx={L.pad + 8.6 + T / 2} cy={y + T / 2} art={art} theme={symbolTheme} />
               <Tile x={L.gridX + L.gridW + 1} y={y} w={7.8} h={T} fill={theme.tile} />
               <Label x={L.gridX + L.gridW + 4.9} y={y + T / 2} size={5.4} fill={theme.ink}>
                 {rowLetter(sheet, row)}
@@ -264,7 +267,7 @@ export function SheetSvg({
           const cy = L.gridY + L.gridH + 6 + i * 10;
           return (
             <g key={i}>
-              <Heart cx={cx} cy={cy} size={9.4} theme={sheet.theme} />
+              <Heart cx={cx} cy={cy} size={9.4} theme={symbolTheme} image={art.heart} />
               {/* On bones (Hunde) the dark number gets a thin edge in the bone's
                   colour, so it keeps a little distance from the outline. */}
               <text
@@ -272,7 +275,7 @@ export function SheetSvg({
                 y={cy + 0.15 + 4.4 * 0.06}
                 fontSize={4.4}
                 fill={sheet.theme === "hunde" ? "#4a3418" : "#ffffff"}
-                stroke={sheet.theme === "hunde" ? "#f3e6c8" : "none"}
+                stroke={sheet.theme === "hunde" ? "#f3e6c8" : art.heart ? "#16191c" : "none"}
                 strokeWidth={0.9}
                 strokeLinejoin="round"
                 paintOrder="stroke"
@@ -320,7 +323,7 @@ export function SheetSvg({
               return (
                 <g key={col} onPointerDown={down} className={onLaneDown ? "cursor-pointer" : undefined}>
                   <Tile x={at(col)} y={y} w={T} h={8} fill={theme.tile} />
-                  {golden && <GoldDie x={at(col) + T / 2} y={y + 4} size={6.4} image={art.gold} theme={sheet.theme} />}
+                  {golden && <GoldDie x={at(col) + T / 2} y={y + 4} size={6.4} image={art.gold} theme={symbolTheme} />}
                   {golden && (lane.kind === "first" || lane.kind === "later") && (
                     <text
                       x={at(col) + T / 2}
@@ -348,7 +351,7 @@ export function SheetSvg({
                       {sheet.points[col][1]}
                     </Label>
                   )}
-                  {lane.kind === "heart" && !golden && <Heart cx={at(col) + T / 2} cy={y + 4} size={6} pale theme={sheet.theme} />}
+                  {lane.kind === "heart" && !golden && <Heart cx={at(col) + T / 2} cy={y + 4} size={6} pale theme={symbolTheme} image={art.heart} />}
                 </g>
               );
             })}
@@ -367,7 +370,7 @@ export function SheetSvg({
           return (
             <g key={i}>
               {i === 0 && <circle cx={cx} cy={cy} r={5.4} fill="none" stroke="#7d7d7d" strokeWidth={0.55} />}
-              <GoldDie x={cx} y={cy} size={6.6} image={art.gold} theme={sheet.theme} />
+              <GoldDie x={cx} y={cy} size={6.6} image={art.gold} theme={symbolTheme} />
             </g>
           );
         })}
@@ -415,7 +418,7 @@ export function SheetSvg({
             const y = L.scoreY + i * 9.4;
             return (
               <g key={i}>
-                <ScoreLabel line={line} x={panelRight - 21.5} cy={y + 4} theme={theme} art={art} symbols={sheet.theme} />
+                <ScoreLabel line={line} x={panelRight - 21.5} cy={y + 4} theme={theme} art={art} symbols={symbolTheme} />
                 <Tile x={panelRight - 20} y={y} w={20} h={8} fill={theme.tile} />
                 <text
                   x={panelRight - 18.2}
@@ -518,7 +521,7 @@ function ScoreLabel({
       {line.icon === "heart" && (
         <>
           <Tile x={iconX - 3.8} y={cy - 3.6} w={7.6} h={7.2} fill={theme.tile} />
-          <Heart cx={iconX} cy={cy} size={6} theme={symbols} />
+          <Heart cx={iconX} cy={cy} size={6} theme={symbols} image={art.heart} />
         </>
       )}
       {line.icon === "joker" && <JokerMark cx={iconX} cy={cy} size={6.8} ink={theme.label} />}
@@ -581,7 +584,13 @@ function Diamond({ cx, cy, r, image }: { cx: number; cy: number; r: number; edge
   return <CartoonDiamond cx={cx} cy={cy} size={r * 2.3} />;
 }
 
-function Heart({ cx, cy, size, pale, theme }: { cx: number; cy: number; size: number; pale?: boolean; theme: ThemeId }) {
+function Heart({ cx, cy, size, pale, theme, image }: { cx: number; cy: number; size: number; pale?: boolean; theme: ThemeId; image?: string }) {
+  if (image)
+    return (
+      <g opacity={pale ? 0.45 : 1}>
+        <Picture href={image} cx={cx} cy={cy} size={size * 1.05} />
+      </g>
+    );
   return <ThemedHeart theme={theme} cx={cx} cy={cy + size * 0.04} size={size * 1.12} pale={pale} />;
 }
 
@@ -590,10 +599,11 @@ function GoldDie({ x, y, size, image, ringed, theme }: { x: number; y: number; s
   return <ThemedBox theme={theme} cx={x} cy={y} size={ringed ? size : size * 1.25} ringed={ringed} />;
 }
 
-function RowBonusIcon({ kind, cx, cy, gold, theme }: { kind: RowBonus; cx: number; cy: number; gold?: string; theme: ThemeId }) {
-  if (kind === "bombe") return <ThemedBomb theme={theme} cx={cx} cy={cy} size={8} />;
-  if (kind === "herz") return <Heart cx={cx} cy={cy} size={7} theme={theme} />;
-  return <GoldDie x={cx} y={cy} size={6} image={gold} theme={theme} />;
+function RowBonusIcon({ kind, cx, cy, art, theme }: { kind: RowBonus; cx: number; cy: number; art: Sheet["art"]; theme: ThemeId }) {
+  if (kind === "bombe")
+    return art.bomb ? <Picture href={art.bomb} cx={cx} cy={cy} size={7.2} /> : <ThemedBomb theme={theme} cx={cx} cy={cy} size={8} />;
+  if (kind === "herz") return <Heart cx={cx} cy={cy} size={7} theme={theme} image={art.heart} />;
+  return <GoldDie x={cx} y={cy} size={6} image={art.gold} theme={theme} />;
 }
 
 // ? / X = and a circled "!" per joker, on a white bar.

@@ -19,7 +19,9 @@ import { Heading, Panel } from "./ui";
 
 const slotInfo: Record<ArtSlot, { name: string; hint: string }> = {
   star: { name: "Stern", hint: "Steht auf den Sternfeldern. Am besten ein freigestelltes Motiv, das das Quadrat gut ausfüllt." },
-  gold: { name: "Goldwürfel", hint: "Steht auf den goldenen Würfelfeldern und bei den Sonderwürfeln." },
+  gold: { name: "Box", hint: "Steht auf den goldenen Feldern, bei den Sonderwürfeln, im Zeilenbonus und hinter den Punkten der Startspalte." },
+  heart: { name: "Herz", hint: "Steht im Zeilenbonus, in der Herzspalte (mit Zahl darüber), blass in der Herzreihe und in der Wertung." },
+  bomb: { name: "Bombe", hint: "Steht im Zeilenbonus." },
   diamond: { name: "Diamant", hint: "Steht auf den Diamantfeldern." },
   background: { name: "Hintergrund", hint: "Füllt die Karte hinter den Kästchen. Ruhige, helle Bilder lassen die Schrift gut lesbar." },
 };
@@ -67,7 +69,19 @@ const checkerboard =
 
 // --- Panel in the editor ------------------------------------------------------------
 
-export function ArtPanel({ sheet, slots, onChange }: { sheet: Sheet; slots: ArtSlot[]; onChange: (sheet: Sheet) => void }) {
+export function ArtPanel({
+  sheet,
+  slots,
+  onChange,
+  title = "Eigene Bilder",
+  hint = "Foto hochladen und zuschneiden oder selbst zeichnen.",
+}: {
+  sheet: Sheet;
+  slots: ArtSlot[];
+  onChange: (sheet: Sheet) => void;
+  title?: string;
+  hint?: string;
+}) {
   const [editing, setEditing] = useState<ArtSlot | null>(null);
   const layout = sheetLayout(sheet);
   const aspect = layout.width / layout.height;
@@ -81,8 +95,8 @@ export function ArtPanel({ sheet, slots, onChange }: { sheet: Sheet; slots: ArtS
 
   return (
     <Panel>
-      <Heading className="mb-1">Eigene Bilder</Heading>
-      <p className="mb-3 text-sm font-semibold text-(--nm-muted)">Foto hochladen und zuschneiden oder selbst zeichnen.</p>
+      <Heading className="mb-1">{title}</Heading>
+      <p className="mb-3 text-sm font-semibold text-(--nm-muted)">{hint}</p>
       <ul className="flex flex-col gap-2">
         {slots.map((slot) => {
           const url = sheet.art[slot];
