@@ -154,10 +154,12 @@ function starDrawing(theme: ThemeId): ReactNode {
         </>
       );
     case "whisky":
+      // A nosing glass: closed at the rim, the whisky as a line, a solid stem and foot.
       return (
         <>
-          <path d="M18 36 L50 21 L82 34 L82 66 L52 81 L18 68 Z" />
-          <path d="M18 36 L52 47 L82 34 M52 47 L52 81" />
+          <path d="M37 12 Q40 22 35 31 Q23 49 28 63 Q33 74 50 74 Q67 74 72 63 Q77 49 65 31 Q60 22 63 12 Z" />
+          <path d="M28 60 Q50 66 72 60" />
+          <path d="M45 74 L55 74 L55 81 Q68 82 71 85 Q50 90 29 85 Q32 82 45 81 Z" fill="currentColor" strokeWidth={4} />
         </>
       );
     default:
@@ -174,7 +176,7 @@ export function ThemedStar({
   if (theme === "original" || theme === "eigenes") return solid ? <StarSolid {...place} edge={edge} /> : <StarOutline {...place} edge={edge} />;
   return (
     <Placed {...place}>
-      <g fill="none" stroke={edge} strokeWidth={solid ? 7.5 : 7} strokeLinejoin="round" strokeLinecap="round">
+      <g fill="none" stroke={edge} color={edge} strokeWidth={solid ? 7.5 : 7} strokeLinejoin="round" strokeLinecap="round">
         {/* Paws and tennis balls a little turned, so they look less stiff. */}
         <g transform={theme === "hunde" || theme === "tennis" ? "rotate(-25 50 50)" : undefined}>{starDrawing(theme)}</g>
       </g>
