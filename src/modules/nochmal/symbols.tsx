@@ -5,9 +5,9 @@ import { useId, type ReactNode } from "react";
 // dark outlines and hard shadows instead of gradients. Each is drawn on a
 // 100 × 100 grid and placed by its centre and size in sheet units.
 
-type Place = { cx: number; cy: number; size: number };
+export type Place = { cx: number; cy: number; size: number };
 
-function Placed({ cx, cy, size, children }: Place & { children: ReactNode }) {
+export function Placed({ cx, cy, size, children }: Place & { children: ReactNode }) {
   return (
     <g transform={`translate(${cx - size / 2} ${cy - size / 2}) scale(${size / 100})`} pointerEvents="none">
       {children}

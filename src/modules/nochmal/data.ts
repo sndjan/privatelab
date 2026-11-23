@@ -60,6 +60,8 @@ export type Sheet = {
   // later, the heart row, empty boxes to write in); each can leave out
   // single columns.
   lanes: Lane[];
+  // Symbols for the box, star, heart and bomb (themes.tsx).
+  theme: ThemeId;
   // Own pictures instead of the drawn star, golden die and diamond, and a
   // background for the card: public URLs in the nochmal-images bucket.
   art: Art;
@@ -89,6 +91,15 @@ export function defaultLanes(sogut: boolean, start: number): Lane[] {
     ...(sogut ? [{ kind: "heart" as const, skip: [], gold: [] }] : []),
   ];
 }
+
+export type ThemeId = "original" | "hunde" | "tennis" | "yoga" | "whisky";
+export const themes: { id: ThemeId; name: string }[] = [
+  { id: "original", name: "Original" },
+  { id: "hunde", name: "Hunde" },
+  { id: "tennis", name: "Tennis" },
+  { id: "yoga", name: "Yoga" },
+  { id: "whisky", name: "Whisky" },
+];
 
 export type ArtSlot = "star" | "gold" | "diamond" | "background";
 export type Art = Partial<Record<ArtSlot, string>>;
@@ -587,6 +598,7 @@ function variantParts(variant: Variant, rows: number, start: number) {
     outlines: variant.kids,
     scoring: variant.scoring,
     lanes: defaultLanes(variant.rows, start),
+    theme: "original" as ThemeId,
     art: {},
   };
 }
@@ -642,6 +654,7 @@ export function emptySheet(cols: number, rows: number): Sheet {
     outlines: false,
     scoring: true,
     lanes: defaultLanes(false, start),
+    theme: "original",
     art: {},
   };
 }
@@ -812,6 +825,7 @@ export function cleanSheet(input: unknown): Sheet {
     outlines: raw.outlines === true,
     scoring: raw.scoring !== false,
     lanes: cleanLanes(raw.lanes, cols, rawRows.length > 0, start),
+    theme: themes.find((theme) => theme.id === raw.theme)?.id ?? "original",
     art: cleanArt(raw.art),
   };
 }

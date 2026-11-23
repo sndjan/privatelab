@@ -18,11 +18,14 @@ import {
   type ArtSlot,
   type Lane,
   type LaneKind,
+  themes,
   type Sheet,
+  type ThemeId,
 } from "./data";
 import { SheetSvg } from "./sheet-svg";
-import { CartoonDiamond, GoldenDie, StarOutline } from "./symbols";
-import { display, Heading, Panel, Stepper } from "./ui";
+import { CartoonDiamond } from "./symbols";
+import { ThemedBomb, ThemedBox, ThemedHeart, ThemedStar } from "./themes";
+import { Choice, display, Heading, Panel, Stepper } from "./ui";
 
 type Mark = "stars" | "gold" | "diamonds";
 type Tool = number | Mark;
@@ -200,7 +203,7 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
               .map((mark) => (
                 <button key={mark.id} type="button" aria-pressed={tool === mark.id} onClick={() => setTool(mark.id)} className={toolButton(tool === mark.id)}>
                   <span className="flex size-7 items-center justify-center rounded-[7px] bg-[#2f363d]">
-                    <MarkIcon mark={mark.id} />
+                    <MarkIcon mark={mark.id} theme={sheet.theme} />
                   </span>
                   {mark.name}
                 </button>
@@ -296,6 +299,8 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
           )}
         </Panel>
 
+        <ThemePanel value={sheet.theme} onChange={(theme) => set({ theme })} />
+
         <LanesPanel sheet={sheet} onChange={(lanes) => set({ lanes })} />
 
         <ArtPanel sheet={sheet} slots={artSlots} onChange={(next) => commit(next)} />
@@ -307,17 +312,40 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
 const historyButton =
   "flex size-[46px] cursor-pointer items-center justify-center rounded-xl border border-(--nm-line-strong) bg-(--nm-field) text-(--nm-text-soft) hover:bg-(--nm-hover) disabled:cursor-default disabled:text-(--nm-faint) [&_svg]:size-5";
 
-function MarkIcon({ mark }: { mark: Mark }) {
+function MarkIcon({ mark, theme }: { mark: Mark; theme: ThemeId }) {
   return (
     <svg width="22" height="22" viewBox="0 0 100 100" aria-hidden="true">
       {mark === "gold" ? (
-        <GoldenDie cx={50} cy={50} size={100} />
+        <ThemedBox theme={theme} cx={50} cy={50} size={100} />
       ) : mark === "diamonds" ? (
         <CartoonDiamond cx={50} cy={50} size={100} />
       ) : (
-        <StarOutline cx={50} cy={50} size={92} />
+        <ThemedStar theme={theme} cx={50} cy={50} size={92} />
       )}
     </svg>
+  );
+}
+
+// Themes swap the box, star, heart and bomb of the whole sheet (themes.tsx).
+function ThemePanel({ value, onChange }: { value: ThemeId; onChange: (theme: ThemeId) => void }) {
+  return (
+    <Panel>
+      <Heading className="mb-3">Theme</Heading>
+      <div className="grid grid-cols-2 gap-2">
+        {themes.map((theme) => (
+          <Choice key={theme.id} active={value === theme.id} onClick={() => onChange(theme.id)} className="items-center gap-1.5">
+            <svg viewBox="0 0 400 100" className="h-8 w-32 rounded-md bg-[#cfd3d7]" aria-hidden="true">
+              <ThemedBox theme={theme.id} cx={50} cy={50} size={80} />
+              <rect x={115} y={12} width={76} height={76} rx={12} fill="#ef3f80" stroke="#16191c" strokeWidth={3} />
+              <ThemedStar theme={theme.id} cx={153} cy={50} size={62} />
+              <ThemedHeart theme={theme.id} cx={250} cy={52} size={80} />
+              <ThemedBomb theme={theme.id} cx={350} cy={50} size={84} />
+            </svg>
+            <span className="text-sm font-extrabold">{theme.name}</span>
+          </Choice>
+        ))}
+      </div>
+    </Panel>
   );
 }
 
