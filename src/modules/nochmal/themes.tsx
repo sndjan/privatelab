@@ -30,15 +30,13 @@ const BLOCK_OUTLINE =
 function boxDrawing(theme: ThemeId, id: string): ReactNode {
   switch (theme) {
     case "hunde":
+      // A simple dog house: body with a door under one round red roof beam.
       return (
         <>
-          <path d="M18 47 L50 24 L82 47 L82 88 L18 88 Z" fill="#c9955a" />
-          <path d="M70 38.5 L82 47 L82 88 L70 88 Z" fill="#a87843" />
-          <path d="M37 88 L37 68 Q50 50 63 68 L63 88 Z" fill="#3b2a1d" />
-          <path d="M18 47 L50 24 L82 47 L82 88 L18 88 Z" fill="none" stroke="#4a2f17" strokeWidth={5} strokeLinejoin="round" />
-          <path d="M6 48 L50 12 L94 48 L86 55 L50 26 L14 55 Z" fill="#d9534a" />
-          <path d="M50 12 L94 48 L86 55 L50 26 Z" fill="#b8433b" />
-          <path d="M6 48 L50 12 L94 48 L86 55 L50 26 L14 55 Z" fill="none" stroke="#4a1410" strokeWidth={5} strokeLinejoin="round" />
+          <path d="M20 52 L50 28 L80 52 L80 87 L20 87 Z" fill="#c9955a" stroke="#4a2f17" strokeWidth={5} strokeLinejoin="round" />
+          <path d="M40 87 L40 71 Q50 59 60 71 L60 87 Z" fill="#3b2a1d" />
+          <path d="M12 54 L50 22 L88 54" fill="none" stroke="#4a1410" strokeWidth={17} strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M12 54 L50 22 L88 54" fill="none" stroke="#d9534a" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />
         </>
       );
     case "tennis":
@@ -191,11 +189,11 @@ export function ThemedStar({
 
 const BONE_PARTS = (
   <>
-    <rect x={22} y={38} width={56} height={26} />
-    <circle cx={20} cy={38} r={12} />
-    <circle cx={20} cy={64} r={12} />
-    <circle cx={80} cy={38} r={12} />
-    <circle cx={80} cy={64} r={12} />
+    <rect x={24} y={40} width={52} height={22} />
+    <circle cx={22} cy={40} r={12} />
+    <circle cx={22} cy={62} r={12} />
+    <circle cx={78} cy={40} r={12} />
+    <circle cx={78} cy={62} r={12} />
   </>
 );
 

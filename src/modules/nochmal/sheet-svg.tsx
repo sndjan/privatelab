@@ -264,16 +264,23 @@ export function SheetSvg({
           const cy = L.gridY + L.gridH + 6 + i * 10;
           return (
             <g key={i}>
-              {/* Bones (Hunde) are wide and low: drawn bigger, the number smaller. */}
-              <Heart cx={cx} cy={cy} size={sheet.theme === "hunde" ? 12.5 : 9.4} theme={sheet.theme} />
-              <Label
+              <Heart cx={cx} cy={cy} size={9.4} theme={sheet.theme} />
+              {/* On bones (Hunde) the dark number gets a thin edge in the bone's
+                  colour, so it keeps a little distance from the outline. */}
+              <text
                 x={cx - 0.15}
-                y={sheet.theme === "hunde" ? cy + 0.45 : cy + 0.15}
-                size={sheet.theme === "hunde" ? 3.4 : 4.4}
+                y={cy + 0.15 + 4.4 * 0.06}
+                fontSize={4.4}
                 fill={sheet.theme === "hunde" ? "#4a3418" : "#ffffff"}
+                stroke={sheet.theme === "hunde" ? "#f3e6c8" : "none"}
+                strokeWidth={0.9}
+                strokeLinejoin="round"
+                paintOrder="stroke"
+                textAnchor="middle"
+                dominantBaseline="middle"
               >
                 {i + 1}
-              </Label>
+              </text>
             </g>
           );
         })}
