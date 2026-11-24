@@ -517,12 +517,18 @@ function Stickers({ stickers, front, clip }: { stickers: Sticker[]; front: boole
         if (sticker.front !== front) return null;
         const height = sticker.width * sticker.ratio;
         const filter = `${id}-${i}`;
-        const edge = Math.max(0.35, sticker.width * 0.03);
+        const edge = Math.max(0.4, sticker.width * 0.035);
         return (
           <g key={i} transform={`translate(${sticker.x} ${sticker.y}) rotate(${sticker.rotate})`}>
             {sticker.outline && (
+              // Grown a little, blurred and cut sharp again: the outline follows
+              // the shape with round corners instead of square ones.
               <filter id={filter} x="-25%" y="-25%" width="150%" height="150%">
-                <feMorphology in="SourceAlpha" operator="dilate" radius={edge} result="grown" />
+                <feMorphology in="SourceAlpha" operator="dilate" radius={edge * 0.3} result="thick" />
+                <feGaussianBlur in="thick" stdDeviation={edge * 0.95} result="soft" />
+                <feComponentTransfer in="soft" result="grown">
+                  <feFuncA type="linear" slope={40} intercept={-4} />
+                </feComponentTransfer>
                 <feFlood floodColor={sticker.outlineColor} />
                 <feComposite in2="grown" operator="in" result="edge" />
                 <feMerge>
@@ -556,7 +562,7 @@ function StickerHandle({ sticker, onPointerDown }: { sticker: Sticker; onPointer
         y={-height / 2 - 1}
         width={sticker.width + 2}
         height={height + 2}
-        rx={1.5}
+        rx={3.5}
         fill="#ffffff"
         fillOpacity={0.01}
         stroke="#ff9a2e"
