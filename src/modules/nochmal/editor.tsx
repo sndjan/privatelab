@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDownIcon, ArrowUpIcon, PlusIcon, Redo2Icon, Trash2Icon, Undo2Icon } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { cn } from "@/lib/utils";
 import { ArtPanel } from "./art";
 import {
@@ -32,6 +32,7 @@ import { ThemedBomb, ThemedBox, ThemedHeart, ThemedStar } from "./themes";
 import { Choice, display, Heading, Panel, Stepper } from "./ui";
 
 type Mark = "stars" | "gold" | "diamonds";
+type SettingsTab = "spiel" | "leisten" | "aussehen" | "sticker";
 type Tool = number | Mark;
 
 const marks: { id: Mark; name: string; hint: string; show: (sheet: Sheet) => boolean }[] = [
@@ -60,6 +61,7 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
   const latest = useRef(sheet);
   const painting = useRef<Sheet | null>(null);
   const [sticker, setSticker] = useState<number | null>(null);
+  const [tab, setTab] = useState<SettingsTab>("spiel");
   // Dragging a sticker: where the pointer and the sticker started, and the sheet before.
   const dragging = useRef<{ index: number; from: { x: number; y: number }; origin: { x: number; y: number }; before: Sheet } | null>(null);
   useLayoutEffect(() => {
@@ -223,7 +225,7 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
   const fair = Math.floor(sheet.cells.length / colors.length);
   const toolButton = (active: boolean) =>
     cn(
-      "flex h-[46px] cursor-pointer items-center gap-2 rounded-xl border-2 pr-3.5 pl-2 text-sm font-extrabold transition-colors",
+      "flex h-11 cursor-pointer items-center gap-1.5 rounded-xl border-2 pr-2.5 pl-1.5 text-[13px] font-extrabold transition-colors",
       active ? "border-[#ff9a2e] bg-(--nm-chosen)" : "border-(--nm-line) bg-(--nm-field) hover:border-(--nm-line-hover)",
     );
   const set = (patch: Partial<Sheet>) => commit({ ...sheet, ...patch });
@@ -236,33 +238,52 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
     ...(marks[2].show(sheet) || sheet.art.diamond ? (["diamond"] as const) : []),
   ];
 
+  const allOk = results.every((result) => result.ok);
+  const settingsTabs: { id: SettingsTab; name: string; count?: number }[] = [
+    { id: "spiel", name: "Spiel" },
+    { id: "leisten", name: "Leisten", count: sheet.lanes.length },
+    { id: "aussehen", name: "Aussehen" },
+    { id: "sticker", name: "Sticker", count: sheet.stickers.length },
+  ];
+
+  // The sheet with its tools stays in view on the left; the settings sit on
+  // the right in four tabs, each short enough to need no scrolling.
   return (
-    <div className="flex flex-wrap items-start gap-5">
-      <div className="flex min-w-0 flex-[999_1_640px] flex-col gap-3.5">
-        <div className="flex flex-wrap items-center gap-2 rounded-[18px] border border-(--nm-line) bg-(--nm-panel) p-2.5">
-          <div role="toolbar" aria-label="Werkzeuge" className="flex flex-wrap gap-2">
+    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-4">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-[18px] border border-(--nm-line) bg-(--nm-panel) p-2.5">
+          <div role="toolbar" aria-label="Werkzeuge" className="flex flex-wrap gap-1.5">
             {colors.map((color, c) => (
               <button key={color.name} type="button" aria-pressed={tool === c} onClick={() => setTool(c)} className={toolButton(tool === c)}>
-                <span className="size-7 rounded-[7px]" style={{ background: color.fill }} />
+                <span className="size-6 rounded-[6px]" style={{ background: color.fill }} />
                 {color.name}
+                <span
+                  title="Kästchen in dieser Farbe"
+                  className={cn(
+                    "rounded-md bg-(--nm-sunken) px-1.5 py-0.5 text-xs tabular-nums",
+                    Math.abs(counts[c] - fair) > 1 ? "text-(--nm-warn)" : "text-(--nm-muted)",
+                  )}
+                >
+                  {counts[c]}
+                </span>
               </button>
             ))}
             <button type="button" aria-pressed={tool === EMPTY} onClick={() => setTool(EMPTY)} className={toolButton(tool === EMPTY)}>
-              <span className="size-7 rounded-[7px] border-2 border-dashed border-(--nm-faint) bg-white" />
+              <span className="size-6 rounded-[6px] border-2 border-dashed border-(--nm-faint) bg-white" />
               Ohne Farbe
             </button>
             {marks
               .filter((mark) => mark.show(sheet))
               .map((mark) => (
                 <button key={mark.id} type="button" aria-pressed={tool === mark.id} onClick={() => setTool(mark.id)} className={toolButton(tool === mark.id)}>
-                  <span className="flex size-7 items-center justify-center rounded-[7px] bg-[#2f363d]">
+                  <span className="flex size-6 items-center justify-center rounded-[6px] bg-[#2f363d]">
                     <MarkIcon mark={mark.id} theme={sheet.theme} />
                   </span>
                   {mark.name}
                 </button>
               ))}
           </div>
-          <div className="ml-auto flex gap-1.5">
+          <div className="flex gap-1.5">
             <button type="button" aria-label="Rückgängig" onClick={undo} disabled={past.length === 0} className={historyButton}>
               <Undo2Icon />
             </button>
@@ -272,12 +293,13 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-[22px] border border-(--nm-line) bg-(--nm-well) p-3 sm:p-5">
+        <div className="overflow-x-auto rounded-[22px] border border-(--nm-line) bg-(--nm-well) p-3 sm:p-4">
           <SheetSvg
             sheet={sheet}
             highlight={tooBig}
-            className="block h-auto w-full touch-none select-none"
-            style={{ minWidth: `${sheet.cols * 2.6}rem` }}
+            // Small screens scroll sideways; next to the settings it fits the column.
+            className="block h-auto w-full min-w-(--sheet-min) touch-none select-none lg:min-w-0"
+            style={{ "--sheet-min": `${sheet.cols * 2.6}rem` } as CSSProperties}
             onCellDown={onCellDown}
             onHeaderDown={(col) => setStart(col)}
             onLaneDown={toggleLaneBox}
@@ -289,104 +311,119 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
             onPointerCancel={onUp}
           />
         </div>
-        <p className="text-sm font-semibold text-(--nm-muted)">
+
+        <details key={allOk ? "ok" : "warn"} open={!allOk} className="rounded-[16px] border border-(--nm-line) bg-(--nm-panel) px-4 py-3">
+          <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 text-sm font-extrabold">
+            <span
+              className={cn(
+                "flex size-[22px] shrink-0 items-center justify-center rounded-full text-[13px] font-black text-[#111417]",
+                allOk ? "bg-[#8cc63f]" : "bg-[#ffcf2e]",
+              )}
+            >
+              {allOk ? "✓" : "!"}
+            </span>
+            {allOk ? "Spielbar" : `${results.filter((result) => !result.ok).length} Hinweise`}
+            <span className="font-bold text-(--nm-muted)">
+              Startspalte {letter(sheet.start)} · höchstens {maxScore(sheet)} Punkte
+            </span>
+          </summary>
+          <ul className="mt-2.5 flex flex-col gap-1.5">
+            {results.map((result) => (
+              <li key={result.text} className="flex items-start gap-2 text-[13.5px] leading-snug">
+                <span className={cn("font-black", result.ok ? "text-(--nm-ok)" : "text-(--nm-warn)")}>{result.ok ? "✓" : "!"}</span>
+                {result.text}
+              </li>
+            ))}
+          </ul>
+        </details>
+
+        <p className="text-[13px] font-semibold text-(--nm-muted)">
           {tool === EMPTY
             ? "Über Kästchen wischen nimmt ihnen die Farbe."
             : typeof tool === "number"
               ? "Farbe wählen und über Kästchen wischen."
-              : marks.find((mark) => mark.id === tool)!.hint} Ein Buchstabe oben
-          macht die Spalte zur Startspalte (Punkte passen sich an). Ein Kästchen in den Leisten unten antippen nimmt es weg oder fügt es
-          wieder ein (gestrichelt = fehlt), mit „Goldwürfel“ bekommt es einen goldenen Würfel. Zu große Blöcke sind rot umrandet.
+              : marks.find((mark) => mark.id === tool)!.hint}{" "}
+          Buchstabe oben = Startspalte · Kästchen in den Leisten antippen = weg/da · Zeilenbonus antippen = wechseln.
         </p>
       </div>
 
-      <aside className="flex flex-[1_1_320px] flex-col gap-3.5">
-        <Panel>
-          <Heading className="mb-3">Spielbar?</Heading>
-          <ul className="flex flex-col gap-2.5">
-            {results.map((result) => (
-              <li key={result.text} className="flex items-start gap-2.5 text-[14.5px] leading-snug">
-                <span
-                  className={cn(
-                    "flex size-[22px] shrink-0 items-center justify-center rounded-full text-[13px] font-black text-[#111417]",
-                    result.ok ? "bg-[#8cc63f]" : "bg-[#ffcf2e]",
-                  )}
-                >
-                  {result.ok ? "✓" : "!"}
-                </span>
-                {result.text}
-              </li>
-            ))}
-            <li className="text-sm font-bold text-(--nm-muted)">
-              Startspalte {letter(sheet.start)} · höchstens {maxScore(sheet)} Punkte
-            </li>
-          </ul>
-        </Panel>
+      <aside className="flex min-w-0 flex-col gap-3">
+        <div role="tablist" aria-label="Einstellungen" className="grid grid-cols-4 gap-1 rounded-xl bg-(--nm-panel) p-1">
+          {settingsTabs.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === entry.id}
+              onClick={() => setTab(entry.id)}
+              className={cn(
+                "flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-[9px] px-2 text-sm font-extrabold transition-colors",
+                tab === entry.id ? "bg-[#ff9a2e] text-[#1a1205]" : "text-(--nm-text-soft) hover:bg-(--nm-hover)",
+              )}
+            >
+              {entry.name}
+              {entry.count ? <span className="rounded-md bg-black/10 px-1.5 text-xs tabular-nums">{entry.count}</span> : null}
+            </button>
+          ))}
+        </div>
 
-        <Panel>
-          <Heading className="mb-3">Farben</Heading>
-          <div className="grid grid-cols-5 gap-1.5">
-            {colors.map((color, c) => (
-              <div key={color.name} className="flex flex-col items-center gap-1.5 rounded-xl bg-(--nm-field) py-2.5">
-                <span className="size-[26px] rounded-[7px]" style={{ background: color.fill }} />
-                <span className={cn(display, "text-xl", Math.abs(counts[c] - fair) > 1 && "text-(--nm-warn)")}>{counts[c]}</span>
-              </div>
-            ))}
-          </div>
-        </Panel>
-
-        <Panel className="grid grid-cols-2 gap-3">
-          <Stepper label="Farbe zuerst" value={sheet.bonus[0]} min={0} max={20} onChange={(value) => set({ bonus: [value, sheet.bonus[1]] })} />
-          <Stepper label="Farbe später" value={sheet.bonus[1]} min={0} max={20} onChange={(value) => set({ bonus: [sheet.bonus[0], value] })} />
-          <Stepper label="Joker" value={sheet.jokers} {...limits.jokers} onChange={(jokers) => set({ jokers })} />
-          <Stepper label="Stern leer" value={sheet.starPenalty} min={0} max={10} shown={`−${sheet.starPenalty}`} onChange={(starPenalty) => set({ starPenalty })} />
-          {sheet.variant === "sogut" && (
-            <>
-              <Stepper label="Herzen" value={sheet.hearts} {...limits.hearts} onChange={(hearts) => set({ hearts })} />
-              <Stepper label="Sonderwürfel" value={sheet.specials} {...limits.specials} onChange={(specials) => set({ specials })} />
-              <Stepper label="Volle Zeile" value={sheet.rowScore} min={0} max={20} onChange={(rowScore) => set({ rowScore })} />
-            </>
-          )}
-          {sheet.variant === "xmal" && (
-            <>
-              <Stepper label="Pass-Felder" value={sheet.passes} {...limits.passes} onChange={(passes) => set({ passes })} />
-              <Stepper label="X-Chips" value={sheet.chips} {...limits.chips} onChange={(chips) => set({ chips })} />
-            </>
-          )}
-        </Panel>
-
-        {sheet.rowBonuses.length > 0 && <RowBonusPanel sheet={sheet} onChange={(rowBonuses) => set({ rowBonuses })} />}
-
-        <ThemePanel value={sheet.theme} art={sheet.art} onChange={(theme) => set({ theme })} />
-
-        {sheet.theme === "eigenes" && (
-          <ArtPanel
-            sheet={sheet}
-            slots={ownSlots}
-            title="Eigenes Theme"
-            hint="Für jedes Symbol ein Foto hochladen und zuschneiden oder selbst zeichnen. Ohne Bild bleibt das Original-Symbol."
-            onChange={(next) => commit(next)}
-          />
+        {tab === "spiel" && (
+          <>
+            <Panel className="grid grid-cols-2 gap-3">
+              <Stepper label="Farbe zuerst" value={sheet.bonus[0]} min={0} max={20} onChange={(value) => set({ bonus: [value, sheet.bonus[1]] })} />
+              <Stepper label="Farbe später" value={sheet.bonus[1]} min={0} max={20} onChange={(value) => set({ bonus: [sheet.bonus[0], value] })} />
+              <Stepper label="Joker" value={sheet.jokers} {...limits.jokers} onChange={(jokers) => set({ jokers })} />
+              <Stepper label="Stern leer" value={sheet.starPenalty} min={0} max={10} shown={`−${sheet.starPenalty}`} onChange={(starPenalty) => set({ starPenalty })} />
+              {sheet.variant === "sogut" && (
+                <>
+                  <Stepper label="Herzen" value={sheet.hearts} {...limits.hearts} onChange={(hearts) => set({ hearts })} />
+                  <Stepper label="Sonderwürfel" value={sheet.specials} {...limits.specials} onChange={(specials) => set({ specials })} />
+                  <Stepper label="Volle Zeile" value={sheet.rowScore} min={0} max={20} onChange={(rowScore) => set({ rowScore })} />
+                </>
+              )}
+              {sheet.variant === "xmal" && (
+                <>
+                  <Stepper label="Pass-Felder" value={sheet.passes} {...limits.passes} onChange={(passes) => set({ passes })} />
+                  <Stepper label="X-Chips" value={sheet.chips} {...limits.chips} onChange={(chips) => set({ chips })} />
+                </>
+              )}
+            </Panel>
+            {sheet.rowBonuses.length > 0 && <RowBonusPanel sheet={sheet} onChange={(rowBonuses) => set({ rowBonuses })} />}
+          </>
         )}
 
-        <LanesPanel sheet={sheet} onChange={(lanes) => set({ lanes })} />
+        {tab === "leisten" && <LanesPanel sheet={sheet} onChange={(lanes) => set({ lanes })} />}
 
-        <StickerPanel sheet={sheet} selected={sticker} onSelect={setSticker} onChange={(stickers) => set({ stickers })} />
+        {tab === "aussehen" && (
+          <>
+            <ThemePanel value={sheet.theme} art={sheet.art} onChange={(theme) => set({ theme })} />
+            {sheet.theme === "eigenes" && (
+              <ArtPanel
+                sheet={sheet}
+                slots={ownSlots}
+                title="Eigenes Theme"
+                hint="Für jedes Symbol ein Foto hochladen und zuschneiden oder selbst zeichnen. Ohne Bild bleibt das Original-Symbol."
+                onChange={(next) => commit(next)}
+              />
+            )}
+            <ArtPanel
+              sheet={sheet}
+              slots={["background"]}
+              title="Hintergrund"
+              hint="Ein eigenes Bild hinter den Kästchen, passt zu jedem Theme."
+              onChange={(next) => commit(next)}
+            />
+          </>
+        )}
 
-        <ArtPanel
-          sheet={sheet}
-          slots={["background"]}
-          title="Hintergrund"
-          hint="Ein eigenes Bild hinter den Kästchen, passt zu jedem Theme."
-          onChange={(next) => commit(next)}
-        />
+        {tab === "sticker" && <StickerPanel sheet={sheet} selected={sticker} onSelect={setSticker} onChange={(stickers) => set({ stickers })} />}
       </aside>
     </div>
   );
 }
 
 const historyButton =
-  "flex size-[46px] cursor-pointer items-center justify-center rounded-xl border border-(--nm-line-strong) bg-(--nm-field) text-(--nm-text-soft) hover:bg-(--nm-hover) disabled:cursor-default disabled:text-(--nm-faint) [&_svg]:size-5";
+  "flex size-11 cursor-pointer items-center justify-center rounded-xl border border-(--nm-line-strong) bg-(--nm-field) text-(--nm-text-soft) hover:bg-(--nm-hover) disabled:cursor-default disabled:text-(--nm-faint) [&_svg]:size-5";
 
 function MarkIcon({ mark, theme }: { mark: Mark; theme: ThemeId }) {
   return (
@@ -407,38 +444,29 @@ const rowBonusNames: Record<RowBonus, string> = { wuerfel: "Würfel", bombe: "Bo
 
 function RowBonusPanel({ sheet, onChange }: { sheet: Sheet; onChange: (rowBonuses: RowBonus[]) => void }) {
   const symbols = sheet.theme === "eigenes" ? "original" : sheet.theme;
+  const next = (kind: RowBonus) => rowBonusKinds[(rowBonusKinds.indexOf(kind) + 1) % rowBonusKinds.length];
   return (
     <Panel>
       <Heading className="mb-1">Zeilenbonus</Heading>
-      <p className="mb-3 text-sm font-semibold text-(--nm-muted)">Was der Erste bekommt, der eine Zeile voll hat. Im Blatt wechselt ein Tipp aufs Symbol.</p>
-      <ul className="flex flex-col gap-1.5">
+      <p className="mb-3 text-sm font-semibold text-(--nm-muted)">Für den Ersten mit voller Zeile. Antippen wechselt Würfel → Bombe → Herz.</p>
+      <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${sheet.rowBonuses.length}, minmax(0, 1fr))` }}>
         {sheet.rowBonuses.map((bonus, row) => (
-          <li key={row} className="flex items-center gap-2">
-            <span className={cn(display, "w-6 text-center text-lg")}>{rowLetter(sheet, row)}</span>
-            <div className="grid flex-1 grid-cols-3 gap-1 rounded-xl bg-(--nm-sunken) p-1">
-              {rowBonusKinds.map((kind) => (
-                <button
-                  key={kind}
-                  type="button"
-                  aria-pressed={bonus === kind}
-                  aria-label={`Zeile ${rowLetter(sheet, row)}: ${rowBonusNames[kind]}`}
-                  onClick={() => onChange(sheet.rowBonuses.map((entry, i) => (i === row ? kind : entry)))}
-                  className={cn(
-                    "flex h-10 cursor-pointer items-center justify-center rounded-[9px] transition-colors",
-                    bonus === kind ? "bg-[#ff9a2e]" : "hover:bg-(--nm-hover)",
-                  )}
-                >
-                  <svg width="26" height="26" viewBox="0 0 100 100" aria-hidden="true">
-                    {kind === "wuerfel" && <ThemedBox theme={symbols} cx={50} cy={50} size={96} />}
-                    {kind === "bombe" && <ThemedBomb theme={symbols} cx={50} cy={50} size={100} />}
-                    {kind === "herz" && <ThemedHeart theme={symbols} cx={50} cy={52} size={96} />}
-                  </svg>
-                </button>
-              ))}
-            </div>
-          </li>
+          <button
+            key={row}
+            type="button"
+            aria-label={`Zeile ${rowLetter(sheet, row)}: ${rowBonusNames[bonus]}, antippen für ${rowBonusNames[next(bonus)]}`}
+            onClick={() => onChange(sheet.rowBonuses.map((entry, i) => (i === row ? next(entry) : entry)))}
+            className="flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 border-(--nm-line) bg-(--nm-field) py-1.5 hover:border-[#ff9a2e]"
+          >
+            <span className={cn(display, "text-base")}>{rowLetter(sheet, row)}</span>
+            <svg width="26" height="26" viewBox="0 0 100 100" aria-hidden="true">
+              {bonus === "wuerfel" && <ThemedBox theme={symbols} cx={50} cy={50} size={96} />}
+              {bonus === "bombe" && <ThemedBomb theme={symbols} cx={50} cy={50} size={100} />}
+              {bonus === "herz" && <ThemedHeart theme={symbols} cx={50} cy={52} size={96} />}
+            </svg>
+          </button>
         ))}
-      </ul>
+      </div>
     </Panel>
   );
 }
