@@ -15,14 +15,18 @@ import {
   limits,
   MAX_LANES,
   maxScore,
+  rowBonusKinds,
+  rowLetter,
   type ArtSlot,
   type Lane,
+  type RowBonus,
   type LaneKind,
   themes,
   type Sheet,
   type ThemeId,
 } from "./data";
 import { SheetSvg } from "./sheet-svg";
+import { StickerPanel } from "./stickers";
 import { CartoonDiamond } from "./symbols";
 import { ThemedBomb, ThemedBox, ThemedHeart, ThemedStar } from "./themes";
 import { Choice, display, Heading, Panel, Stepper } from "./ui";
@@ -55,6 +59,9 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
   const [future, setFuture] = useState<Sheet[]>([]);
   const latest = useRef(sheet);
   const painting = useRef<Sheet | null>(null);
+  const [sticker, setSticker] = useState<number | null>(null);
+  // Dragging a sticker: where the pointer and the sticker started, and the sheet before.
+  const dragging = useRef<{ index: number; from: { x: number; y: number }; origin: { x: number; y: number }; before: Sheet } | null>(null);
   useLayoutEffect(() => {
     latest.current = sheet;
   }, [sheet]);
@@ -124,13 +131,57 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
     paint(cell);
   }
 
+  // The pointer's position in sheet units.
+  function sheetPoint(svg: SVGSVGElement, event: PointerEvent) {
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const matrix = svg.getScreenCTM();
+    return matrix ? point.matrixTransform(matrix.inverse()) : { x: 0, y: 0 };
+  }
+
+  function onStickerDown(index: number, event: PointerEvent) {
+    if (event.button !== 0) return;
+    const svg = (event.currentTarget as SVGElement).ownerSVGElement;
+    const current = latest.current;
+    const placed = current.stickers[index];
+    if (!svg || !placed) return;
+    event.stopPropagation();
+    svg.setPointerCapture(event.pointerId);
+    dragging.current = { index, from: sheetPoint(svg, event), origin: { x: placed.x, y: placed.y }, before: current };
+  }
+
+  // A row bonus (Noch mal so gut!): tapping switches special die → bomb → heart.
+  function cycleRowBonus(row: number, event: PointerEvent) {
+    if (event.button !== 0) return;
+    const current = latest.current;
+    const next = rowBonusKinds[(rowBonusKinds.indexOf(current.rowBonuses[row]) + 1) % rowBonusKinds.length];
+    commit({ ...current, rowBonuses: current.rowBonuses.map((kind, i) => (i === row ? next : kind)) });
+  }
+
   function onMove(event: PointerEvent<SVGSVGElement>) {
+    const drag = dragging.current;
+    if (drag) {
+      const point = sheetPoint(event.currentTarget, event);
+      const current = latest.current;
+      const x = Math.round((drag.origin.x + point.x - drag.from.x) * 10) / 10;
+      const y = Math.round((drag.origin.y + point.y - drag.from.y) * 10) / 10;
+      commit({ ...current, stickers: current.stickers.map((entry, i) => (i === drag.index ? { ...entry, x, y } : entry)) }, false);
+      return;
+    }
     if (!painting.current) return;
     const target = document.elementFromPoint(event.clientX, event.clientY)?.closest("[data-cell]");
     if (target) paint(Number(target.getAttribute("data-cell")));
   }
 
   function onUp() {
+    // One drag is one undo step.
+    const drag = dragging.current;
+    dragging.current = null;
+    if (drag && drag.before !== latest.current) {
+      setPast((list) => [...list.slice(-59), drag.before]);
+      setFuture([]);
+    }
     // One stroke is one undo step.
     const before = painting.current;
     painting.current = null;
@@ -230,6 +281,9 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
             onCellDown={onCellDown}
             onHeaderDown={(col) => setStart(col)}
             onLaneDown={toggleLaneBox}
+            onRowBonusDown={cycleRowBonus}
+            onStickerDown={onStickerDown}
+            selectedSticker={sticker}
             onPointerMove={onMove}
             onPointerUp={onUp}
             onPointerCancel={onUp}
@@ -301,6 +355,8 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
           )}
         </Panel>
 
+        {sheet.rowBonuses.length > 0 && <RowBonusPanel sheet={sheet} onChange={(rowBonuses) => set({ rowBonuses })} />}
+
         <ThemePanel value={sheet.theme} art={sheet.art} onChange={(theme) => set({ theme })} />
 
         {sheet.theme === "eigenes" && (
@@ -314,6 +370,8 @@ export function SheetEditor({ sheet, onChange }: { sheet: Sheet; onChange: (shee
         )}
 
         <LanesPanel sheet={sheet} onChange={(lanes) => set({ lanes })} />
+
+        <StickerPanel sheet={sheet} selected={sticker} onSelect={setSticker} onChange={(stickers) => set({ stickers })} />
 
         <ArtPanel
           sheet={sheet}
@@ -341,6 +399,47 @@ function MarkIcon({ mark, theme }: { mark: Mark; theme: ThemeId }) {
         <ThemedStar theme={theme} cx={50} cy={50} size={92} />
       )}
     </svg>
+  );
+}
+
+// Noch mal so gut!: the bonus of every row (P, Q, …) for the first to complete it.
+const rowBonusNames: Record<RowBonus, string> = { wuerfel: "Würfel", bombe: "Bombe", herz: "Herz" };
+
+function RowBonusPanel({ sheet, onChange }: { sheet: Sheet; onChange: (rowBonuses: RowBonus[]) => void }) {
+  const symbols = sheet.theme === "eigenes" ? "original" : sheet.theme;
+  return (
+    <Panel>
+      <Heading className="mb-1">Zeilenbonus</Heading>
+      <p className="mb-3 text-sm font-semibold text-(--nm-muted)">Was der Erste bekommt, der eine Zeile voll hat. Im Blatt wechselt ein Tipp aufs Symbol.</p>
+      <ul className="flex flex-col gap-1.5">
+        {sheet.rowBonuses.map((bonus, row) => (
+          <li key={row} className="flex items-center gap-2">
+            <span className={cn(display, "w-6 text-center text-lg")}>{rowLetter(sheet, row)}</span>
+            <div className="grid flex-1 grid-cols-3 gap-1 rounded-xl bg-(--nm-sunken) p-1">
+              {rowBonusKinds.map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  aria-pressed={bonus === kind}
+                  aria-label={`Zeile ${rowLetter(sheet, row)}: ${rowBonusNames[kind]}`}
+                  onClick={() => onChange(sheet.rowBonuses.map((entry, i) => (i === row ? kind : entry)))}
+                  className={cn(
+                    "flex h-10 cursor-pointer items-center justify-center rounded-[9px] transition-colors",
+                    bonus === kind ? "bg-[#ff9a2e]" : "hover:bg-(--nm-hover)",
+                  )}
+                >
+                  <svg width="26" height="26" viewBox="0 0 100 100" aria-hidden="true">
+                    {kind === "wuerfel" && <ThemedBox theme={symbols} cx={50} cy={50} size={96} />}
+                    {kind === "bombe" && <ThemedBomb theme={symbols} cx={50} cy={50} size={100} />}
+                    {kind === "herz" && <ThemedHeart theme={symbols} cx={50} cy={52} size={96} />}
+                  </svg>
+                </button>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Panel>
   );
 }
 

@@ -62,6 +62,8 @@ export type Sheet = {
   lanes: Lane[];
   // Symbols for the box, star, heart and bomb (themes.tsx).
   theme: ThemeId;
+  // Own pictures placed freely on the card (PNGs with transparency work best).
+  stickers: Sticker[];
   // Own pictures instead of the drawn star, golden die and diamond, and a
   // background for the card: public URLs in the nochmal-images bucket.
   art: Art;
@@ -104,6 +106,22 @@ export const themes: { id: ThemeId; name: string }[] = [
   { id: "eigenes", name: "Eigenes" },
 ];
 
+// A picture placed on the card: centre (x, y) and width in sheet units (a
+// box is 10), height = width × ratio, turned by rotate degrees, with an
+// optional outline around its shape, behind or in front of the sheet.
+export type Sticker = {
+  url: string;
+  x: number;
+  y: number;
+  width: number;
+  ratio: number;
+  rotate: number;
+  outline: boolean;
+  outlineColor: string;
+  front: boolean;
+};
+export const MAX_STICKERS = 24;
+
 export type ArtSlot = "star" | "gold" | "heart" | "bomb" | "diamond" | "background";
 export type Art = Partial<Record<ArtSlot, string>>;
 export const artSlots: ArtSlot[] = ["star", "gold", "heart", "bomb", "diamond", "background"];
@@ -115,13 +133,16 @@ export const IMAGE_BUCKET = "nochmal-images";
 const imagePrefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${IMAGE_BUCKET}/`;
 
 // Only our own uploads (random names in the user's folder) are kept.
+export function isOwnImage(url: unknown): url is string {
+  return typeof url === "string" && url.length <= 300 && url.startsWith(imagePrefix) && /^[\w-]+\/[\w-]+\.(webp|png|jpg)$/.test(url.slice(imagePrefix.length));
+}
+
 function cleanArt(value: unknown): Art {
   const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
   const art: Art = {};
   for (const slot of artSlots) {
     const url = raw[slot];
-    if (typeof url === "string" && url.length <= 300 && url.startsWith(imagePrefix) && /^[\w-]+\/[\w-]+\.(webp|png|jpg)$/.test(url.slice(imagePrefix.length)))
-      art[slot] = url;
+    if (isOwnImage(url)) art[slot] = url;
   }
   return art;
 }
@@ -604,6 +625,7 @@ function variantParts(variant: Variant, rows: number, start: number) {
     scoring: variant.scoring,
     lanes: defaultLanes(variant.rows, start),
     theme: "original" as ThemeId,
+    stickers: [] as Sticker[],
     art: {},
   };
 }
@@ -660,6 +682,7 @@ export function emptySheet(cols: number, rows: number): Sheet {
     scoring: true,
     lanes: defaultLanes(false, start),
     theme: "original",
+    stickers: [],
     art: {},
   };
 }
@@ -831,8 +854,29 @@ export function cleanSheet(input: unknown): Sheet {
     scoring: raw.scoring !== false,
     lanes: cleanLanes(raw.lanes, cols, rawRows.length > 0, start),
     theme: cleanTheme(raw),
+    stickers: cleanStickers(raw.stickers),
     art: cleanArt(raw.art),
   };
+}
+
+function cleanStickers(value: unknown): Sticker[] {
+  const num = (input: unknown, min: number, max: number, fallback: number) =>
+    typeof input === "number" && Number.isFinite(input) ? Math.min(max, Math.max(min, Math.round(input * 100) / 100)) : fallback;
+  return (Array.isArray(value) ? value : [])
+    .map((entry) => (entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {}))
+    .filter((entry) => isOwnImage(entry.url))
+    .slice(0, MAX_STICKERS)
+    .map((entry) => ({
+      url: entry.url as string,
+      x: num(entry.x, -50, 500, 50),
+      y: num(entry.y, -50, 400, 50),
+      width: num(entry.width, 2, 200, 20),
+      ratio: num(entry.ratio, 0.1, 10, 1),
+      rotate: num(entry.rotate, -180, 180, 0),
+      outline: entry.outline === true,
+      outlineColor: typeof entry.outlineColor === "string" && /^#[0-9a-f]{6}$/i.test(entry.outlineColor) ? entry.outlineColor : "#ffffff",
+      front: entry.front === true,
+    }));
 }
 
 // Sheets saved before themes existed but with own symbol pictures keep them

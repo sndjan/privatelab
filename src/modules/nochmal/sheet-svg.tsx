@@ -1,5 +1,5 @@
 import { useId, type PointerEvent, type ReactNode, type Ref, type SVGProps } from "react";
-import { blocksOf, colors, EMPTY, letter, rowLetter, type RowBonus, type Sheet } from "./data";
+import { blocksOf, colors, EMPTY, letter, rowLetter, type RowBonus, type Sheet, type Sticker } from "./data";
 import { CartoonDiamond, JokerMark, JokerTile } from "./symbols";
 import { ThemedBomb, ThemedBox, ThemedHeart, ThemedStar } from "./themes";
 import type { ThemeId } from "./data";
@@ -100,6 +100,9 @@ export function SheetSvg({
   onCellDown,
   onHeaderDown,
   onLaneDown,
+  onRowBonusDown,
+  onStickerDown,
+  selectedSticker,
   ...props
 }: {
   sheet: Sheet;
@@ -112,6 +115,11 @@ export function SheetSvg({
   // Editing: tapping a place in a row of boxes adds or removes its box (left
   // out boxes are shown dashed then).
   onLaneDown?: (lane: number, col: number, event: PointerEvent) => void;
+  // Editing: tapping a row bonus (Noch mal so gut!) switches it.
+  onRowBonusDown?: (row: number, event: PointerEvent) => void;
+  // Editing: the chosen sticker gets a dashed frame on top to drag it by.
+  onStickerDown?: (index: number, event: PointerEvent) => void;
+  selectedSticker?: number | null;
 } & SVGProps<SVGSVGElement>) {
   const theme = themes[sheet.variant];
   const L = sheetLayout(sheet);
@@ -150,6 +158,12 @@ export function SheetSvg({
           <rect x={0} y={0} width={L.width} height={L.height} rx={7} fill={theme.card} fillOpacity={0.25} pointerEvents="none" />
         </>
       )}
+
+      {/* Stickers behind the sheet (cut off at the card's round edge). */}
+      <clipPath id={`${clipId}-card`}>
+        <rect x={0} y={0} width={L.width} height={L.height} rx={7} />
+      </clipPath>
+      <Stickers stickers={sheet.stickers} front={false} clip={`${clipId}-card`} />
 
       {/* Column letters. */}
       {Array.from({ length: sheet.cols }, (_, col) => (
@@ -252,8 +266,13 @@ export function SheetSvg({
               <Label x={L.pad + 3.8} y={y + T / 2} size={5.2} fill={theme.ink}>
                 {sheet.rowScore}
               </Label>
-              <Tile x={L.pad + 8.6} y={y} w={T} h={T} fill={theme.tile} />
-              <RowBonusIcon kind={bonus} cx={L.pad + 8.6 + T / 2} cy={y + T / 2} art={art} theme={symbolTheme} />
+              <g
+                onPointerDown={onRowBonusDown && ((event) => onRowBonusDown(row, event))}
+                className={onRowBonusDown ? "cursor-pointer" : undefined}
+              >
+                <Tile x={L.pad + 8.6} y={y} w={T} h={T} fill={theme.tile} />
+                <RowBonusIcon kind={bonus} cx={L.pad + 8.6 + T / 2} cy={y + T / 2} art={art} theme={symbolTheme} />
+              </g>
               <Tile x={L.gridX + L.gridW + 1} y={y} w={7.8} h={T} fill={theme.tile} />
               <Label x={L.gridX + L.gridW + 4.9} y={y + T / 2} size={5.4} fill={theme.ink}>
                 {rowLetter(sheet, row)}
@@ -472,12 +491,85 @@ export function SheetSvg({
         </g>
       )}
 
+      {/* Stickers in front of the sheet, and the frame to drag the chosen one. */}
+      <Stickers stickers={sheet.stickers} front clip={`${clipId}-card`} />
+      {onStickerDown && selectedSticker != null && sheet.stickers[selectedSticker] && (
+        <StickerHandle sticker={sheet.stickers[selectedSticker]} onPointerDown={(event) => onStickerDown(selectedSticker, event)} />
+      )}
+
       {title && (
         <text x={L.width - L.pad} y={L.height - 2.2} fontSize={2.6} fill={theme.label} fillOpacity={0.7} textAnchor="end" fontFamily="system-ui, sans-serif">
           {title}
         </text>
       )}
     </svg>
+  );
+}
+
+// Own pictures placed on the card, each turned around its centre, with an
+// outline that follows the picture's shape (transparent PNGs) if wanted.
+function Stickers({ stickers, front, clip }: { stickers: Sticker[]; front: boolean; clip: string }) {
+  const id = useId();
+  if (!stickers.some((sticker) => sticker.front === front)) return null;
+  return (
+    <g pointerEvents="none" clipPath={`url(#${clip})`}>
+      {stickers.map((sticker, i) => {
+        if (sticker.front !== front) return null;
+        const height = sticker.width * sticker.ratio;
+        const filter = `${id}-${i}`;
+        const edge = Math.max(0.4, sticker.width * 0.035);
+        return (
+          <g key={i} transform={`translate(${sticker.x} ${sticker.y}) rotate(${sticker.rotate})`}>
+            {sticker.outline && (
+              // Grown a little, blurred and cut sharp again: the outline follows
+              // the shape with round corners instead of square ones.
+              <filter id={filter} x="-25%" y="-25%" width="150%" height="150%">
+                <feMorphology in="SourceAlpha" operator="dilate" radius={edge * 0.3} result="thick" />
+                <feGaussianBlur in="thick" stdDeviation={edge * 0.95} result="soft" />
+                <feComponentTransfer in="soft" result="grown">
+                  <feFuncA type="linear" slope={40} intercept={-4} />
+                </feComponentTransfer>
+                <feFlood floodColor={sticker.outlineColor} />
+                <feComposite in2="grown" operator="in" result="edge" />
+                <feMerge>
+                  <feMergeNode in="edge" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            )}
+            <image
+              href={sticker.url}
+              x={-sticker.width / 2}
+              y={-height / 2}
+              width={sticker.width}
+              height={height}
+              preserveAspectRatio="xMidYMid meet"
+              filter={sticker.outline ? `url(#${filter})` : undefined}
+            />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+function StickerHandle({ sticker, onPointerDown }: { sticker: Sticker; onPointerDown: (event: PointerEvent) => void }) {
+  const height = sticker.width * sticker.ratio;
+  return (
+    <g transform={`translate(${sticker.x} ${sticker.y}) rotate(${sticker.rotate})`} onPointerDown={onPointerDown} className="cursor-move">
+      <rect
+        x={-sticker.width / 2 - 1}
+        y={-height / 2 - 1}
+        width={sticker.width + 2}
+        height={height + 2}
+        rx={3.5}
+        fill="#ffffff"
+        fillOpacity={0.01}
+        stroke="#ff9a2e"
+        strokeWidth={0.5}
+        strokeDasharray="1.5 1"
+      />
+    </g>
   );
 }
 
