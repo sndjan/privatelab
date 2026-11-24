@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { cleanSheet, IMAGE_BUCKET } from "./data";
+import { cleanSheet, IMAGE_BUCKET, isOwnImage } from "./data";
 
 // All writes go through the user's own Supabase client, so RLS enforces
 // ownership and access to the 'nochmal' module.
@@ -62,6 +62,31 @@ export async function deleteSheet(id: string) {
   const supabase = await db();
   check(await supabase.from("nochmal_sheets").delete().eq("id", id));
   revalidatePath(PATH);
+}
+
+// Shares an uploaded picture of the user's in the sticker library.
+export async function shareSticker(url: string, ratio: number): Promise<{ ok: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Bitte melde dich erneut an." };
+  if (!isOwnImage(url) || !url.includes(`/${user.id}/`)) return { error: "Nur eigene Bilder lassen sich teilen." };
+  const safeRatio = Number.isFinite(ratio) ? Math.min(10, Math.max(0.1, ratio)) : 1;
+  const supabase = await createClient();
+  const { error } = await supabase.from("nochmal_stickers").insert({ url, ratio: safeRatio });
+  if (error) {
+    if (error.code === "23505") return { ok: true };
+    if (/nochmal_stickers/.test(error.message) && /does not exist|schema cache/.test(error.message)) {
+      return { error: "Die Sticker-Sammlung fehlt in Supabase. Die Migration 20261212000000_nochmal_sticker_library.sql muss noch ausgeführt werden." };
+    }
+    return { error: `Teilen fehlgeschlagen: ${error.message}` };
+  }
+  return { ok: true };
+}
+
+// Takes a sticker out of the library (RLS: own ones, or any for admins). The
+// file stays, so sheets that use it keep it.
+export async function removeLibrarySticker(id: string) {
+  const supabase = await db();
+  check(await supabase.from("nochmal_stickers").delete().eq("id", id));
 }
 
 const IMAGE_TYPES: Record<string, string> = { "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png" };
