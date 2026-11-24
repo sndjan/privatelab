@@ -2,7 +2,7 @@
 // src/lib/query/data.ts).
 import type { Loader } from "@/lib/query/loaders";
 import { createClient } from "@/lib/supabase/server";
-import { cleanSheet, type Sheet } from "./data";
+import { cleanSheet, isOwnImage, type Sheet } from "./data";
 
 // mine: the signed-in user's own sheet (others' sheets are only shown,
 // printed and copied); author: the owner's short name.
@@ -21,7 +21,19 @@ const toEntry = (row: Row, userId: string): SheetEntry => ({
 // "*" so the list still loads before the author column exists.
 const columns = "*";
 
+// A sticker in the shared library: mine = uploaded by the signed-in user
+// (only they can remove it).
+export type LibrarySticker = { id: string; url: string; ratio: number; mine: boolean };
+
 export const nochmalLoaders = {
+  // The shared sticker library, newest first (empty before its migration ran).
+  stickers: async (_params, user) => {
+    const supabase = await createClient();
+    const { data } = await supabase.from("nochmal_stickers").select("id, url, ratio, user_id").order("created_at", { ascending: false }).limit(300);
+    return ((data ?? []) as { id: string; url: string; ratio: number; user_id: string }[])
+      .filter((row) => isOwnImage(row.url))
+      .map((row): LibrarySticker => ({ id: row.id, url: row.url, ratio: Number(row.ratio) || 1, mine: row.user_id === user.id }));
+  },
   // All sheets (own and everyone else's), last changed first (with their
   // data, for the small previews).
   list: async (_params, user) => {

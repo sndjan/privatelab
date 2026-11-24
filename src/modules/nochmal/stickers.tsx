@@ -1,16 +1,20 @@
 "use client";
 
-import { CopyIcon, ImagePlusIcon, Loader2Icon, Trash2Icon } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CopyIcon, ImagePlusIcon, Loader2Icon, Share2Icon, Trash2Icon, XIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { dataQuery } from "@/lib/query/data";
 import { cn } from "@/lib/utils";
-import { uploadSheetImage } from "./actions";
+import { removeLibrarySticker, shareSticker, uploadSheetImage } from "./actions";
 import { MAX_STICKERS, type Sheet, type Sticker } from "./data";
+import type { LibrarySticker } from "./loaders";
 import { sheetLayout } from "./sheet-svg";
 import { Heading, Panel } from "./ui";
 
 // Stickers: own pictures (PNGs with transparency work best) placed freely on
-// the card, as many as wanted. Each is uploaded as it is (scaled down, no
+// the card, as many as wanted. Uploads can go into the shared library
+// ("Sammlung"), from which everyone with access places them on their sheets. Each is uploaded as it is (scaled down, no
 // crop), then sized, turned, outlined and put behind or in front of the
 // sheet here; it is moved by dragging its dashed frame on the sheet.
 
@@ -54,6 +58,11 @@ export function StickerPanel({
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [share, setShare] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: library = [] } = useQuery(dataQuery("nochmal", "stickers"));
+  const shared = new Set(library.map((entry) => entry.url));
+  const refreshLibrary = () => queryClient.invalidateQueries({ queryKey: ["nochmal", "stickers"] });
   const stickers = sheet.stickers;
   const layout = sheetLayout(sheet);
   const current = selected !== null ? stickers[selected] : undefined;
@@ -62,6 +71,43 @@ export function StickerPanel({
     if (selected === null) return;
     onChange(stickers.map((sticker, i) => (i === selected ? { ...sticker, ...patch } : sticker)));
   };
+
+  // A new sticker in the middle of the card, a little apart from the last ones.
+  function placed(url: string, ratio: number, count: number): Sticker {
+    const offset = (count % 5) * 4;
+    return {
+      url,
+      x: layout.width / 2 + offset,
+      y: layout.height / 2 + offset,
+      width: 24,
+      ratio,
+      rotate: 0,
+      outline: true,
+      outlineColor: "#ffffff",
+      front: true,
+    };
+  }
+
+  function placeFromLibrary(entry: LibrarySticker) {
+    if (stickers.length >= MAX_STICKERS) return;
+    onChange([...stickers, placed(entry.url, entry.ratio, stickers.length)]);
+    onSelect(stickers.length);
+  }
+
+  async function shareOne(url: string, ratio: number) {
+    const result = await shareSticker(url, ratio);
+    if ("error" in result) toast.error(result.error);
+    return !("error" in result);
+  }
+
+  async function remove(entry: LibrarySticker) {
+    try {
+      await removeLibrarySticker(entry.id);
+      await refreshLibrary();
+    } catch {
+      toast.error("Entfernen fehlgeschlagen.");
+    }
+  }
 
   async function add(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -77,30 +123,17 @@ export function StickerPanel({
           toast.error(result.error);
           break;
         }
-        // New stickers start in the middle, a little apart, in front of the sheet.
-        const offset = (next.length % 5) * 4;
-        next = [
-          ...next,
-          {
-            url: result.url,
-            x: layout.width / 2 + offset,
-            y: layout.height / 2 + offset,
-            width: 24,
-            ratio,
-            rotate: 0,
-            outline: true,
-            outlineColor: "#ffffff",
-            front: true,
-          },
-        ];
+        next = [...next, placed(result.url, ratio, next.length)];
         onChange(next);
         onSelect(next.length - 1);
+        if (share) await shareOne(result.url, ratio);
       }
     } catch {
       toast.error("Das Bild konnte nicht verarbeitet werden.");
     } finally {
       setBusy(false);
       if (input.current) input.current.value = "";
+      if (share) void refreshLibrary();
     }
   }
 
@@ -114,6 +147,43 @@ export function StickerPanel({
         Eigene Bilder frei auf dem Blatt, z. B. freigestellte PNGs. Den gewählten Sticker ziehst du im Blatt an seinem gestrichelten Rahmen.
       </p>
 
+      <div className="mb-3">
+        <p className="mb-1.5 text-sm font-extrabold">Sammlung für alle</p>
+        {library.length === 0 ? (
+          <p className="rounded-xl border-2 border-dashed border-(--nm-line) px-3 py-2.5 text-xs font-bold text-(--nm-muted)">
+            Noch leer. Lade ein Bild hoch, dann können es alle verwenden.
+          </p>
+        ) : (
+          <div className="grid max-h-48 grid-cols-6 gap-1.5 overflow-y-auto rounded-xl bg-(--nm-sunken) p-1.5">
+            {library.map((entry) => (
+              <div key={entry.id} className="group relative">
+                <button
+                  type="button"
+                  aria-label="Sticker aufs Blatt legen"
+                  disabled={stickers.length >= MAX_STICKERS}
+                  onClick={() => placeFromLibrary(entry)}
+                  className="flex aspect-square w-full cursor-pointer items-center justify-center rounded-lg border-2 border-transparent bg-(--nm-field) p-1 hover:border-[#ff9a2e] disabled:cursor-default"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={entry.url} alt="" loading="lazy" className="max-h-full max-w-full object-contain" />
+                </button>
+                {entry.mine && (
+                  <button
+                    type="button"
+                    aria-label="Aus der Sammlung nehmen"
+                    onClick={() => void remove(entry)}
+                    className="absolute -top-1 -right-1 hidden size-5 cursor-pointer items-center justify-center rounded-full bg-(--nm-danger) text-white group-hover:flex focus-visible:flex [&_svg]:size-3"
+                  >
+                    <XIcon />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {stickers.length > 0 && <p className="mb-1.5 text-sm font-extrabold">Auf diesem Blatt</p>}
       {stickers.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-2">
           {stickers.map((sticker, i) => (
@@ -195,6 +265,20 @@ export function StickerPanel({
                 <CopyIcon /> Kopie
               </button>
             )}
+            {!shared.has(current.url) && (
+              <button
+                type="button"
+                className={small}
+                onClick={async () => {
+                  if (await shareOne(current.url, current.ratio)) {
+                    await refreshLibrary();
+                    toast.success("In der Sammlung für alle");
+                  }
+                }}
+              >
+                <Share2Icon /> Für alle teilen
+              </button>
+            )}
             <button
               type="button"
               className={cn(small, "text-(--nm-danger)")}
@@ -203,7 +287,7 @@ export function StickerPanel({
                 onSelect(null);
               }}
             >
-              <Trash2Icon /> Entfernen
+              <Trash2Icon /> Vom Blatt
             </button>
           </div>
         </div>
@@ -219,6 +303,10 @@ export function StickerPanel({
         {busy ? <Loader2Icon className="animate-spin" /> : <ImagePlusIcon />}
         {busy ? "Lädt hoch …" : "PNG hinzufügen"}
       </button>
+      <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm font-bold text-(--nm-muted)">
+        <input type="checkbox" checked={share} onChange={(event) => setShare(event.target.checked)} className="size-4 accent-[#ff9a2e]" />
+        Hochgeladene Bilder auch in die Sammlung für alle
+      </label>
     </Panel>
   );
 }
