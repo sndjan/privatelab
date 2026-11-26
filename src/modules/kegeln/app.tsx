@@ -5,10 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ViewLink as Link, useViewNavigate } from "@/lib/query/view-link";
-import { deleteGame, setPaid } from "./actions";
-import { displayName, feesOf, formatEuro, gameSum, nameKey, openSum, type Game } from "./data";
+import { deleteGame, setSeasonPaid } from "./actions";
+import { displayName, feesOf, formatEuro, gameSum, nameKey, openSum, paidKey, type Game } from "./data";
 import { GameEditor } from "./editor";
 import { FeeTable } from "./fee-table";
 import { RulesView } from "./rules";
@@ -91,7 +92,8 @@ function Page({ title, back, children }: { title: string; back: string; children
 }
 
 function GamesList() {
-  const { games } = useKegelnData();
+  const { games, paid } = useKegelnData();
+  const paidSet = useMemo(() => new Set(paid), [paid]);
   return (
     <div className="space-y-4">
       <Button asChild size="lg" className="h-14 w-full text-base">
@@ -106,7 +108,7 @@ function GamesList() {
       ) : (
         <ul className="divide-y rounded-lg border">
           {games.map((game) => {
-            const open = openSum(game);
+            const open = openSum(game, paidSet);
             return (
               <li key={game.id}>
                 <Link href={`${PATH}?view=game&id=${game.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50">
@@ -134,23 +136,10 @@ function GamesList() {
 
 function GameView({ game }: { game: Game }) {
   const { settings } = useKegelnData();
-  const patch = usePatch();
   const refresh = useRefresh();
   const navigate = useViewNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const total = gameSum(game);
-
-  function togglePaid(index: number, paid: boolean) {
-    patch((data) => ({
-      ...data,
-      games: data.games.map((entry) =>
-        entry.id === game.id ? { ...entry, lines: entry.lines.map((line, i) => (i === index ? { ...line, paid } : line)) } : entry,
-      ),
-    }));
-    setPaid(game.id, index, paid)
-      .catch(() => toast.error("Nicht gespeichert."))
-      .finally(() => void refresh());
-  }
 
   // For the team chat: one line per player who owes something.
   function copy() {
@@ -186,7 +175,14 @@ function GameView({ game }: { game: Game }) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <FeeTable lines={game.lines} rates={game.rates} threshold={game.threshold} nicknames={settings.nicknames} onPaid={togglePaid} />
+          <FeeTable lines={game.lines} rates={game.rates} threshold={game.threshold} nicknames={settings.nicknames} />
+          <p className="mt-3 text-xs text-muted-foreground">
+            Wer bezahlt hat, wird für die ganze Saison abgehakt, unter{" "}
+            <Link href={`${PATH}?tab=season`} className="underline underline-offset-2 hover:text-foreground">
+              Saison
+            </Link>
+            .
+          </p>
         </CardContent>
       </Card>
       <div className="flex flex-wrap gap-2">
@@ -213,32 +209,43 @@ function GameView({ game }: { game: Game }) {
 }
 
 function SeasonView() {
-  const { games, settings } = useKegelnData();
+  const { games, settings, paid } = useKegelnData();
+  const patch = usePatch();
+  const refresh = useRefresh();
+  const paidSet = useMemo(() => new Set(paid), [paid]);
   const seasons = useMemo(() => [...new Set(games.map((game) => game.season || "ohne Saison"))].sort().reverse(), [games]);
   const [chosen, setChosen] = useState<string | null>(null);
   const season = chosen && seasons.includes(chosen) ? chosen : seasons[0];
-  const inSeason = games.filter((game) => (game.season || "ohne Saison") === season);
+  const inSeason = useMemo(() => games.filter((game) => (game.season || "ohne Saison") === season), [games, season]);
+  // The season as stored ('' for games without one), for the "bezahlt" ticks.
+  const seasonValue = inSeason[0]?.season ?? "";
 
   const players = useMemo(() => {
-    const byKey = new Map<string, { name: string; games: number; errors: number; sum: number; open: number }>();
+    const byKey = new Map<string, { key: string; name: string; games: number; errors: number; sum: number; paid: boolean }>();
     for (const game of inSeason) {
       for (const line of game.lines) {
         const key = nameKey(line.name);
-        const entry = byKey.get(key) ?? { name: line.name, games: 0, errors: 0, sum: 0, open: 0 };
-        const fee = feesOf(line, game.rates, game.threshold).sum;
+        const entry = byKey.get(key) ?? { key, name: line.name, games: 0, errors: 0, sum: 0, paid: paidSet.has(paidKey(game.season, line.name)) };
         entry.games += line.started ? 1 : 0;
         entry.errors += line.errors;
-        entry.sum += fee;
-        entry.open += line.paid ? 0 : fee;
+        entry.sum += feesOf(line, game.rates, game.threshold).sum;
         byKey.set(key, entry);
       }
     }
     return [...byKey.values()].sort((a, b) => b.sum - a.sum);
-  }, [inSeason]);
+  }, [inSeason, paidSet]);
+
+  function togglePaid(player: string, value: boolean) {
+    const key = paidKey(seasonValue, player);
+    patch((data) => ({ ...data, paid: value ? [...data.paid, key] : data.paid.filter((entry) => entry !== key) }));
+    setSeasonPaid(seasonValue, player, value)
+      .catch(() => toast.error("Nicht gespeichert."))
+      .finally(() => void refresh());
+  }
 
   if (games.length === 0) return <p className="py-8 text-center text-sm text-muted-foreground">Noch keine Spiele.</p>;
   const total = players.reduce((sum, player) => sum + player.sum, 0);
-  const open = players.reduce((sum, player) => sum + player.open, 0);
+  const open = players.reduce((sum, player) => sum + (player.paid ? 0 : player.sum), 0);
 
   return (
     <Card>
@@ -266,17 +273,25 @@ function SeasonView() {
               <th scope="col" className="hidden py-2 pl-3 text-right font-medium sm:table-cell">Spiele</th>
               <th scope="col" className="py-2 pl-3 text-right font-medium">Fehler</th>
               <th scope="col" className="py-2 pl-3 text-right font-medium">Gesamt</th>
-              <th scope="col" className="py-2 pl-3 text-right font-medium">offen</th>
+              <th scope="col" className="py-2 pl-3 text-center font-medium">bezahlt</th>
             </tr>
           </thead>
           <tbody>
             {players.map((player) => (
-              <tr key={player.name} className="border-b last:border-0">
+              <tr key={player.key} className={`border-b last:border-0 ${player.paid ? "text-muted-foreground" : ""}`}>
                 <th scope="row" className="py-2 text-left font-medium">{displayName(player.name, settings.nicknames)}</th>
                 <td className="hidden py-2 pl-3 text-right whitespace-nowrap sm:table-cell">{player.games}</td>
                 <td className="py-2 pl-3 text-right whitespace-nowrap">{player.errors}</td>
                 <td className="py-2 pl-3 text-right whitespace-nowrap font-semibold">{formatEuro(player.sum)}</td>
-                <td className="py-2 pl-3 text-right whitespace-nowrap text-muted-foreground">{player.open > 0 ? formatEuro(player.open) : "–"}</td>
+                <td className="py-2 pl-3 text-center">
+                  <Checkbox
+                    className="size-5 align-middle"
+                    checked={player.paid}
+                    disabled={player.sum === 0 && !player.paid}
+                    onCheckedChange={(checked) => togglePaid(player.key, checked === true)}
+                    aria-label={`${displayName(player.name, settings.nicknames)} hat für die Saison bezahlt`}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>

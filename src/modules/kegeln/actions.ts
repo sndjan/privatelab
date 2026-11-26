@@ -100,14 +100,19 @@ export async function saveGame(input: GameInput): Promise<Result<{ id: string }>
   return { id: saved.id };
 }
 
-// Ticks a player off as paid (or not) without touching the rest of the game.
-export async function setPaid(gameId: string, index: number, paid: boolean) {
-  const { supabase } = await requireAccess();
-  const game = check(await supabase.from("kegel_games").select("lines").eq("id", text(gameId, 40)).single());
-  const lines = (game.lines as unknown[]).map((line) => cleanLine(line as never));
-  if (!lines[index]) throw new Error("No such player");
-  lines[index] = { ...lines[index], paid: Boolean(paid) };
-  check(await supabase.from("kegel_games").update({ lines, updated_at: new Date().toISOString() }).eq("id", text(gameId, 40)).select("id"));
+// Ticks a player off as paid (or not) for a whole season. player is a
+// nameKey, season '' stands for games without a season.
+export async function setSeasonPaid(season: string, player: string, paid: boolean) {
+  const { user, supabase } = await requireAccess();
+  const row = { user_id: user.id, season: text(season, 20), player: nameKey(text(player, 80)) };
+  if (!row.player) throw new Error("No such player");
+  if (paid) {
+    check(await supabase.from("kegel_season_paid").upsert(row, { ignoreDuplicates: true }).select("player"));
+  } else {
+    check(
+      await supabase.from("kegel_season_paid").delete().eq("user_id", user.id).eq("season", row.season).eq("player", row.player).select("player"),
+    );
+  }
 }
 
 export async function deleteGame(id: string) {

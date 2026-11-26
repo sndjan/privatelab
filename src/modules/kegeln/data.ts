@@ -59,7 +59,6 @@ export type Line = {
   // Substituted at half time: the two players share the block's costs, so
   // each pays half of every fee.
   half: boolean;
-  paid: boolean;
 };
 
 export type Game = {
@@ -113,8 +112,14 @@ export function feesOf(line: Line, rates: Rates, threshold: number): Fees {
 export const gameSum = (game: Pick<Game, "lines" | "rates" | "threshold">) =>
   game.lines.reduce((sum, line) => sum + feesOf(line, game.rates, game.threshold).sum, 0);
 
-export const openSum = (game: Pick<Game, "lines" | "rates" | "threshold">) =>
-  game.lines.filter((line) => !line.paid).reduce((sum, line) => sum + feesOf(line, game.rates, game.threshold).sum, 0);
+// "bezahlt" counts for a whole season: one tick per player and season, kept
+// as a set of paidKey values (season '' = games without a season).
+export const paidKey = (season: string, name: string) => `${season}\n${nameKey(name)}`;
+
+export const openSum = (game: Pick<Game, "lines" | "rates" | "threshold" | "season">, paid: ReadonlySet<string>) =>
+  game.lines
+    .filter((line) => !paid.has(paidKey(game.season, line.name)))
+    .reduce((sum, line) => sum + feesOf(line, game.rates, game.threshold).sum, 0);
 
 const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 export const formatEuro = (cents: number) => euro.format(cents / 100);
@@ -272,7 +277,6 @@ export function linesFromReport(report: Report): Line[] {
       conduct: false,
       late: false,
       half: false,
-      paid: false,
     });
   }
   return lines;
@@ -291,7 +295,6 @@ export const emptyLine = (name = ""): Line => ({
   conduct: false,
   late: false,
   half: false,
-  paid: false,
 });
 
 // Season from a date: from July on it is the next season, "2026-27".
@@ -329,6 +332,5 @@ export function cleanLine(input: Partial<Line>): Line {
     conduct: input.conduct === true,
     late: input.late === true,
     half: input.half === true,
-    paid: input.paid === true,
   };
 }

@@ -1,7 +1,5 @@
 "use client";
 
-import { Checkbox } from "@/components/ui/checkbox";
-import { cn } from "@/lib/utils";
 import { columns, displayName, feesOf, formatEuro, type Fees, type Line, type Rates } from "./data";
 
 type Row = { line: Line; fees: Fees };
@@ -10,8 +8,6 @@ type Props = {
   rates: Rates;
   threshold: number;
   nicknames: Record<string, string>;
-  // With it, a "bezahlt" tick per player.
-  onPaid?: (index: number, paid: boolean) => void;
 };
 
 // What each player pays. On a phone a list (one player per row, the fees as
@@ -46,7 +42,7 @@ function feeParts({ line, fees }: Row, shown: typeof columns, threshold: number)
     });
 }
 
-function FeeList({ rows, shown, threshold, nicknames, onPaid }: Inner) {
+function FeeList({ rows, shown, threshold, nicknames }: Inner) {
   const total = rows.reduce((sum, row) => sum + row.fees.sum, 0);
   return (
     <ul className="divide-y text-sm sm:hidden">
@@ -54,7 +50,7 @@ function FeeList({ rows, shown, threshold, nicknames, onPaid }: Inner) {
         const name = displayName(row.line.name, nicknames);
         const parts = feeParts(row, shown, threshold);
         return (
-          <li key={index} className={cn("flex items-start gap-3 py-2.5", row.line.paid && onPaid && "text-muted-foreground")}>
+          <li key={index} className="flex items-start gap-3 py-2.5">
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">
                 {name}
@@ -75,28 +71,18 @@ function FeeList({ rows, shown, threshold, nicknames, onPaid }: Inner) {
               </p>
             </div>
             <span className="pt-px font-semibold whitespace-nowrap tabular-nums">{row.fees.sum > 0 ? formatEuro(row.fees.sum) : "–"}</span>
-            {onPaid && (
-              <Checkbox
-                className="mt-0.5 size-5"
-                checked={row.line.paid}
-                disabled={row.fees.sum === 0}
-                onCheckedChange={(checked) => onPaid(index, checked === true)}
-                aria-label={`${name} hat bezahlt`}
-              />
-            )}
           </li>
         );
       })}
       <li className="flex items-baseline gap-3 py-2.5 font-semibold">
         <span className="flex-1">Summe</span>
         <span className="tabular-nums">{formatEuro(total)}</span>
-        {onPaid && <span className="w-5" aria-hidden="true" />}
       </li>
     </ul>
   );
 }
 
-function FeeGrid({ rows, shown, threshold, rates, nicknames, onPaid }: Inner) {
+function FeeGrid({ rows, shown, threshold, rates, nicknames }: Inner) {
   const total = rows.reduce((sum, row) => sum + row.fees.sum, 0);
   return (
     <div className="hidden overflow-x-auto sm:block">
@@ -115,16 +101,11 @@ function FeeGrid({ rows, shown, threshold, rates, nicknames, onPaid }: Inner) {
             <th scope="col" className="py-2 pl-2 text-right font-medium">
               Gesamt
             </th>
-            {onPaid && (
-              <th scope="col" className="py-2 pl-3 text-center font-medium">
-                bezahlt
-              </th>
-            )}
           </tr>
         </thead>
         <tbody>
           {rows.map(({ line, fees }, index) => (
-            <tr key={index} className={cn("border-b last:border-0", line.paid && onPaid && "text-muted-foreground")}>
+            <tr key={index} className="border-b last:border-0">
               <th scope="row" className="py-2 pr-2 text-left font-medium whitespace-nowrap">
                 {displayName(line.name, nicknames)}
                 {line.half && <span className="font-normal text-muted-foreground"> (½)</span>}
@@ -135,16 +116,6 @@ function FeeGrid({ rows, shown, threshold, rates, nicknames, onPaid }: Inner) {
                 </td>
               ))}
               <td className="py-2 pl-2 text-right font-semibold whitespace-nowrap">{fees.sum > 0 ? formatEuro(fees.sum) : "–"}</td>
-              {onPaid && (
-                <td className="py-2 pl-3 text-center">
-                  <Checkbox
-                    checked={line.paid}
-                    disabled={fees.sum === 0}
-                    onCheckedChange={(checked) => onPaid(index, checked === true)}
-                    aria-label={`${displayName(line.name, nicknames)} hat bezahlt`}
-                  />
-                </td>
-              )}
             </tr>
           ))}
         </tbody>
@@ -162,7 +133,6 @@ function FeeGrid({ rows, shown, threshold, rates, nicknames, onPaid }: Inner) {
               );
             })}
             <td className="py-2 pl-2 text-right whitespace-nowrap">{formatEuro(total)}</td>
-            {onPaid && <td />}
           </tr>
         </tfoot>
       </table>
