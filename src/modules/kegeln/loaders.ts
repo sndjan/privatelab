@@ -1,8 +1,9 @@
 // Server only. What the browser cache loads for the Kegelkasse (see
-// src/lib/query/data.ts): the settings and every saved game.
+// src/lib/query/data.ts): the settings, every saved game and who has paid
+// for which season (as paidKey values).
 import type { Loader } from "@/lib/query/loaders";
 import { createClient } from "@/lib/supabase/server";
-import { cleanLine, cleanRates, defaultSettings, type Game, type Settings } from "./data";
+import { cleanLine, cleanRates, defaultSettings, paidKey, type Game, type Settings } from "./data";
 
 type GameRow = {
   id: string;
@@ -19,15 +20,16 @@ type GameRow = {
 };
 
 export const kegelnLoaders = {
-  all: async (_, user): Promise<{ settings: Settings; games: Game[] }> => {
+  all: async (_, user): Promise<{ settings: Settings; games: Game[]; paid: string[] }> => {
     const supabase = await createClient();
-    const [{ data: settings }, { data: games }] = await Promise.all([
+    const [{ data: settings }, { data: games }, { data: paid }] = await Promise.all([
       supabase.from("kegel_settings").select("team, threshold, rates, nicknames").eq("user_id", user.id).maybeSingle(),
       supabase
         .from("kegel_games")
         .select("id, played_on, matchday, season, opponent, home, threshold, rates, lines, note, created_at")
         .order("played_on", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false }),
+      supabase.from("kegel_season_paid").select("season, player").eq("user_id", user.id),
     ]);
     return {
       settings: settings
@@ -51,6 +53,8 @@ export const kegelnLoaders = {
         note: row.note,
         createdAt: row.created_at,
       })),
+      // player is already a nameKey; paidKey keys it again, which keeps it.
+      paid: (paid ?? []).map((row: { season: string; player: string }) => paidKey(row.season, row.player)),
     };
   },
 } satisfies Record<string, Loader>;
