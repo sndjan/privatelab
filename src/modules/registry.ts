@@ -8,6 +8,7 @@ import CrosswordModule from "./crossword";
 import EventsModule from "./events";
 import FireModule from "./fire";
 import FokusModule from "./fokus";
+import KanzleiModule from "./kanzlei";
 import KegelnModule from "./kegeln";
 import { moduleMeta, type ModuleMeta } from "./meta";
 import NochmalModule from "./nochmal";
@@ -40,6 +41,7 @@ const pages: Record<string, ComponentType<ModulePageProps>> = {
   events: EventsModule,
   fire: FireModule,
   fokus: FokusModule,
+  kanzlei: KanzleiModule,
   kegeln: KegelnModule,
   nochmal: NochmalModule,
   packing: PackingModule,
