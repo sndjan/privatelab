@@ -134,19 +134,53 @@ create table public.kanzlei_plans (
   primary key (user_id, day)
 );
 
-do $$
-declare
-  t text;
-begin
-  foreach t in array array['kanzlei_settings', 'kanzlei_types', 'kanzlei_recurring', 'kanzlei_items',
-    'kanzlei_absences', 'kanzlei_history', 'kanzlei_plans']
-  loop
-    execute format('alter table public.%I enable row level security', t);
-    execute format('grant select, insert, update, delete on public.%I to authenticated', t);
-    execute format(
-      'create policy "%s: own rows" on public.%I for all to authenticated
-         using ((select auth.uid()) = user_id and (select private.has_module_access(''kanzlei'')))
-         with check ((select auth.uid()) = user_id and (select private.has_module_access(''kanzlei'')))',
-      t, t);
-  end loop;
-end $$;
+alter table public.kanzlei_settings enable row level security;
+alter table public.kanzlei_types enable row level security;
+alter table public.kanzlei_recurring enable row level security;
+alter table public.kanzlei_items enable row level security;
+alter table public.kanzlei_absences enable row level security;
+alter table public.kanzlei_history enable row level security;
+alter table public.kanzlei_plans enable row level security;
+
+grant select, insert, update, delete on public.kanzlei_settings to authenticated;
+grant select, insert, update, delete on public.kanzlei_types to authenticated;
+grant select, insert, update, delete on public.kanzlei_recurring to authenticated;
+grant select, insert, update, delete on public.kanzlei_items to authenticated;
+grant select, insert, update, delete on public.kanzlei_absences to authenticated;
+grant select, insert, update, delete on public.kanzlei_history to authenticated;
+grant select, insert, update, delete on public.kanzlei_plans to authenticated;
+
+create policy "kanzlei_settings: own rows" on public.kanzlei_settings
+  for all to authenticated
+  using ((select auth.uid()) = user_id and (select private.has_module_access('kanzlei')))
+  with check ((select auth.uid()) = user_id and (select private.has_module_access('kanzlei')));
+
+create policy "kanzlei_types: own rows" on public.kanzlei_types
+  for all to authenticated
+  using ((select auth.uid()) = user_id and (select private.has_module_access('kanzlei')))
+  with check ((select auth.uid()) = user_id and (select private.has_module_access('kanzlei')));
+
+create policy "kanzlei_recurring: own rows" on public.kanzlei_recurring
+  for all to authenticated
+  using ((select auth.uid()) = user_id and (select private.has_module_access('kanzlei')))
+  with check ((select auth.uid()) = user_id and (select private.has_module_access('kanzlei')));
+
+create policy "kanzlei_items: own rows" on public.kanzlei_items
+  for all to authenticated
+  using ((select auth.uid()) = user_id and (select private.has_module_access('kanzlei')))
+  with check ((select auth.uid()) = user_id and (select private.has_module_access('kanzlei')));
+
+create policy "kanzlei_absences: own rows" on public.kanzlei_absences
+  for all to authenticated
+  using ((select auth.uid()) = user_id and (select private.has_module_access('kanzlei')))
+  with check ((select auth.uid()) = user_id and (select private.has_module_access('kanzlei')));
+
+create policy "kanzlei_history: own rows" on public.kanzlei_history
+  for all to authenticated
+  using ((select auth.uid()) = user_id and (select private.has_module_access('kanzlei')))
+  with check ((select auth.uid()) = user_id and (select private.has_module_access('kanzlei')));
+
+create policy "kanzlei_plans: own rows" on public.kanzlei_plans
+  for all to authenticated
+  using ((select auth.uid()) = user_id and (select private.has_module_access('kanzlei')))
+  with check ((select auth.uid()) = user_id and (select private.has_module_access('kanzlei')));
