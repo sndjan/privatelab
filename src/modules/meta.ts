@@ -49,6 +49,14 @@ export const moduleMeta: ModuleMeta[] = [
     status: "live",
   },
   {
+    id: "kanzlei",
+    name: "Kanzlei-Planer",
+    description: "Aufträge und Aufgaben einer Steuerkanzlei, Tagesplan und Wochenvorschau mit KI, Chat für schnelle Meldungen.",
+    icon: "🗂️",
+    category: "alltag",
+    status: "live",
+  },
+  {
     id: "tennis",
     name: "Tennistraining",
     description: "Trainingsstunden in 5 Minuten planen: Übungen mit Skizze, Lieblingsspiele pro Gruppe, Live-Ansicht und Ausdruck.",

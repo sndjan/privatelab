@@ -2,6 +2,7 @@ import type { CurrentUser } from "@/lib/auth";
 import { eventsLoaders } from "@/modules/events/loaders";
 import { fireLoaders } from "@/modules/fire/loaders";
 import { fokusLoaders } from "@/modules/fokus/loaders";
+import { kanzleiLoaders } from "@/modules/kanzlei/loaders";
 import { kegelnLoaders } from "@/modules/kegeln/loaders";
 import { nochmalLoaders } from "@/modules/nochmal/loaders";
 import { packingLoaders } from "@/modules/packing/loaders";
@@ -22,6 +23,7 @@ export const loaders = {
   events: eventsLoaders,
   fire: fireLoaders,
   fokus: fokusLoaders,
+  kanzlei: kanzleiLoaders,
   kegeln: kegelnLoaders,
   nochmal: nochmalLoaders,
   packing: packingLoaders,
